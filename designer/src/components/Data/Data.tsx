@@ -1,15 +1,9 @@
-import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import FontIcon from '../../common/FontIcon'
 import Loader from '../../common/Loader'
-import LoadingSteps from '../../common/LoadingSteps'
 import ModeToggle, { Mode } from '../ModeToggle'
 import ConfigEditor from '../ConfigEditor'
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuCheckboxItem,
-} from '../ui/dropdown-menu'
+// Dropdown menu no longer used here
 import {
   Dialog,
   DialogContent,
@@ -24,7 +18,6 @@ import { Input } from '../ui/input'
 import { Textarea } from '../ui/textarea'
 import { Badge } from '../ui/badge'
 import { useToast } from '../ui/toast'
-import SearchInput from '../ui/search-input'
 import { useNavigate } from 'react-router-dom'
 import { useActiveProject } from '../../hooks/useActiveProject'
 import { useListDatasets, useCreateDataset } from '../../hooks/useDatasets'
@@ -35,7 +28,6 @@ type RawFile = UIFile
 const Data = () => {
   const [isDragging, setIsDragging] = useState(false)
   const [isDropped, setIsDropped] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
   const [rawFiles, setRawFiles] = useState<RawFile[]>(() => {
     try {
       const stored = localStorage.getItem('lf_raw_files')
@@ -45,7 +37,6 @@ const Data = () => {
     }
   })
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [searchValue, setSearchValue] = useState('')
   const [mode, setMode] = useState<Mode>('designer')
 
   const navigate = useNavigate()
@@ -87,9 +78,7 @@ const Data = () => {
 
 
   // Map of fileKey -> array of dataset ids
-  const [fileAssignments, setFileAssignments] = useState<
-    Record<string, string[]>
-  >(() => {
+  const [fileAssignments] = useState<Record<string, string[]>>(() => {
     try {
       const stored = localStorage.getItem('lf_file_assignments')
       return stored ? (JSON.parse(stored) as Record<string, string[]>) : {}
@@ -97,54 +86,6 @@ const Data = () => {
       return {}
     }
   })
-
-  const [uploadStatus, setUploadStatus] = useState<
-    Record<string, 'processing' | 'done'>
-  >({})
-
-  // Delete file (project-wide) dialog state
-  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
-  const [fileToDelete, setFileToDelete] = useState<RawFile | null>(null)
-
-  const openDeleteProjectFile = (file: RawFile) => {
-    setFileToDelete(file)
-    setIsDeleteOpen(true)
-  }
-
-  const confirmDeleteProjectFile = () => {
-    if (!fileToDelete) return
-    const id = fileToDelete.id
-    // remove from raw files
-    setRawFiles(prev => prev.filter(f => f.id !== id))
-    // remove from assignments
-    setFileAssignments(prev => {
-      const next = { ...prev }
-      delete (next as any)[id]
-      return next
-    })
-    setIsDeleteOpen(false)
-    setFileToDelete(null)
-    toast({ message: 'File removed from project', variant: 'default' })
-  }
-
-  const getFileKey = useCallback((file: RawFile) => {
-    return file.id
-  }, [])
-
-  const toggleFileDataset = useCallback(
-    (file: RawFile, datasetId: string) => {
-      const key = getFileKey(file)
-      setFileAssignments(prev => {
-        const current = prev[key] ?? []
-        const isAssigned = current.includes(datasetId)
-        const next = isAssigned
-          ? current.filter(id => id !== datasetId)
-          : [...current, datasetId]
-        return { ...prev, [key]: next }
-      })
-    },
-    [getFileKey]
-  )
 
   // (initial state is loaded from localStorage)
 
@@ -217,7 +158,6 @@ const Data = () => {
   const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
     setIsDropped(true)
-    setIsLoading(true)
 
     setTimeout(() => {
       setIsDragging(false)
@@ -233,32 +173,11 @@ const Data = () => {
         lastModified: f.lastModified,
         type: f.type,
       }))
-      setUploadStatus(prev => ({
-        ...prev,
-        ...Object.fromEntries(
-          converted.map(rf => [rf.id, 'processing' as const])
-        ),
-      }))
       setRawFiles(prev => {
         const existingIds = new Set(prev.map(r => r.id))
         const deduped = converted.filter(r => !existingIds.has(r.id))
         return [...prev, ...deduped]
       })
-      setIsLoading(false)
-      setTimeout(() => {
-        setUploadStatus(prev => ({
-          ...prev,
-          ...Object.fromEntries(converted.map(rf => [rf.id, 'done' as const])),
-        }))
-        // remove the status after a short delay for a brief fade-out effect
-        setTimeout(() => {
-          setUploadStatus(prev => {
-            const next = { ...prev }
-            for (const rf of converted) delete (next as any)[rf.id]
-            return next
-          })
-        }, 1500)
-      }, 1500)
     }, 4000)
 
     // console.log('Dropped files:', files)
@@ -269,7 +188,6 @@ const Data = () => {
     if (files.length === 0) return
 
     setIsDropped(true)
-    setIsLoading(true)
 
     setTimeout(() => {
       const converted: RawFile[] = files.map(f => ({
@@ -279,49 +197,16 @@ const Data = () => {
         lastModified: f.lastModified,
         type: f.type,
       }))
-      setUploadStatus(prev => ({
-        ...prev,
-        ...Object.fromEntries(
-          converted.map(rf => [rf.id, 'processing' as const])
-        ),
-      }))
       setRawFiles(prev => {
         const existingIds = new Set(prev.map(r => r.id))
         const deduped = converted.filter(r => !existingIds.has(r.id))
         return [...prev, ...deduped]
       })
       setIsDropped(false)
-      setIsLoading(false)
-      setTimeout(() => {
-        setUploadStatus(prev => ({
-          ...prev,
-          ...Object.fromEntries(converted.map(rf => [rf.id, 'done' as const])),
-        }))
-        setTimeout(() => {
-          setUploadStatus(prev => {
-            const next = { ...prev }
-            for (const rf of converted) delete (next as any)[rf.id]
-            return next
-          })
-        }, 1500)
-      }, 1500)
     }, 4000)
 
     // console.log('Selected files:', files)
   }
-
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value
-    setSearchValue(value)
-  }
-
-  const filteredFiles = useMemo(
-    () =>
-      rawFiles.filter(file =>
-        file.name.toLowerCase().includes(searchValue.toLowerCase())
-      ),
-    [rawFiles, searchValue]
-  )
 
   const formatLastRun = (d: Date) => {
     if (!(d instanceof Date) || isNaN(d.getTime())) {
@@ -336,7 +221,7 @@ const Data = () => {
 
   return (
     <div
-      className="h-full w-full flex flex-col gap-2 pb-20"
+      className="h-full w-full flex flex-col gap-2 pb-32"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -504,224 +389,13 @@ const Data = () => {
                 </div>
               )
             )}
-            {mode === 'designer' && (
-              <div className="mb-4 flex items-center justify-between">
-                <div>Raw data files</div>
-                <Button size="sm" onClick={() => fileInputRef.current?.click()}>
-                  Upload data
-                </Button>
-              </div>
-            )}
-            {isLoading && rawFiles.length <= 0 ? (
-              <div className="w-full flex flex-col items-center justify-center border border-solid rounded-lg p-4 gap-2 transition-colors border-input">
-                <div className="flex flex-col items-center justify-center gap-4 text-center my-[40px]">
-                  <div className="text-xl text-foreground">
-                    Processing your data...
-                  </div>
-                  <Loader size={72} className="border-primary" />
-                  <LoadingSteps />
-                </div>
-              </div>
-            ) : (
-              mode === 'designer' &&
-              rawFiles.length <= 0 && (
-                <div className="w-full flex flex-col items-center justify-center border border-dashed rounded-lg p-4 gap-2 transition-colors border-input">
-                  <div className="flex flex-col items-center justify-center gap-4 text-center my-[56px]">
-                    <FontIcon
-                      type="upload"
-                      className="w-10 h-10 text-foreground"
-                    />
-                    <div className="text-xl text-foreground">
-                      Drop data here to start
-                    </div>
-                    <button
-                      className="text-sm py-2 px-6 border border-solid border-foreground rounded-lg hover:bg-secondary hover:border-secondary hover:text-secondary-foreground"
-                      onClick={() => {
-                        fileInputRef.current?.click()
-                      }}
-                    >
-                      Or choose files
-                    </button>
-                  </div>
-                  <p className="max-w-[527px] text-sm text-muted-foreground text-center mb-10">
-                    You can upload PDFs, explore various list formats, or draw
-                    inspiration from other data sources to enhance your project
-                    with LlaMaFarm.
-                  </p>
-                </div>
-              )
-            )}
-            {mode === 'designer' && filteredFiles.length > 0 && (
-              <div>
-                <div className="w-full flex flex-row gap-2">
-                  <div className="w-3/4">
-                    <SearchInput
-                      placeholder="Search files"
-                      value={searchValue}
-                      onChange={handleSearch}
-                    />
-                  </div>
-                  <div className="w-1/4 text-sm text-foreground flex items-center bg-card rounded-lg px-3 justify-between border border-input">
-                    <div>All datasets</div>
-                    <FontIcon
-                      type="chevron-down"
-                      className="w-4 h-4 text-foreground"
-                    />
-                  </div>
-                </div>
-                <div className="rounded-md border border-input bg-background p-0 text-xs mt-2 mb-20">
-                  <ul>
-                    {filteredFiles.map((file, i) => (
-                      <li
-                        key={i}
-                        className="flex items-center justify-between px-3 py-3 border-b last:border-b-0 border-border/60"
-                      >
-                        <span className="font-mono text-xs text-muted-foreground truncate max-w-[60%]">
-                          {file.name}
-                        </span>
-                        <div className="w-1/2 grid grid-cols-[1fr_88px_auto] items-center gap-4">
-                          {/* Dataset assignment dropdown */}
-                          <div className="flex items-center gap-2">
-                            {(() => {
-                              const key = getFileKey(file)
-                              const assignedIds = fileAssignments[key] ?? []
-                              const assignedNames = assignedIds
-                                .map(
-                                  id => datasets.find(d => d.id === id)?.name
-                                )
-                                .filter(Boolean) as string[]
-                              const label =
-                                assignedNames.length === 0
-                                  ? 'Unassigned'
-                                  : assignedNames.length === 1
-                                    ? assignedNames[0]
-                                    : `${assignedNames.length} datasets`
-                              return (
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <button className="text-xs flex items-center gap-2 border border-input rounded-md px-2 py-1 bg-card text-foreground">
-                                      <span className="truncate max-w-[160px]">
-                                        {label}
-                                      </span>
-                                      <FontIcon
-                                        type="chevron-down"
-                                        className="w-3 h-3 text-muted-foreground"
-                                      />
-                                    </button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent className="w-56">
-                                    <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                                      Assign to datasets
-                                    </div>
-                                    {datasets.map(ds => (
-                                      <DropdownMenuCheckboxItem
-                                        key={ds.id}
-                                        checked={(
-                                          fileAssignments[key] ?? []
-                                        ).includes(ds.id)}
-                                        onCheckedChange={() =>
-                                          toggleFileDataset(file, ds.id)
-                                        }
-                                      >
-                                        {ds.name}
-                                      </DropdownMenuCheckboxItem>
-                                    ))}
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              )
-                            })()}
-                          </div>
-                          {/* File size column */}
-                          <div className="text-xs text-muted-foreground">
-                            {Math.ceil((file as any).size / 1024)} KB
-                          </div>
-                          {/* Right actions: status + trash */}
-                          <div className="flex items-center gap-6">
-                            {(() => {
-                              const key = getFileKey(file)
-                              const status = uploadStatus[key]
-                              if (status === 'processing') {
-                                return (
-                                  <div className="flex items-center gap-1 text-muted-foreground">
-                                    <FontIcon type="fade" className="w-4 h-4" />
-                                    <div className="text-xs">Processing</div>
-                                  </div>
-                                )
-                              }
-                              if (status === 'done') {
-                                return (
-                                  <FontIcon
-                                    type="checkmark-outline"
-                                    className="w-4 h-4 text-teal-600 dark:text-teal-400"
-                                  />
-                                )
-                              }
-                              return null
-                            })()}
-                            <button
-                              className="w-4 h-4 grid place-items-center text-muted-foreground hover:text-foreground"
-                              onClick={() => openDeleteProjectFile(file)}
-                              aria-label={`Remove ${file.name} from project`}
-                            >
-                              <FontIcon type="trashcan" className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                {/* Delete project file dialog */}
-                <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Remove file from project</DialogTitle>
-                    </DialogHeader>
-                    <div className="text-sm">
-                      <div className="mb-2 text-muted-foreground">
-                        This file will be removed from the project and from all
-                        datasets it belongs to. This action cannot be undone.
-                      </div>
-                      <div className="font-mono text-xs break-all">
-                        {fileToDelete?.name}
-                      </div>
-                      {fileToDelete &&
-                        (fileAssignments[fileToDelete.id] ?? []).length > 0 && (
-                          <div className="mt-3">
-                            <div className="text-xs text-muted-foreground mb-1">
-                              Currently in datasets:
-                            </div>
-                            <ul className="list-disc pl-5 text-xs">
-                              {(fileAssignments[fileToDelete.id] ?? [])
-                                .map(
-                                  id => datasets.find(d => d.id === id)?.name
-                                )
-                                .filter(Boolean)
-                                .map(name => (
-                                  <li key={name as string}>{name}</li>
-                                ))}
-                            </ul>
-                          </div>
-                        )}
-                    </div>
-                    <div className="mt-4 flex items-center justify-end gap-2">
-                      <DialogClose asChild>
-                        <Button variant="secondary">Cancel</Button>
-                      </DialogClose>
-                      <Button
-                        variant="destructive"
-                        onClick={confirmDeleteProjectFile}
-                      >
-                        Yes, remove
-                      </Button>
-                    </div>
-                  </DialogContent>
-                </Dialog>
-              </div>
-            )}
+            
+            {/* Project-level raw files UI removed: files now only exist within datasets. */}
           </div>
         )}
       </div>
+
+      {/* Edit/Delete dialogs removed in favor of simple View navigation */}
     </div>
   )
 }
