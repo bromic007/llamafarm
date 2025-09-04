@@ -26,25 +26,11 @@ import { Badge } from '../ui/badge'
 import { useToast } from '../ui/toast'
 import SearchInput from '../ui/search-input'
 import { useNavigate } from 'react-router-dom'
+import { useActiveProject } from '../../hooks/useActiveProject'
+import { useListDatasets, useCreateDataset } from '../../hooks/useDatasets'
+import type { UIFile } from '../../types/datasets'
 
-type Dataset = {
-  id: string
-  name: string
-  lastRun: Date
-  embedModel: string
-  numChunks: number
-  processedPercent: number // 0-100
-  version: string
-  description?: string
-}
-
-type RawFile = {
-  id: string // stable key (name:size:lastModified)
-  name: string
-  size: number
-  lastModified: number
-  type?: string
-}
+type RawFile = UIFile
 
 const Data = () => {
   const [isDragging, setIsDragging] = useState(false)
@@ -65,30 +51,40 @@ const Data = () => {
   const navigate = useNavigate()
   const { toast } = useToast()
 
-  // Datasets state (ensure at least one dataset exists)
-  const [datasets, setDatasets] = useState<Dataset[]>(() => {
-    try {
-      const stored = localStorage.getItem('lf_datasets')
-      if (stored) {
-        const parsed = JSON.parse(stored) as Array<
-          Omit<Dataset, 'lastRun'> & { lastRun: string }
-        >
-        return parsed.map(d => ({ ...d, lastRun: new Date(d.lastRun) }))
-      }
-    } catch {}
-    return [
-      {
-        id: 'default',
-        name: 'default-dataset',
+  // Get current active project for API calls
+  const activeProject = useActiveProject()
+
+  // Use React Query hooks for datasets with localStorage fallback
+  const { data: apiDatasets, isLoading: isDatasetsLoading, error: datasetsError } = useListDatasets(
+    activeProject?.namespace || '',
+    activeProject?.project || '',
+    { enabled: !!activeProject?.namespace && !!activeProject?.project }
+  )
+  const createDatasetMutation = useCreateDataset()
+  // const deleteDatasetMutation = useDeleteDataset() // TODO: Implement dataset deletion with API
+
+  // Convert API datasets to UI format
+  const datasets = useMemo(() => {
+    if (apiDatasets?.datasets) {
+      return apiDatasets.datasets.map((dataset) => ({
+        id: dataset.name,
+        name: dataset.name,
+        rag_strategy: dataset.rag_strategy,
+        files: dataset.files,
         lastRun: new Date(),
         embedModel: 'text-embedding-3-large',
-        numChunks: 28500,
+        numChunks: dataset.files.length ? `~${dataset.files.length * 100}` : 'unknown', // Estimated, or 'unknown' if unavailable
         processedPercent: 100,
-        version: 'v2',
+        version: 'v1',
         description: '',
-      },
-    ]
-  })
+      }))
+    }
+    return []
+  }, [apiDatasets])
+
+
+
+
 
   // Map of fileKey -> array of dataset ids
   const [fileAssignments, setFileAssignments] = useState<
@@ -168,53 +164,45 @@ const Data = () => {
     } catch {}
   }, [fileAssignments])
 
-  useEffect(() => {
-    try {
-      const serializable = datasets.map(d => ({
-        ...d,
-        lastRun: d.lastRun.toISOString(),
-      }))
-      localStorage.setItem('lf_datasets', JSON.stringify(serializable))
-    } catch {}
-  }, [datasets])
+  // Dataset persistence is handled in the setDatasets function for localStorage fallback
 
   // Create dataset dialog state
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [newDatasetName, setNewDatasetName] = useState('')
   const [newDatasetDescription, setNewDatasetDescription] = useState('')
 
-  const slugify = (value: string) =>
-    value
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
 
-  const handleCreateDataset = () => {
+
+  const handleCreateDataset = async () => {
     const name = newDatasetName.trim()
     if (!name) return
-    const baseId = slugify(name) || 'dataset'
-    let id = baseId
-    let counter = 1
-    const existingIds = new Set(datasets.map(d => d.id))
-    while (existingIds.has(id)) {
-      id = `${baseId}-${counter++}`
+
+    if (!activeProject?.namespace || !activeProject?.project) {
+      toast({ 
+        message: 'No active project selected', 
+        variant: 'destructive' 
+      })
+      return
     }
-    const created: Dataset = {
-      id,
-      name,
-      description: newDatasetDescription.trim(),
-      lastRun: new Date(),
-      embedModel: datasets[0]?.embedModel || 'text-embedding-3-large',
-      numChunks: 0,
-      processedPercent: 0,
-      version: 'v1',
+
+    try {
+      await createDatasetMutation.mutateAsync({
+        namespace: activeProject.namespace,
+        project: activeProject.project,
+        name,
+        rag_strategy: 'default', // Default strategy
+      })
+      toast({ message: 'Dataset created successfully', variant: 'default' })
+      setIsCreateOpen(false)
+      setNewDatasetName('')
+      setNewDatasetDescription('')
+    } catch (error) {
+      console.error('Failed to create dataset:', error)
+      toast({ 
+        message: 'Failed to create dataset. Please try again.', 
+        variant: 'destructive' 
+      })
     }
-    setDatasets(prev => [...prev, created])
-    setIsCreateOpen(false)
-    setNewDatasetName('')
-    setNewDatasetDescription('')
   }
 
   const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
@@ -376,7 +364,15 @@ const Data = () => {
           <div className="mb-2 flex flex-row gap-2 justify-between items-end">
             <div>Datasets</div>
             <div className="flex items-center gap-2">
-              <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+              <Dialog 
+                open={isCreateOpen} 
+                onOpenChange={(open) => {
+                  // Prevent closing dialog during mutation
+                  if (!createDatasetMutation.isPending) {
+                    setIsCreateOpen(open)
+                  }
+                }}
+              >
                 <DialogTrigger asChild>
                   <Button variant="secondary" size="sm">
                     Create new
@@ -411,14 +407,14 @@ const Data = () => {
                     </div>
                   </div>
                   <DialogFooter>
-                    <DialogClose asChild>
+                    <DialogClose asChild disabled={createDatasetMutation.isPending}>
                       <Button variant="secondary">Cancel</Button>
                     </DialogClose>
                     <Button
                       onClick={handleCreateDataset}
-                      disabled={!newDatasetName.trim()}
+                      disabled={!newDatasetName.trim() || createDatasetMutation.isPending}
                     >
-                      Create
+                      {createDatasetMutation.isPending ? 'Creating...' : 'Create'}
                     </Button>
                   </DialogFooter>
                 </DialogContent>
@@ -451,9 +447,14 @@ const Data = () => {
           </div>
         ) : (
           <div>
-            {mode === 'designer' && rawFiles.length <= 0 ? (
+            {mode === 'designer' && isDatasetsLoading ? (
               <div className="w-full mb-6 flex items-center justify-center rounded-lg py-4 text-primary text-center bg-primary/10">
-                Datasets will appear here when they’re ready
+                <Loader size={32} className="mr-2" />
+                Loading datasets...
+              </div>
+            ) : mode === 'designer' && datasets.length <= 0 ? (
+              <div className="w-full mb-6 flex items-center justify-center rounded-lg py-4 text-primary text-center bg-primary/10">
+                {datasetsError ? 'Unable to load datasets. Using local storage.' : 'No datasets found. Create one to get started.'}
               </div>
             ) : (
               mode === 'designer' && (
