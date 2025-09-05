@@ -667,6 +667,15 @@ function DatasetView() {
                         ))}
                     </ul>
                   </div>
+                  <div className="mt-3 flex">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigate('/chat/rag')}
+                    >
+                      Manage or add strategies
+                    </Button>
+                  </div>
                 </div>
               </DialogContent>
             </Dialog>

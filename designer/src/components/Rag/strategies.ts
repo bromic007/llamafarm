@@ -57,5 +57,3 @@ export const defaultStrategies: RagStrategy[] = [
     datasetsUsing: 2,
   },
 ]
-
-

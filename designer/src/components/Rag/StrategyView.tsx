@@ -5,6 +5,7 @@ import Loader from '../../common/Loader'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Badge } from '../ui/badge'
+import { defaultStrategies } from './strategies'
 
 function StrategyView() {
   const navigate = useNavigate()
@@ -12,6 +13,9 @@ function StrategyView() {
 
   const strategyName = useMemo(() => {
     if (!strategyId) return 'Strategy'
+    const found = defaultStrategies.find(s => s.id === strategyId)
+    if (found) return found.name
+    // Fallback to title-casing the id
     return strategyId
       .replace(/[-_]/g, ' ')
       .replace(/\b\w/g, c => c.toUpperCase())
