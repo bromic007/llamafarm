@@ -32,9 +32,39 @@ function Rag() {
   const [editId, setEditId] = useState<string>('')
   const [editName, setEditName] = useState('')
   const [editDescription, setEditDescription] = useState('')
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [createName, setCreateName] = useState('')
+  const [createDescription, setCreateDescription] = useState('')
+  const [copyFromId, setCopyFromId] = useState('')
 
   // Derive display strategies with local overrides
   const strategies: RagStrategy[] = defaultStrategies
+
+  const getCustomStrategies = (): RagStrategy[] => {
+    try {
+      const raw = localStorage.getItem('lf_custom_strategies')
+      if (!raw) return []
+      const arr = JSON.parse(raw) as RagStrategy[]
+      if (!Array.isArray(arr)) return []
+      return arr.filter(s => !!s && typeof s.id === 'string')
+    } catch {
+      return []
+    }
+  }
+  const saveCustomStrategies = (list: RagStrategy[]) => {
+    try {
+      localStorage.setItem('lf_custom_strategies', JSON.stringify(list))
+    } catch {}
+  }
+  const addCustomStrategy = (s: RagStrategy) => {
+    const list = getCustomStrategies()
+    list.push(s)
+    saveCustomStrategies(list)
+  }
+  const removeCustomStrategy = (id: string) => {
+    const list = getCustomStrategies().filter(s => s.id !== id)
+    saveCustomStrategies(list)
+  }
   const resetStrategies = () => {
     try {
       localStorage.removeItem('lf_strategy_deleted')
@@ -42,6 +72,7 @@ function Rag() {
         localStorage.removeItem(`lf_strategy_name_override_${s.id}`)
         localStorage.removeItem(`lf_strategy_description_${s.id}`)
       })
+      localStorage.removeItem('lf_custom_strategies')
     } catch {}
     setMetaTick(t => t + 1)
     toast({ message: 'Strategies reset', variant: 'default' })
@@ -69,7 +100,8 @@ function Rag() {
   }
   const display = useMemo(() => {
     const deleted = getDeletedSet()
-    return strategies
+    const all = [...strategies, ...getCustomStrategies()]
+    return all
       .filter(s => !deleted.has(s.id))
       .map(s => {
         let name = s.name
@@ -110,7 +142,15 @@ function Rag() {
               <Button variant="outline" size="sm" onClick={resetStrategies}>
                 Reset list
               </Button>
-              <Button size="sm" onClick={() => navigate('/chat/rag#create')}>
+              <Button
+                size="sm"
+                onClick={() => {
+                  setCreateName('')
+                  setCreateDescription('')
+                  setCopyFromId('')
+                  setIsCreateOpen(true)
+                }}
+              >
                 Create new
               </Button>
             </div>
@@ -170,7 +210,18 @@ function Rag() {
                       >
                         Configure
                       </DropdownMenuItem>
-                      <DropdownMenuItem>Duplicate</DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={e => {
+                          e.stopPropagation()
+                          e.preventDefault()
+                          setCopyFromId(s.id)
+                          setCreateName(`${s.name} (copy)`)
+                          setCreateDescription(s.description || '')
+                          setIsCreateOpen(true)
+                        }}
+                      >
+                        Duplicate
+                      </DropdownMenuItem>
                       <DropdownMenuItem
                         className="text-destructive focus:text-destructive"
                         onClick={e => {
@@ -188,6 +239,7 @@ function Rag() {
                                 `lf_strategy_description_${s.id}`
                               )
                             } catch {}
+                            removeCustomStrategy(s.id)
                             markDeleted(s.id)
                             toast({
                               message: 'Strategy deleted',
@@ -216,11 +268,7 @@ function Rag() {
                       Default
                     </Badge>
                   ) : (
-                    <Badge
-                      variant="default"
-                      size="sm"
-                      className="rounded-xl bg-emerald-600 text-emerald-50 dark:bg-emerald-400 dark:text-emerald-900"
-                    >
+                    <Badge variant="secondary" size="sm" className="rounded-xl">
                       Custom
                     </Badge>
                   )}
@@ -300,6 +348,7 @@ function Rag() {
                     )
                     localStorage.removeItem(`lf_strategy_description_${editId}`)
                   } catch {}
+                  removeCustomStrategy(editId)
                   markDeleted(editId)
                   setIsEditOpen(false)
                   toast({ message: 'Strategy deleted', variant: 'default' })
@@ -340,6 +389,139 @@ function Rag() {
                 Save
               </button>
             </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Strategy Modal */}
+      <Dialog
+        open={isCreateOpen}
+        onOpenChange={open => {
+          setIsCreateOpen(open)
+          if (!open) {
+            setCreateName('')
+            setCreateDescription('')
+            setCopyFromId('')
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg text-foreground">
+              Create new RAG strategy
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 pt-1">
+            <div>
+              <label className="text-xs text-muted-foreground">
+                Strategy name
+              </label>
+              <input
+                className="w-full mt-1 bg-transparent rounded-lg py-2 px-3 border border-input text-foreground"
+                placeholder="Enter name"
+                value={createName}
+                onChange={e => setCreateName(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">
+                Copy from existing
+              </label>
+              <select
+                className="w-full mt-1 bg-transparent rounded-lg py-2 px-3 border border-input text-foreground"
+                value={copyFromId}
+                onChange={e => {
+                  const v = e.target.value
+                  setCopyFromId(v)
+                  const found = display.find(x => x.id === v)
+                  if (found) {
+                    setCreateDescription(found.description || '')
+                    if (createName.trim().length === 0) {
+                      setCreateName(`${found.name} (copy)`)
+                    }
+                  }
+                }}
+              >
+                <option value="">None</option>
+                {display.map(s => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">
+                Description
+              </label>
+              <textarea
+                rows={4}
+                className="w-full mt-1 bg-transparent rounded-lg py-2 px-3 border border-input text-foreground"
+                placeholder="Add a brief description"
+                value={createDescription}
+                onChange={e => setCreateDescription(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter className="flex items-center justify-between gap-2">
+            <button
+              className="px-3 py-2 rounded-md text-sm text-primary hover:underline"
+              onClick={() => setIsCreateOpen(false)}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button
+              className={`px-3 py-2 rounded-md text-sm ${createName.trim().length > 0 ? 'bg-primary text-primary-foreground hover:opacity-90' : 'opacity-50 cursor-not-allowed bg-primary text-primary-foreground'}`}
+              onClick={() => {
+                const name = createName.trim()
+                if (name.length === 0) return
+                const slugify = (str: string) =>
+                  str
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]+/g, '-')
+                    .replace(/^-+|-+$/g, '')
+                const baseId = `custom-${slugify(name)}`
+                const existingIds = new Set(
+                  [...defaultStrategies, ...getCustomStrategies()].map(
+                    s => s.id
+                  )
+                )
+                let newId = baseId
+                if (existingIds.has(newId)) {
+                  newId = `${baseId}-${Date.now()}`
+                }
+                const newStrategy: RagStrategy = {
+                  id: newId,
+                  name,
+                  description: createDescription,
+                  isDefault: false,
+                  datasetsUsing: 0,
+                }
+                addCustomStrategy(newStrategy)
+                try {
+                  localStorage.setItem(
+                    `lf_strategy_name_override_${newId}`,
+                    name
+                  )
+                  localStorage.setItem(
+                    `lf_strategy_description_${newId}`,
+                    createDescription
+                  )
+                } catch {}
+                setIsCreateOpen(false)
+                setCreateName('')
+                setCreateDescription('')
+                setCopyFromId('')
+                setMetaTick(t => t + 1)
+                toast({ message: 'Strategy created', variant: 'default' })
+                navigate(`/chat/rag/${newId}`)
+              }}
+              disabled={createName.trim().length === 0}
+              type="button"
+            >
+              Create
+            </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
