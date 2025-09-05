@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogClose,
+  DialogTrigger,
 } from '../ui/dialog'
 import { Textarea } from '../ui/textarea'
 import { useToast } from '../ui/toast'
@@ -25,6 +26,7 @@ import {
   useDeleteDatasetFile,
   useDeleteDataset,
 } from '../../hooks/useDatasets'
+import { defaultStrategies } from '../Rag/strategies'
 
 type Dataset = {
   id: string
@@ -148,6 +150,8 @@ function DatasetView() {
   // Drag-and-drop state
   const [isDragging, setIsDragging] = useState(false)
   const [isDropped, setIsDropped] = useState(false)
+  // Strategy modal search
+  const [strategyQuery, setStrategyQuery] = useState('')
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
@@ -446,15 +450,16 @@ function DatasetView() {
   }
 
   // Derived RAG strategy info for this dataset
-  const strategyName = useMemo(() => {
-    if (!datasetId) return 'PDF Simple'
+  const [strategyName, setStrategyName] = useState<string>('PDF Simple')
+  useEffect(() => {
+    if (!datasetId) return
     try {
-      return (
+      const v =
         localStorage.getItem(`lf_dataset_strategy_name_${datasetId}`) ||
         'PDF Simple'
-      )
+      setStrategyName(v)
     } catch {
-      return 'PDF Simple'
+      setStrategyName('PDF Simple')
     }
   }, [datasetId])
 
@@ -582,13 +587,90 @@ function DatasetView() {
       <section className="rounded-lg border border-border bg-card p-4">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-medium">RAG strategy</h3>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigate(`/chat/rag/${strategyId}`)}
-          >
-            Configure
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate(`/chat/rag/${strategyId}`)}
+            >
+              Configure
+            </Button>
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button size="sm">Change</Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Choose a RAG strategy</DialogTitle>
+                </DialogHeader>
+                <div className="flex flex-col gap-3">
+                  <div className="w-full">
+                    <SearchInput
+                      placeholder="Search strategies"
+                      value={strategyQuery}
+                      onChange={e => setStrategyQuery(e.target.value)}
+                    />
+                  </div>
+                  <div className="max-h-[360px] overflow-auto rounded-md border border-border/60">
+                    <ul>
+                      {defaultStrategies
+                        .filter(s =>
+                          [s.name, s.description]
+                            .join(' ')
+                            .toLowerCase()
+                            .includes(strategyQuery.toLowerCase())
+                        )
+                        .map(s => (
+                          <li
+                            key={s.id}
+                            className="flex items-center justify-between px-3 py-3 border-b last:border-b-0 border-border/60"
+                          >
+                            <div className="flex items-center gap-2">
+                              <Badge
+                                variant="default"
+                                size="sm"
+                                className="rounded-xl"
+                              >
+                                {s.name}
+                              </Badge>
+                              <div className="text-xs text-muted-foreground">
+                                {s.description}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => navigate(`/chat/rag/${s.id}`)}
+                              >
+                                Configure
+                              </Button>
+                              <DialogClose asChild>
+                                <Button
+                                  size="sm"
+                                  onClick={() => {
+                                    if (!datasetId) return
+                                    try {
+                                      localStorage.setItem(
+                                        `lf_dataset_strategy_name_${datasetId}`,
+                                        s.name
+                                      )
+                                    } catch {}
+                                    setStrategyName(s.name)
+                                  }}
+                                >
+                                  Use
+                                </Button>
+                              </DialogClose>
+                            </div>
+                          </li>
+                        ))}
+                    </ul>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap mb-2">
           <Badge variant="default" size="sm" className="rounded-xl">

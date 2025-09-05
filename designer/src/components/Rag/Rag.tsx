@@ -4,6 +4,7 @@ import FontIcon from '../../common/FontIcon'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import SearchInput from '../ui/search-input'
+import { defaultStrategies } from './strategies'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,69 +12,13 @@ import {
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu'
 
-type RagStrategy = {
-  id: string
-  name: string
-  description: string
-  isDefault: boolean
-  datasetsUsing: number
-}
+type RagStrategy = import('./strategies').RagStrategy
 
 function Rag() {
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
 
-  const strategies: RagStrategy[] = [
-    {
-      id: 'pdf-simple',
-      name: 'PDF Simple',
-      description: 'Description saying what good for',
-      isDefault: true,
-      datasetsUsing: 2,
-    },
-    {
-      id: 'pdf-complex',
-      name: 'PDF Complex',
-      description: 'Description saying what good for',
-      isDefault: true,
-      datasetsUsing: 0,
-    },
-    {
-      id: 'csv-extract',
-      name: 'CSV extract',
-      description: 'Description saying what good for',
-      isDefault: true,
-      datasetsUsing: 0,
-    },
-    {
-      id: 'chat-extract-1',
-      name: 'Chat extract',
-      description: 'Description saying what good for',
-      isDefault: true,
-      datasetsUsing: 0,
-    },
-    {
-      id: 'json-extract-1',
-      name: 'JSON extract',
-      description: 'Description saying what good for',
-      isDefault: true,
-      datasetsUsing: 0,
-    },
-    {
-      id: 'chat-extract-2',
-      name: 'Chat extract',
-      description: 'Description saying what good for',
-      isDefault: true,
-      datasetsUsing: 0,
-    },
-    {
-      id: 'json-extract-2',
-      name: 'JSON extract',
-      description: 'Description saying what good for',
-      isDefault: false,
-      datasetsUsing: 2,
-    },
-  ]
+  const strategies: RagStrategy[] = defaultStrategies
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
