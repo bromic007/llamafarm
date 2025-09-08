@@ -19,6 +19,7 @@ import {
   DialogClose,
 } from '../ui/dialog'
 import { Button } from '../ui/button'
+import PageActions from '../common/PageActions'
 import { Input } from '../ui/input'
 import { Textarea } from '../ui/textarea'
 import { Badge } from '../ui/badge'
@@ -285,12 +286,7 @@ const Data = () => {
         <h2 className="text-2xl ">
           {mode === 'designer' ? 'Data' : 'Config editor'}
         </h2>
-        <div className="flex items-center gap-3">
-          <ModeToggle mode={mode} onToggle={setMode} />
-          <button className="opacity-50 cursor-not-allowed text-sm px-3 py-2 rounded-lg border border-input text-muted-foreground">
-            Deploy
-          </button>
-        </div>
+        <PageActions mode={mode} onModeChange={setMode} />
       </div>
       <input
         type="file"

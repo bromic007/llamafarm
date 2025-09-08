@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import FontIcon from '../../common/FontIcon'
 import { Button } from '../ui/button'
+import PageActions from '../common/PageActions'
+import { Mode } from '../ModeToggle'
 import { Badge } from '../ui/badge'
 import SearchInput from '../ui/search-input'
 import { defaultStrategies } from './strategies'
@@ -26,6 +28,7 @@ function Rag() {
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
   const { toast } = useToast()
+  const [mode, setMode] = useState<Mode>('designer')
 
   const [metaTick, setMetaTick] = useState(0)
   const [isEditOpen, setIsEditOpen] = useState(false)
@@ -151,6 +154,7 @@ function Rag() {
       <div className="w-full flex flex-col gap-4 pb-32">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-2xl">RAG</h2>
+          <PageActions mode={mode} onModeChange={setMode} />
         </div>
 
         <div className="text-sm text-muted-foreground mb-1">

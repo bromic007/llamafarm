@@ -8,9 +8,10 @@ import SlackLogoLight from '../../assets/logos/slack-logo-light.svg'
 import { useTheme } from '../../contexts/ThemeContext'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import ModeToggle, { Mode } from '../ModeToggle'
+import { Mode } from '../ModeToggle'
+import PageActions from '../common/PageActions'
 import DataCards from './DataCards'
-import ProjectModal from '../../components/Project/ProjectModal'  
+import ProjectModal from '../../components/Project/ProjectModal'
 import ConfigEditor from '../ConfigEditor'
 import { useProjectModal } from '../../hooks/useProjectModal'
 import { getCurrentNamespace } from '../../utils/namespaceUtils'
@@ -19,11 +20,11 @@ const Dashboard = () => {
   const { theme } = useTheme()
   const navigate = useNavigate()
   const namespace = getCurrentNamespace()
-  
+
   // All state declarations first
   const [mode, setMode] = useState<Mode>('designer')
   const [projectName, setProjectName] = useState<string>('Dashboard')
-  
+
   // Shared modal hook
   const projectModal = useProjectModal({
     namespace,
@@ -32,7 +33,7 @@ const Dashboard = () => {
       if (mode === 'edit' && newProjectName) {
         setProjectName(newProjectName)
       }
-    }
+    },
   })
 
   useEffect(() => {
@@ -73,12 +74,7 @@ const Dashboard = () => {
               </button>
             )}
           </div>
-          <div className="flex items-center gap-3">
-            <ModeToggle mode={mode} onToggle={setMode} />
-            <button className="opacity-50 cursor-not-allowed text-sm px-3 py-2 rounded-lg border border-input text-muted-foreground">
-              Deploy
-            </button>
-          </div>
+          <PageActions mode={mode} onModeChange={setMode} />
         </div>
         {mode !== 'designer' ? (
           <ConfigEditor />
@@ -293,11 +289,15 @@ const Dashboard = () => {
         initialDescription={''}
         onClose={projectModal.closeModal}
         onSave={projectModal.saveProject}
-        onDelete={projectModal.modalMode === 'edit' ? async () => {
-          await projectModal.deleteProject()
-          // Navigate to projects page after deletion
-          navigate('/chat/projects')
-        } : undefined}
+        onDelete={
+          projectModal.modalMode === 'edit'
+            ? async () => {
+                await projectModal.deleteProject()
+                // Navigate to projects page after deletion
+                navigate('/chat/projects')
+              }
+            : undefined
+        }
         isLoading={projectModal.isLoading}
       />
     </>

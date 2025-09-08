@@ -7,6 +7,8 @@ import { Input } from '../ui/input'
 import { Badge } from '../ui/badge'
 import { defaultStrategies } from './strategies'
 import { useToast } from '../ui/toast'
+import PageActions from '../common/PageActions'
+import { Mode } from '../ModeToggle'
 import {
   Dialog,
   DialogContent,
@@ -19,6 +21,7 @@ function StrategyView() {
   const navigate = useNavigate()
   const { strategyId } = useParams()
   const { toast } = useToast()
+  const [mode, setMode] = useState<Mode>('designer')
 
   const [strategyMetaTick, setStrategyMetaTick] = useState(0)
 
@@ -178,17 +181,20 @@ function StrategyView() {
 
   return (
     <div className="h-full w-full flex flex-col gap-3 pb-20">
-      {/* Breadcrumb */}
-      <nav className="text-sm md:text-base flex items-center gap-1.5 mb-1">
-        <button
-          className="text-teal-600 dark:text-teal-400 hover:underline"
-          onClick={() => navigate('/chat/rag')}
-        >
-          RAG
-        </button>
-        <span className="text-muted-foreground px-1">/</span>
-        <span className="text-foreground">{strategyName}</span>
-      </nav>
+      {/* Breadcrumb + Actions */}
+      <div className="flex items-center justify-between mb-1">
+        <nav className="text-sm md:text-base flex items-center gap-1.5">
+          <button
+            className="text-teal-600 dark:text-teal-400 hover:underline"
+            onClick={() => navigate('/chat/rag')}
+          >
+            RAG
+          </button>
+          <span className="text-muted-foreground px-1">/</span>
+          <span className="text-foreground">{strategyName}</span>
+        </nav>
+        <PageActions mode={mode} onModeChange={setMode} />
+      </div>
 
       {/* Header */}
       <div className="flex items-center justify-between mb-1">
@@ -208,10 +214,6 @@ function StrategyView() {
           </button>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="gap-2">
-            <FontIcon type="code" className="w-4 h-4" />
-            View config
-          </Button>
           <Button
             size="sm"
             onClick={handleSave}

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import FontIcon from '../common/FontIcon'
 import ModeToggle, { Mode } from './ModeToggle'
+import { Button } from './ui/button'
 import ConfigEditor from './ConfigEditor'
 
 interface TestCase {
@@ -196,9 +197,9 @@ const Test = () => {
         </h2>
         <div className="flex items-center gap-3">
           <ModeToggle mode={mode} onToggle={setMode} />
-          <button className="opacity-50 cursor-not-allowed text-sm px-3 py-2 rounded-lg border border-input text-muted-foreground">
-            Deploy
-          </button>
+          <Button variant="outline" size="sm">
+            Package
+          </Button>
         </div>
       </div>
 

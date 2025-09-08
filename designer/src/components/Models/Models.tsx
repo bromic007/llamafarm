@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { Button } from '../ui/button'
+import PageActions from '../common/PageActions'
+import { Mode } from '../ModeToggle'
 import FontIcon from '../../common/FontIcon'
 import Loader from '../../common/Loader'
 import {
@@ -844,6 +846,7 @@ function TrainingData() {
 
 const Models = () => {
   const [activeTab, setActiveTab] = useState('project')
+  const [mode, setMode] = useState<Mode>('designer')
   const [projectModels, setProjectModels] = useState<InferenceModel[]>([
     {
       id: 'tinyllama',
@@ -895,9 +898,7 @@ const Models = () => {
     <div className="h-full w-full flex flex-col gap-3 pb-32">
       <div className="flex items-center justify-between mb-2">
         <h2 className="text-2xl">Models</h2>
-        <Button variant="outline" size="sm" disabled>
-          Deploy
-        </Button>
+        <PageActions mode={mode} onModeChange={setMode} />
       </div>
 
       <TabBar
