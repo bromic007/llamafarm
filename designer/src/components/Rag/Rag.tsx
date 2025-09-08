@@ -40,13 +40,23 @@ function Rag() {
   // Derive display strategies with local overrides
   const strategies: RagStrategy[] = defaultStrategies
 
+  const isValidRagStrategy = (s: any): s is RagStrategy => {
+    return (
+      !!s &&
+      typeof s.id === 'string' &&
+      typeof s.name === 'string' &&
+      typeof s.description === 'string' &&
+      typeof s.isDefault === 'boolean' &&
+      typeof s.datasetsUsing === 'number'
+    )
+  }
   const getCustomStrategies = (): RagStrategy[] => {
     try {
       const raw = localStorage.getItem('lf_custom_strategies')
       if (!raw) return []
       const arr = JSON.parse(raw) as RagStrategy[]
       if (!Array.isArray(arr)) return []
-      return arr.filter(s => !!s && typeof s.id === 'string')
+      return arr.filter(isValidRagStrategy)
     } catch {
       return []
     }
@@ -57,7 +67,9 @@ function Rag() {
     } catch {}
   }
   const addCustomStrategy = (s: RagStrategy) => {
+    if (!isValidRagStrategy(s)) return
     const list = getCustomStrategies()
+    if (list.some(x => x.id === s.id)) return
     list.push(s)
     saveCustomStrategies(list)
   }
@@ -108,9 +120,13 @@ function Rag() {
         let description = s.description
         try {
           const n = localStorage.getItem(`lf_strategy_name_override_${s.id}`)
-          if (n && n.trim().length > 0) name = n
+          if (typeof n === 'string' && n.trim().length > 0) {
+            name = n.trim()
+          }
           const d = localStorage.getItem(`lf_strategy_description_${s.id}`)
-          if (d !== null) description = d
+          if (typeof d === 'string' && d.trim().length > 0) {
+            description = d.trim()
+          }
         } catch {}
         return { ...s, name, description }
       })
@@ -255,12 +271,9 @@ function Rag() {
                 </div>
 
                 <div className="text-sm font-medium">{s.name}</div>
-                <button
-                  className="text-xs text-primary text-left hover:underline w-fit"
-                  onClick={e => e.stopPropagation()}
-                >
+                <div className="text-xs text-primary text-left w-fit">
                   {s.description}
-                </button>
+                </div>
 
                 <div className="flex items-center gap-2 flex-wrap">
                   {s.isDefault ? (
