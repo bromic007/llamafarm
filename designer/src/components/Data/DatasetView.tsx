@@ -657,6 +657,10 @@ function DatasetView() {
                                       )
                                     } catch {}
                                     setStrategyName(s.name)
+                                    toast({
+                                      message: `RAG strategy set to ${s.name}`,
+                                      variant: 'default',
+                                    })
                                   }}
                                 >
                                   Use
