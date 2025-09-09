@@ -3,6 +3,7 @@ import ModeToggle, { Mode } from '../ModeToggle'
 import { Button } from '../ui/button'
 import ConfigEditor from '../ConfigEditor'
 import GeneratedOutputs from './GeneratedOutput/GeneratedOutputs'
+import { usePackageModal } from '../../contexts/PackageModalContext'
 
 const Prompt = () => {
   // Persist onboarding state per active project
@@ -18,6 +19,7 @@ const Prompt = () => {
     }
   )
   const [mode, setMode] = useState<Mode>('designer')
+  const { openPackageModal } = usePackageModal()
 
   return (
     <div className="h-full w-full flex flex-col gap-2 pb-32">
@@ -27,7 +29,7 @@ const Prompt = () => {
         </h2>
         <div className="flex items-center gap-3">
           <ModeToggle mode={mode} onToggle={setMode} />
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={openPackageModal}>
             Package
           </Button>
         </div>

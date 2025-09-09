@@ -3,6 +3,7 @@ import FontIcon from '../common/FontIcon'
 import ModeToggle, { Mode } from './ModeToggle'
 import { Button } from './ui/button'
 import ConfigEditor from './ConfigEditor'
+import { usePackageModal } from '../contexts/PackageModalContext'
 
 interface TestCase {
   id: number
@@ -22,6 +23,7 @@ const scorePillClasses = (score: number) => {
 }
 
 const Test = () => {
+  const { openPackageModal } = usePackageModal()
   const [tests, setTests] = useState<TestCase[]>([
     {
       id: 1,
@@ -197,7 +199,7 @@ const Test = () => {
         </h2>
         <div className="flex items-center gap-3">
           <ModeToggle mode={mode} onToggle={setMode} />
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={openPackageModal}>
             Package
           </Button>
         </div>

@@ -1,6 +1,7 @@
 import React from 'react'
 import ModeToggle, { Mode } from '../ModeToggle'
 import { Button } from '../ui/button'
+import { usePackageModal } from '../../contexts/PackageModalContext'
 
 interface PageActionsProps {
   mode?: Mode
@@ -24,13 +25,19 @@ const PageActions: React.FC<PageActionsProps> = ({
   onPackageClick,
   className,
 }) => {
+  const { openPackageModal } = usePackageModal()
+
   return (
     <div className={`flex items-center gap-3 ${className ?? ''}`}>
       {mode && onModeChange ? (
         <ModeToggle mode={mode} onToggle={onModeChange} />
       ) : null}
       {showPackage ? (
-        <Button variant="outline" size="sm" onClick={onPackageClick}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onPackageClick ?? openPackageModal}
+        >
           {packageLabel}
         </Button>
       ) : null}
