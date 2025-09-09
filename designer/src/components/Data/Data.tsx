@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import FontIcon from '../../common/FontIcon'
 import Loader from '../../common/Loader'
 import ModeToggle, { Mode } from '../ModeToggle'
-import ConfigEditor from '../ConfigEditor'
+import ConfigEditor from '../ConfigEditor/ConfigEditor'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -276,12 +276,12 @@ const Data = () => {
 
   return (
     <div
-      className="h-full w-full flex flex-col gap-2 pb-32"
+      className="h-full w-full flex flex-col"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      <div className="w-full flex items-center justify-between mb-4">
+      <div className="w-full flex items-center justify-between mb-4 flex-shrink-0">
         <h2 className="text-2xl ">
           {mode === 'designer' ? 'Data' : 'Config editor'}
         </h2>
@@ -299,9 +299,9 @@ const Data = () => {
         multiple
         onChange={handleFileSelect}
       />
-      <div className="w-full flex flex-col h-full">
+      <div className="w-full flex flex-col flex-1 min-h-0">
         {mode === 'designer' && (
-          <div className="mb-2 flex flex-row gap-2 justify-between items-end">
+          <div className="mb-2 flex flex-row gap-2 justify-between items-end flex-shrink-0">
             <div>Datasets</div>
             <div className="flex items-center gap-2">
               <Dialog
@@ -371,30 +371,34 @@ const Data = () => {
           </div>
         )}
         {mode !== 'designer' ? (
-          <ConfigEditor />
-        ) : isDragging ? (
-          <div
-            className={`w-full h-full flex flex-col items-center justify-center border border-dashed rounded-lg p-4 gap-2 transition-colors border-input`}
-          >
-            <div className="flex flex-col items-center justify-center gap-4 text-center my-[56px] text-primary">
-              {isDropped ? (
-                <Loader />
-              ) : (
-                <FontIcon
-                  type="upload"
-                  className="w-10 h-10 text-blue-200 dark:text-white"
-                />
-              )}
-              <div className="text-xl text-foreground">Drop data here</div>
-            </div>
-            <p className="max-w-[527px] text-sm text-muted-foreground text-center mb-10">
-              You can upload PDFs, explore various list formats, or draw
-              inspiration from other data sources to enhance your project with
-              LlaMaFarm.
-            </p>
+          <div className="flex-1 min-h-0 overflow-hidden pb-6">
+            <ConfigEditor className="h-full" />
           </div>
         ) : (
-          <div>
+          <div className="flex-1 min-h-0 overflow-auto pb-6">
+            {isDragging ? (
+              <div
+                className={`w-full h-full flex flex-col items-center justify-center border border-dashed rounded-lg p-4 gap-2 transition-colors border-input`}
+              >
+                <div className="flex flex-col items-center justify-center gap-4 text-center my-[56px] text-primary">
+                  {isDropped ? (
+                    <Loader />
+                  ) : (
+                    <FontIcon
+                      type="upload"
+                      className="w-10 h-10 text-blue-200 dark:text-white"
+                    />
+                  )}
+                  <div className="text-xl text-foreground">Drop data here</div>
+                </div>
+                <p className="max-w-[527px] text-sm text-muted-foreground text-center mb-10">
+                  You can upload PDFs, explore various list formats, or draw
+                  inspiration from other data sources to enhance your project with
+                  LlaMaFarm.
+                </p>
+              </div>
+            ) : (
+              <div>
             {mode === 'designer' && isDatasetsLoading ? (
               <div className="w-full mb-6 flex items-center justify-center rounded-lg py-4 text-primary text-center bg-primary/10">
                 <Loader size={32} className="mr-2" />
@@ -515,6 +519,8 @@ const Data = () => {
             )}
 
             {/* Project-level raw files UI removed: files now only exist within datasets. */}
+              </div>
+            )}
           </div>
         )}
       </div>
