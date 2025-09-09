@@ -15,7 +15,6 @@ import (
 )
 
 var containerName = "llamafarm-server"
-var image = "ghcr.io/llama-farm/llamafarm/server:latest"
 
 type Component struct {
 	Name      string                 `json:"name"`
@@ -164,6 +163,12 @@ func startLocalServerViaDocker(serverURL string) error {
 	}
 
 	port := resolvePort(serverURL, 8000)
+	
+	// Get the dynamic image URL using our version-aware resolution
+	image, err := getImageURL("server")
+	if err != nil {
+		return fmt.Errorf("failed to resolve server image URL: %v", err)
+	}
 
 	// If a container with this name exists and is running, nothing to do
 	if isContainerRunning(containerName) {
