@@ -5,6 +5,7 @@ import React, {
   useMemo,
   useState,
   useRef,
+  useEffect,
 } from 'react'
 import {
   Dialog,
@@ -62,6 +63,10 @@ export const PackageModalProvider: React.FC<ProviderProps> = ({ children }) => {
   const [progress, setProgress] = useState<number>(0)
   const [currentStep, setCurrentStep] = useState<string>('')
   const packagingTimerRef = useRef<number | null>(null)
+  const [isSuccess, setIsSuccess] = useState<boolean>(false)
+  const [packStartTs, setPackStartTs] = useState<number | null>(null)
+  const [copiedPath, setCopiedPath] = useState<boolean>(false)
+  const [dirHandle, setDirHandle] = useState<any>(null)
 
   const openFolderPicker = useCallback(async () => {
     try {
@@ -72,10 +77,16 @@ export const PackageModalProvider: React.FC<ProviderProps> = ({ children }) => {
         })
         // Full absolute path is not exposed for privacy; show selected folder name
         setSavingTo(`${handle.name}/`)
+        setDirHandle(handle)
         return
       }
-    } catch {
-      // ignore and fall back
+    } catch (error: any) {
+      // Only fall back if the API is not supported, not if user canceled
+      if (error?.name === 'AbortError') {
+        // User canceled the picker, don't fall back
+        return
+      }
+      // For other errors (like API not supported), fall back
     }
     try {
       folderInputRef.current?.click()
@@ -90,6 +101,67 @@ export const PackageModalProvider: React.FC<ProviderProps> = ({ children }) => {
     [openPackageModal, closePackageModal]
   )
 
+  // Fire lightweight canvas confetti on success (CDN script, no package install)
+  useEffect(() => {
+    if (!isSuccess) return
+    try {
+      if (
+        window.matchMedia &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      ) {
+        return
+      }
+    } catch {}
+
+    const fire = () => {
+      const confetti = (window as any).confetti
+      if (!confetti) return
+      const isDark = document.documentElement.classList.contains('dark')
+      const colors = isDark
+        ? ['#14b8a6', '#f472b6', '#38bdf8', '#ffffff'] // teal-500, pink-400, sky-400, white
+        : ['#0d9488', '#ec4899', '#38bdf8', '#0f172a'] // teal-600, pink-500, sky-400, slate-900
+
+      confetti({
+        particleCount: 60,
+        spread: 60,
+        angle: 60,
+        origin: { x: 0.15, y: 0.2 },
+        colors,
+      })
+      confetti({
+        particleCount: 60,
+        spread: 60,
+        angle: 120,
+        origin: { x: 0.85, y: 0.2 },
+        colors,
+      })
+      setTimeout(
+        () =>
+          confetti({
+            particleCount: 80,
+            spread: 70,
+            origin: { x: 0.5, y: 0.25 },
+            colors,
+          }),
+        300
+      )
+    }
+
+    const existing = (window as any).confetti
+    if (existing) {
+      fire()
+      return
+    }
+    try {
+      const script = document.createElement('script')
+      script.src =
+        'https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js'
+      script.async = true
+      script.onload = () => fire()
+      document.body.appendChild(script)
+    } catch {}
+  }, [isSuccess])
+
   return (
     <PackageModalContext.Provider value={value}>
       {children}
@@ -99,22 +171,108 @@ export const PackageModalProvider: React.FC<ProviderProps> = ({ children }) => {
           onOpenAutoFocus={e => e.preventDefault()}
         >
           <DialogHeader>
-            <DialogTitle className="text-lg text-foreground">
-              {isPackaging
-                ? 'Packaging Your LlamaFarm Project...'
-                : 'Package Your LlamaFarm Project'}
+            <DialogTitle
+              className="text-lg text-foreground inline-flex w-fit"
+              onClick={() => {
+                if (isSuccess) {
+                  try {
+                    const confetti = (window as any).confetti
+                    if (confetti) {
+                      const isDark =
+                        document.documentElement.classList.contains('dark')
+                      const colors = isDark
+                        ? ['#14b8a6', '#f472b6', '#38bdf8', '#ffffff']
+                        : ['#0d9488', '#ec4899', '#38bdf8', '#0f172a']
+                      confetti({
+                        particleCount: 60,
+                        spread: 60,
+                        angle: 60,
+                        origin: { x: 0.15, y: 0.2 },
+                        colors,
+                      })
+                      confetti({
+                        particleCount: 60,
+                        spread: 60,
+                        angle: 120,
+                        origin: { x: 0.85, y: 0.2 },
+                        colors,
+                      })
+                      setTimeout(
+                        () =>
+                          confetti({
+                            particleCount: 80,
+                            spread: 70,
+                            origin: { x: 0.5, y: 0.25 },
+                            colors,
+                          }),
+                        300
+                      )
+                    }
+                  } catch {}
+                }
+              }}
+              role={isSuccess ? 'button' : undefined}
+              tabIndex={isSuccess ? 0 : undefined}
+              onKeyDown={e => {
+                if (isSuccess && (e.key === 'Enter' || e.key === ' ')) {
+                  e.preventDefault()
+                  const confetti = (window as any).confetti
+                  if (confetti) {
+                    const isDark =
+                      document.documentElement.classList.contains('dark')
+                    const colors = isDark
+                      ? ['#14b8a6', '#f472b6', '#38bdf8', '#ffffff']
+                      : ['#0d9488', '#ec4899', '#38bdf8', '#0f172a']
+                    confetti({
+                      particleCount: 60,
+                      spread: 60,
+                      angle: 60,
+                      origin: { x: 0.15, y: 0.2 },
+                      colors,
+                    })
+                    confetti({
+                      particleCount: 60,
+                      spread: 60,
+                      angle: 120,
+                      origin: { x: 0.85, y: 0.2 },
+                      colors,
+                    })
+                    setTimeout(
+                      () =>
+                        confetti({
+                          particleCount: 80,
+                          spread: 70,
+                          origin: { x: 0.5, y: 0.25 },
+                          colors,
+                        }),
+                      300
+                    )
+                  }
+                }
+              }}
+              style={{ cursor: isSuccess ? 'pointer' : 'default' }}
+            >
+              {isSuccess
+                ? '🎉  Project successfully packaged!'
+                : isPackaging
+                  ? 'Packaging Your LlamaFarm Project...'
+                  : 'Package Your LlamaFarm Project'}
             </DialogTitle>
-            {!isPackaging ? (
+            {isSuccess ? (
+              <DialogDescription>
+                {`Your ${version}.llamafarm project has been packaged successfully.`}
+              </DialogDescription>
+            ) : isPackaging ? (
+              <DialogDescription>Leave this window open</DialogDescription>
+            ) : (
               <DialogDescription>
                 Generate a deployable version of your config file with all
                 inputs, prompts, and model settings baked in. Export it to run
                 locally, test in staging, or hand it off to your team.
               </DialogDescription>
-            ) : (
-              <DialogDescription>Leave this window open</DialogDescription>
             )}
           </DialogHeader>
-          {!isPackaging ? (
+          {!isPackaging && !isSuccess ? (
             <div className="flex flex-col gap-3">
               {/* Version */}
               <div>
@@ -160,7 +318,7 @@ export const PackageModalProvider: React.FC<ProviderProps> = ({ children }) => {
                   <Input value={savingTo} readOnly className="truncate" />
                   <button
                     type="button"
-                    className="w-9 h-9 inline-flex items-center justify-center rounded-md border border-input text-white hover:bg-accent/30 leading-none"
+                    className="w-9 h-9 inline-flex items-center justify-center rounded-md border border-input text-slate-900 dark:text-white hover:bg-accent/30 leading-none"
                     aria-label="Change folder"
                     onClick={openFolderPicker}
                   >
@@ -259,26 +417,102 @@ export const PackageModalProvider: React.FC<ProviderProps> = ({ children }) => {
                 ) : null}
               </section>
             </div>
-          ) : (
+          ) : isPackaging ? (
             <div className="flex flex-col gap-3">
               <div className="w-full rounded-md border border-border p-3 bg-card">
-                <div className="h-2 w-full rounded-full bg-accent/20">
-                  <div
-                    className="h-2 rounded-full bg-primary transition-all"
-                    style={{ width: `${progress}%` }}
-                  />
+                <div className="flex items-center gap-3">
+                  <div className="h-2 w-full rounded-full bg-accent/20">
+                    <div
+                      className="h-2 rounded-full bg-primary transition-all"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                  <div className="text-xs text-muted-foreground whitespace-nowrap">{`${Math.floor(progress)}%`}</div>
                 </div>
-                <div className="mt-2 text-xs text-muted-foreground">
-                  {currentStep}
+                <div className="mt-2 text-xs text-muted-foreground flex items-center justify-between">
+                  <span>{currentStep}</span>
+                  {packStartTs ? (
+                    <span className="whitespace-nowrap">
+                      {(() => {
+                        const elapsed = (Date.now() - packStartTs) / 1000
+                        const pct = Math.max(progress, 1)
+                        const estTotal = (elapsed / pct) * 100
+                        const remaining = Math.max(0, estTotal - elapsed)
+                        const minutes = Math.floor(remaining / 60)
+                        const seconds = Math.floor(remaining % 60)
+                        return `~${minutes > 0 ? minutes + 'm ' : ''}${seconds}s left`
+                      })()}
+                    </span>
+                  ) : null}
                 </div>
               </div>
-              <div className="text-xs text-muted-foreground">
-                Estimated size ~2.3GB
+            </div>
+          ) : (
+            <div className="flex flex-col gap-4">
+              <div>
+                <div className="text-sm text-foreground font-medium">Name</div>
+                <div className="mt-1 grid grid-cols-[1fr] gap-2 items-center">
+                  <Input
+                    readOnly
+                    value={`${version}.llamafarm (2.34GB)`}
+                    className="truncate"
+                  />
+                </div>
+              </div>
+              <div className="mb-5">
+                <div className="text-sm text-foreground font-medium">
+                  Saved to
+                </div>
+                <div className="mt-1 grid grid-cols-[1fr_auto_auto] gap-2 items-center">
+                  <Input readOnly value={savingTo} className="truncate" />
+                  <button
+                    type="button"
+                    className={`h-9 px-3 rounded-md border text-sm hover:bg-accent/30 inline-flex items-center justify-center gap-2 leading-none ${copiedPath ? 'border-teal-400 text-teal-400' : 'border-input'}`}
+                    onClick={() => {
+                      try {
+                        navigator.clipboard.writeText(savingTo)
+                        setCopiedPath(true)
+                        window.setTimeout(() => setCopiedPath(false), 1200)
+                      } catch {}
+                    }}
+                  >
+                    {copiedPath ? (
+                      <>
+                        <FontIcon type="checkmark-filled" className="w-4 h-4" />
+                        <span>Copied!</span>
+                      </>
+                    ) : (
+                      'Copy path'
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    className="h-9 px-3 rounded-md border border-input text-sm hover:bg-accent/30"
+                    onClick={async () => {
+                      try {
+                        const anyWindow = window as any
+                        if (anyWindow?.showDirectoryPicker) {
+                          if (dirHandle) {
+                            await anyWindow.showDirectoryPicker({
+                              startIn: dirHandle,
+                            })
+                          } else {
+                            await anyWindow.showDirectoryPicker({
+                              startIn: 'downloads',
+                            })
+                          }
+                        }
+                      } catch {}
+                    }}
+                  >
+                    Open folder
+                  </button>
+                </div>
               </div>
             </div>
           )}
           <DialogFooter>
-            {!isPackaging ? (
+            {!isPackaging && !isSuccess ? (
               <div className="w-full flex items-center justify-between gap-2">
                 <div className="text-xs text-muted-foreground">
                   Estimated size ~2.3GB
@@ -295,6 +529,7 @@ export const PackageModalProvider: React.FC<ProviderProps> = ({ children }) => {
                     className="px-3 py-2 rounded-md text-sm bg-primary text-primary-foreground hover:opacity-90"
                     onClick={() => {
                       setIsPackaging(true)
+                      setPackStartTs(Date.now())
                       setProgress(0)
                       const steps = [
                         'Validating configuration...',
@@ -320,7 +555,7 @@ export const PackageModalProvider: React.FC<ProviderProps> = ({ children }) => {
                             packagingTimerRef.current = null
                             setTimeout(() => {
                               setIsPackaging(false)
-                              closePackageModal()
+                              setIsSuccess(true)
                             }, 600)
                           }
                           return next
@@ -334,22 +569,51 @@ export const PackageModalProvider: React.FC<ProviderProps> = ({ children }) => {
                   </button>
                 </div>
               </div>
+            ) : isPackaging ? (
+              <div className="w-full flex items-center justify-between gap-2">
+                <div className="text-xs text-muted-foreground">
+                  Estimated size ~2.3GB
+                </div>
+                <div>
+                  <button
+                    className="px-3 py-2 rounded-md text-sm bg-secondary text-secondary-foreground border border-input hover:bg-secondary/80"
+                    onClick={() => {
+                      if (packagingTimerRef.current) {
+                        window.clearInterval(packagingTimerRef.current)
+                        packagingTimerRef.current = null
+                      }
+                      setIsPackaging(false)
+                      setProgress(0)
+                      setCurrentStep('')
+                    }}
+                    type="button"
+                  >
+                    Stop
+                  </button>
+                </div>
+              </div>
             ) : (
-              <div className="w-full flex items-center justify-end">
+              <div className="w-full flex items-center justify-end gap-2">
                 <button
-                  className="px-3 py-2 rounded-md text-sm bg-secondary text-secondary-foreground border border-input hover:bg-secondary/80"
-                  onClick={() => {
-                    if (packagingTimerRef.current) {
-                      window.clearInterval(packagingTimerRef.current)
-                      packagingTimerRef.current = null
-                    }
-                    setIsPackaging(false)
-                    setProgress(0)
-                    setCurrentStep('')
-                  }}
+                  className="px-3 py-2 rounded-md text-sm border border-input bg-background hover:bg-accent/30"
                   type="button"
+                  onClick={() => {
+                    setIsSuccess(false)
+                    closePackageModal()
+                    // TODO: navigate to Versions when route available
+                  }}
                 >
-                  Stop
+                  Go to versions
+                </button>
+                <button
+                  className="px-3 py-2 rounded-md text-sm bg-primary text-primary-foreground hover:opacity-90"
+                  type="button"
+                  onClick={() => {
+                    setIsSuccess(false)
+                    closePackageModal()
+                  }}
+                >
+                  Done
                 </button>
               </div>
             )}
