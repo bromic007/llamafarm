@@ -8,6 +8,7 @@ import DatasetView from './components/Data/DatasetView'
 import Prompt from './components/Prompt/Prompt'
 import Test from './components/Test'
 import Dashboard from './components/Dashboard/Dashboard'
+import Versions from './components/Dashboard/Versions'
 import Models from './components/Models/Models'
 import Rag from './components/Rag/Rag'
 import StrategyView from './components/Rag/StrategyView'
@@ -29,6 +30,7 @@ function App() {
             <Route path="/projects" element={<Home />} />
             <Route path="/chat" element={<Chat />}>
               <Route path="dashboard" element={<Dashboard />} />
+              <Route path="versions" element={<Versions />} />
               <Route path="data" element={<Data />} />
               <Route path="data/:datasetId" element={<DatasetView />} />
               <Route path="models" element={<Models />} />

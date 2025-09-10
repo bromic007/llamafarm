@@ -27,6 +27,8 @@ import {
   useDeleteDataset,
 } from '../../hooks/useDatasets'
 import { defaultStrategies } from '../Rag/strategies'
+import PageActions from '../common/PageActions'
+import { Mode } from '../ModeToggle'
 
 type Dataset = {
   id: string
@@ -44,6 +46,7 @@ function DatasetView() {
   const navigate = useNavigate()
   const { datasetId } = useParams()
   const { toast } = useToast()
+  const [mode, setMode] = useState<Mode>('designer')
 
   // Get current active project for API calls
   const activeProject = useActiveProject()
@@ -503,16 +506,19 @@ function DatasetView() {
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      <nav className="text-sm md:text-base flex items-center gap-1.5 mb-3">
-        <button
-          className="text-teal-600 dark:text-teal-400 hover:underline"
-          onClick={() => navigate('/chat/data')}
-        >
-          Data
-        </button>
-        <span className="text-muted-foreground px-1">\</span>
-        <span className="text-foreground">{datasetName}</span>
-      </nav>
+      <div className="flex items-center justify-between mb-3">
+        <nav className="text-sm md:text-base flex items-center gap-1.5">
+          <button
+            className="text-teal-600 dark:text-teal-400 hover:underline"
+            onClick={() => navigate('/chat/data')}
+          >
+            Data
+          </button>
+          <span className="text-muted-foreground px-1">\</span>
+          <span className="text-foreground">{datasetName}</span>
+        </nav>
+        <PageActions mode={mode} onModeChange={setMode} />
+      </div>
 
       {/* Header row */}
       <div className="rounded-lg border border-border bg-card p-4">
