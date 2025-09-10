@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import FontIcon from '../../common/FontIcon'
 import Loader from '../../common/Loader'
-import ModeToggle, { Mode } from '../ModeToggle'
+import type { Mode } from '../ModeToggle'
 import ConfigEditor from '../ConfigEditor/ConfigEditor'
 import {
   DropdownMenu,
