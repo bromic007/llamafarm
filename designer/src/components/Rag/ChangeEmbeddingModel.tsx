@@ -4,6 +4,8 @@ import FontIcon from '../../common/FontIcon'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Badge } from '../ui/badge'
+import PageActions from '../common/PageActions'
+import { Mode } from '../ModeToggle'
 import { useToast } from '../ui/toast'
 import { Label } from '../ui/label'
 import {
@@ -66,6 +68,7 @@ async function encryptAPIKey(apiKey: string, secret: string) {
 
 function ChangeEmbeddingModel() {
   const navigate = useNavigate()
+  const [mode, setMode] = useState<Mode>('designer')
   const { strategyId } = useParams()
   const { toast } = useToast()
 
@@ -481,37 +484,42 @@ function ChangeEmbeddingModel() {
 
   return (
     <div className="h-full w-full flex flex-col gap-3 pb-40">
-      {/* Breadcrumb */}
-      <nav className="text-sm md:text-base flex items-center gap-1.5 mb-3">
-        <button
-          className="text-teal-600 dark:text-teal-400 hover:underline"
-          onClick={() => navigate('/chat/rag')}
-        >
-          RAG
-        </button>
-        <span className="text-muted-foreground px-1">/</span>
-        <button
-          className="text-teal-600 dark:text-teal-400 hover:underline"
-          onClick={() => navigate(`/chat/rag/${strategyId}`)}
-        >
-          {strategyName}
-        </button>
-        <span className="text-muted-foreground px-1">/</span>
-        <span className="text-foreground">Change embedding model</span>
-      </nav>
+      {/* Breadcrumb + Actions */}
+      <div className="flex items-center justify-between mb-1 md:mb-3">
+        <nav className="text-sm md:text-base flex items-center gap-1.5">
+          <button
+            className="text-teal-600 dark:text-teal-400 hover:underline"
+            onClick={() => navigate('/chat/rag')}
+          >
+            RAG
+          </button>
+          <span className="text-muted-foreground px-1">/</span>
+          <button
+            className="text-teal-600 dark:text-teal-400 hover:underline"
+            onClick={() => navigate(`/chat/rag/${strategyId}`)}
+          >
+            {strategyName}
+          </button>
+          <span className="text-muted-foreground px-1">/</span>
+          <span className="text-foreground">Change embedding model</span>
+        </nav>
+        <PageActions mode={mode} onModeChange={setMode} />
+      </div>
 
       {/* Header */}
       <div className="flex items-center justify-between mb-1">
         <h2 className="text-lg md:text-xl font-medium">
           Change embedding model
         </h2>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => navigate(`/chat/rag/${strategyId}`)}
-        >
-          Back
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate(`/chat/rag/${strategyId}`)}
+          >
+            Back
+          </Button>
+        </div>
       </div>
 
       {/* Current model */}

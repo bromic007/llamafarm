@@ -2,6 +2,9 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import FontIcon from '../../common/FontIcon'
 import { Button } from '../ui/button'
+import ConfigEditor from '../ConfigEditor/ConfigEditor'
+import PageActions from '../common/PageActions'
+import { Mode } from '../ModeToggle'
 import { Badge } from '../ui/badge'
 import SearchInput from '../ui/search-input'
 import { defaultStrategies } from './strategies'
@@ -26,6 +29,7 @@ function Rag() {
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
   const { toast } = useToast()
+  const [mode, setMode] = useState<Mode>('designer')
 
   const [metaTick, setMetaTick] = useState(0)
   const [isEditOpen, setIsEditOpen] = useState(false)
@@ -150,173 +154,200 @@ function Rag() {
     <>
       <div className="w-full flex flex-col gap-4 pb-32">
         <div className="flex items-center justify-between mb-2">
-          <h2 className="text-2xl">RAG</h2>
+          <h2 className="text-2xl">
+            {mode === 'designer' ? 'RAG' : 'Config editor'}
+          </h2>
+          <PageActions mode={mode} onModeChange={setMode} />
         </div>
-
-        <div className="text-sm text-muted-foreground mb-1">
-          simple description – these can be applied to datasets
-        </div>
-
-        <div className="rounded-lg border border-border bg-card p-4">
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-sm font-medium">Default RAG strategies</div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={resetStrategies}>
-                Reset list
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => {
-                  setCreateName('')
-                  setCreateDescription('')
-                  setCopyFromId('')
-                  setIsCreateOpen(true)
-                }}
-              >
-                Create new
-              </Button>
+        {mode !== 'designer' ? (
+          <div className="rounded-lg border border-border bg-card p-4">
+            <div className="text-sm text-muted-foreground mb-1">
+              Edit config
+            </div>
+            <div className="rounded-md overflow-hidden">
+              <div className="h-[70vh]">
+                <ConfigEditor />
+              </div>
             </div>
           </div>
+        ) : (
+          <>
+            <div className="text-sm text-muted-foreground mb-1">
+              simple description – these can be applied to datasets
+            </div>
 
-          <div className="mb-3 max-w-xl">
-            <SearchInput
-              placeholder="Search RAG Strategies"
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-            {filtered.map(s => (
-              <div
-                key={s.id}
-                className="w-full bg-card rounded-lg border border-border flex flex-col gap-2 p-4 relative hover:bg-accent/20 hover:cursor-pointer transition-colors"
-                onClick={() => navigate(`/chat/rag/${s.id}`)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
-                    navigate(`/chat/rag/${s.id}`)
-                  }
-                }}
-              >
-                <div className="absolute top-2 right-2">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button
-                        className="w-6 h-6 grid place-items-center rounded-md text-muted-foreground hover:bg-accent/30"
-                        onClick={e => e.stopPropagation()}
-                      >
-                        <FontIcon type="overflow" className="w-4 h-4" />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent
-                      align="end"
-                      className="min-w-[10rem] w-[10rem]"
-                    >
-                      <DropdownMenuItem
-                        onClick={e => {
-                          e.stopPropagation()
-                          e.preventDefault()
-                          setEditId(s.id)
-                          setEditName(s.name)
-                          setEditDescription(s.description)
-                          setIsEditOpen(true)
-                        }}
-                      >
-                        Edit
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => navigate(`/chat/rag/${s.id}`)}
-                      >
-                        Configure
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={e => {
-                          e.stopPropagation()
-                          e.preventDefault()
-                          setCopyFromId(s.id)
-                          setCreateName(`${s.name} (copy)`)
-                          setCreateDescription(s.description || '')
-                          setIsCreateOpen(true)
-                        }}
-                      >
-                        Duplicate
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        className="text-destructive focus:text-destructive"
-                        onClick={e => {
-                          e.stopPropagation()
-                          e.preventDefault()
-                          const ok = confirm(
-                            'Are you sure you want to delete this strategy?'
-                          )
-                          if (ok) {
-                            try {
-                              localStorage.removeItem(
-                                `lf_strategy_name_override_${s.id}`
-                              )
-                              localStorage.removeItem(
-                                `lf_strategy_description_${s.id}`
-                              )
-                            } catch {}
-                            removeCustomStrategy(s.id)
-                            markDeleted(s.id)
-                            toast({
-                              message: 'Strategy deleted',
-                              variant: 'default',
-                            })
-                          }
-                        }}
-                      >
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+            <div className="rounded-lg border border-border bg-card p-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-sm font-medium">
+                  Default RAG strategies
                 </div>
-
-                <div className="text-sm font-medium">{s.name}</div>
-                <div className="text-xs text-primary text-left w-fit">
-                  {s.description}
-                </div>
-
-                <div className="flex items-center gap-2 flex-wrap">
-                  {s.isDefault ? (
-                    <Badge variant="default" size="sm" className="rounded-xl">
-                      Default
-                    </Badge>
-                  ) : (
-                    <Badge variant="secondary" size="sm" className="rounded-xl">
-                      Custom
-                    </Badge>
-                  )}
-                  <Badge
-                    variant={s.datasetsUsing > 0 ? 'default' : 'secondary'}
-                    size="sm"
-                    className={`rounded-xl ${s.datasetsUsing > 0 ? 'bg-emerald-600 text-emerald-50 dark:bg-emerald-400 dark:text-emerald-900' : ''}`}
-                  >
-                    {`${s.datasetsUsing} datasets using`}
-                  </Badge>
-                </div>
-
-                <div className="flex justify-end pt-1">
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={resetStrategies}>
+                    Reset list
+                  </Button>
                   <Button
-                    variant="outline"
                     size="sm"
-                    className="px-3"
-                    onClick={e => {
-                      e.stopPropagation()
-                      navigate(`/chat/rag/${s.id}`)
+                    onClick={() => {
+                      setCreateName('')
+                      setCreateDescription('')
+                      setCopyFromId('')
+                      setIsCreateOpen(true)
                     }}
                   >
-                    Configure
+                    Create new
                   </Button>
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
+
+              <div className="mb-3 max-w-xl">
+                <SearchInput
+                  placeholder="Search RAG Strategies"
+                  value={query}
+                  onChange={e => setQuery(e.target.value)}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {filtered.map(s => (
+                  <div
+                    key={s.id}
+                    className="w-full bg-card rounded-lg border border-border flex flex-col gap-2 p-4 relative hover:bg-accent/20 hover:cursor-pointer transition-colors"
+                    onClick={() => navigate(`/chat/rag/${s.id}`)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        navigate(`/chat/rag/${s.id}`)
+                      }
+                    }}
+                  >
+                    <div className="absolute top-2 right-2">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            className="w-6 h-6 grid place-items-center rounded-md text-muted-foreground hover:bg-accent/30"
+                            onClick={e => e.stopPropagation()}
+                          >
+                            <FontIcon type="overflow" className="w-4 h-4" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          align="end"
+                          className="min-w-[10rem] w-[10rem]"
+                        >
+                          <DropdownMenuItem
+                            onClick={e => {
+                              e.stopPropagation()
+                              e.preventDefault()
+                              setEditId(s.id)
+                              setEditName(s.name)
+                              setEditDescription(s.description)
+                              setIsEditOpen(true)
+                            }}
+                          >
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => navigate(`/chat/rag/${s.id}`)}
+                          >
+                            Configure
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={e => {
+                              e.stopPropagation()
+                              e.preventDefault()
+                              setCopyFromId(s.id)
+                              setCreateName(`${s.name} (copy)`)
+                              setCreateDescription(s.description || '')
+                              setIsCreateOpen(true)
+                            }}
+                          >
+                            Duplicate
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={e => {
+                              e.stopPropagation()
+                              e.preventDefault()
+                              const ok = confirm(
+                                'Are you sure you want to delete this strategy?'
+                              )
+                              if (ok) {
+                                try {
+                                  localStorage.removeItem(
+                                    `lf_strategy_name_override_${s.id}`
+                                  )
+                                  localStorage.removeItem(
+                                    `lf_strategy_description_${s.id}`
+                                  )
+                                } catch {}
+                                removeCustomStrategy(s.id)
+                                markDeleted(s.id)
+                                toast({
+                                  message: 'Strategy deleted',
+                                  variant: 'default',
+                                })
+                              }
+                            }}
+                          >
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+
+                    <div className="text-sm font-medium">{s.name}</div>
+                    <div className="text-xs text-primary text-left w-fit">
+                      {s.description}
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {s.isDefault ? (
+                        <Badge
+                          variant="default"
+                          size="sm"
+                          className="rounded-xl"
+                        >
+                          Default
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="secondary"
+                          size="sm"
+                          className="rounded-xl"
+                        >
+                          Custom
+                        </Badge>
+                      )}
+                      <Badge
+                        variant={s.datasetsUsing > 0 ? 'default' : 'secondary'}
+                        size="sm"
+                        className={`rounded-xl ${s.datasetsUsing > 0 ? 'bg-emerald-600 text-emerald-50 dark:bg-emerald-400 dark:text-emerald-900' : ''}`}
+                      >
+                        {`${s.datasetsUsing} datasets using`}
+                      </Badge>
+                    </div>
+
+                    <div className="flex justify-end pt-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="px-3"
+                        onClick={e => {
+                          e.stopPropagation()
+                          navigate(`/chat/rag/${s.id}`)
+                        }}
+                      >
+                        Configure
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Edit Strategy Modal */}

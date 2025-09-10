@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react'
 import FontIcon from '../common/FontIcon'
 import ModeToggle, { Mode } from './ModeToggle'
+import { Button } from './ui/button'
 import ConfigEditor from './ConfigEditor/ConfigEditor'
+import { usePackageModal } from '../contexts/PackageModalContext'
 
 interface TestCase {
   id: number
@@ -21,6 +23,7 @@ const scorePillClasses = (score: number) => {
 }
 
 const Test = () => {
+  const { openPackageModal } = usePackageModal()
   const [tests, setTests] = useState<TestCase[]>([
     {
       id: 1,
@@ -196,9 +199,9 @@ const Test = () => {
         </h2>
         <div className="flex items-center gap-3">
           <ModeToggle mode={mode} onToggle={setMode} />
-          <button className="opacity-50 cursor-not-allowed text-sm px-3 py-2 rounded-lg border border-input text-muted-foreground">
-            Deploy
-          </button>
+          <Button variant="outline" size="sm" onClick={openPackageModal}>
+            Package
+          </Button>
         </div>
       </div>
 
