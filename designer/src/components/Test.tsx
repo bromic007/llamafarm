@@ -27,6 +27,7 @@ const scorePillClasses = (score: number) => {
 
 const Test = () => {
   const { openPackageModal } = usePackageModal()
+  const [running, setRunning] = useState<Record<number, boolean>>({})
   const [tests, setTests] = useState<TestCase[]>([
     {
       id: 1,
@@ -113,7 +114,34 @@ const Test = () => {
     [tests]
   )
 
-  const handleRun = (id: number) => {
+  const handleRun = (id: number, override?: TestCase) => {
+    const row = override ?? tests.find(t => t.id === id)
+    // Fire event for the chat area to consume
+    if (row && typeof window !== 'undefined') {
+      try {
+        window.dispatchEvent(
+          new CustomEvent('lf-test-run', {
+            detail: {
+              id: row.id,
+              name: row.name,
+              input: row.input ?? '',
+              expected: row.expected ?? '',
+            },
+          })
+        )
+      } catch {}
+    }
+
+    // Briefly show Running… on the clicked button
+    setRunning(prev => ({ ...prev, [id]: true }))
+    setTimeout(() => {
+      setRunning(prev => ({ ...prev, [id]: false }))
+    }, 800)
+
+    // Collapse the panel so the user can see the chat
+    setIsPanelOpen(false)
+
+    // Update list metadata immediately
     setTests(prev =>
       prev.map(t =>
         t.id === id
@@ -155,7 +183,8 @@ const Test = () => {
     setTests(prev => [newRow, ...prev])
     setIsCreateOpen(false)
     if (runAfterSave) {
-      handleRun(newRow.id)
+      // Defer so state updates apply before run feedback
+      setTimeout(() => handleRun(newRow.id, newRow), 0)
     }
   }
 
@@ -190,7 +219,16 @@ const Test = () => {
       )
     )
     if (runAfterSave) {
-      handleRun(editId)
+      const edited = tests.find(t => t.id === editId)
+      const merged: TestCase | undefined = edited
+        ? {
+            ...edited,
+            name: editForm.name.trim(),
+            input: editForm.input.trim(),
+            expected: editForm.expected.trim(),
+          }
+        : undefined
+      setTimeout(() => handleRun(editId, merged), 0)
     }
     setIsEditOpen(false)
   }
@@ -358,8 +396,9 @@ const Test = () => {
                             variant="outline"
                             size="sm"
                             onClick={() => handleRun(test.id)}
+                            disabled={Boolean(running[test.id])}
                           >
-                            Run
+                            {running[test.id] ? 'Running…' : 'Run'}
                           </Button>
                         </div>
                       </div>

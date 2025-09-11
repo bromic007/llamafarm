@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import FontIcon from '../../common/FontIcon'
 import useChatbox from '../../hooks/useChatbox'
 import { ChatboxMessage } from '../../types/chatbox'
+import { Badge } from '../ui/badge'
 
 export interface TestChatProps {
   showReferences: boolean
@@ -152,6 +153,101 @@ export default function TestChat({
     }
   }, [messages, updateInput, handleSend])
 
+  // Lightweight evaluator and mock generator for test runs
+  const evaluateTest = useCallback(
+    (input: string, expected: string, actual: string) => {
+      const tokenize = (s: string) =>
+        s
+          .toLowerCase()
+          .replace(/[^a-z0-9\s]/g, ' ')
+          .split(/\s+/)
+          .filter(Boolean)
+      const a = new Set(tokenize(expected))
+      const b = new Set(tokenize(actual))
+      let inter = 0
+      a.forEach(t => {
+        if (b.has(t)) inter++
+      })
+      const union = a.size + b.size - inter || 1
+      let score = (inter / union) * 100
+      // Gentle bias upward and random jitter for realism
+      score = Math.max(0, Math.min(100, score + 12 + (Math.random() * 6 - 3)))
+      score = Math.round(score * 10) / 10
+      const latencyMs = 120 + Math.round(Math.random() * 280)
+      const promptTokens = tokenize(input).length
+      const completionTokens = tokenize(actual).length
+      return {
+        score,
+        latencyMs,
+        tokenUsage: {
+          prompt: promptTokens,
+          completion: completionTokens,
+          total: promptTokens + completionTokens,
+        },
+      }
+    },
+    []
+  )
+
+  // Handle external test-run events from the Tests panel
+  useEffect(() => {
+    const onRun = (e: Event) => {
+      const detail = (e as CustomEvent).detail as {
+        id: number
+        name: string
+        input: string
+        expected: string
+      }
+
+      const input = (detail.input || '').trim()
+      const expected = (detail.expected || '').trim()
+
+      // Add a specially marked user message
+      addMessage({
+        type: 'user',
+        content: input || '(no input provided)',
+        timestamp: new Date(),
+        metadata: {
+          isTest: true,
+          testId: detail.id,
+          testName: detail.name,
+          expected,
+        },
+      })
+
+      // Add loading assistant message
+      const assistantId = addMessage({
+        type: 'assistant',
+        content: 'Evaluating…',
+        timestamp: new Date(),
+        isLoading: true,
+        metadata: { isTest: true, testId: detail.id, testName: detail.name },
+      })
+
+      // Synthesize answer and compute mock score
+      const latency = 140 + Math.round(Math.random() * 240)
+      setTimeout(() => {
+        const mockAnswer =
+          expected ||
+          `Here is an analysis based on the input. The likely causes are A/B/C with suggested next steps 1/2/3. This is a mocked response while the backend is not yet connected.`
+        const result = evaluateTest(input, expected, mockAnswer)
+        updateMessage(assistantId, {
+          content: mockAnswer,
+          isLoading: false,
+          metadata: {
+            isTest: true,
+            testId: detail.id,
+            testName: detail.name,
+            testResult: { ...result, expected },
+          },
+        })
+      }, latency)
+    }
+    window.addEventListener('lf-test-run', onRun as EventListener)
+    return () =>
+      window.removeEventListener('lf-test-run', onRun as EventListener)
+  }, [addMessage, updateMessage, evaluateTest])
+
   return (
     <div className={containerClasses}>
       {/* Header row actions */}
@@ -239,6 +335,7 @@ function TestChatMessage({
   const isUser = message.type === 'user'
   const isAssistant = message.type === 'assistant'
   const [thumb, setThumb] = useState<null | 'up' | 'down'>(null)
+  const [showExpected, setShowExpected] = useState<boolean>(false)
 
   // Load persisted thumb for this message
   useEffect(() => {
@@ -281,6 +378,15 @@ function TestChatMessage({
       >
         {message.isLoading && isAssistant ? (
           <TypingDots label="Thinking" />
+        ) : message.metadata?.isTest && isUser ? (
+          <div className="whitespace-pre-wrap">
+            <div className="mb-2">
+              <Badge className="bg-teal-500/20 text-teal-400 border border-teal-500/30">
+                Test input
+              </Badge>
+            </div>
+            {message.content}
+          </div>
         ) : (
           message.content
         )}
@@ -333,6 +439,52 @@ function TestChatMessage({
         isAssistant &&
         Array.isArray(message.sources) &&
         message.sources.length > 0 && <References sources={message.sources} />}
+
+      {/* Test result block */}
+      {isAssistant && message.metadata?.testResult && (
+        <div className="mt-3 rounded-md border border-border bg-card/40 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Badge className="bg-teal-500/20 text-teal-400 border border-teal-500/30">
+                Test result
+              </Badge>
+              <span
+                className={`px-2 py-0.5 rounded-2xl text-xs ${
+                  (message.metadata.testResult.score ?? 0) >= 95
+                    ? 'bg-teal-300 text-black'
+                    : (message.metadata.testResult.score ?? 0) >= 75
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-amber-300 text-black'
+                }`}
+              >
+                {message.metadata.testResult.score}% match
+              </span>
+            </div>
+            <button
+              className="text-xs underline text-muted-foreground"
+              onClick={() => setShowExpected(s => !s)}
+            >
+              {showExpected ? 'Hide expected' : 'View expected'}
+            </button>
+          </div>
+          <div className="mt-2 text-xs text-muted-foreground flex items-center gap-4">
+            <div>{message.metadata.testResult.latencyMs}ms result</div>
+            <div>
+              {message.metadata.testResult.tokenUsage.total} tokens
+              <span className="opacity-60">
+                {' '}
+                (p {message.metadata.testResult.tokenUsage.prompt} / c{' '}
+                {message.metadata.testResult.tokenUsage.completion})
+              </span>
+            </div>
+          </div>
+          {showExpected && message.metadata.testResult.expected && (
+            <div className="mt-2 p-2 rounded bg-muted text-xs whitespace-pre-wrap">
+              {message.metadata.testResult.expected}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
