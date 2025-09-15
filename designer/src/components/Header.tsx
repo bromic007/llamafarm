@@ -278,7 +278,7 @@ function Header() {
                 onClick={() => navigate('/chat/prompt')}
               >
                 <FontIcon type="prompt" className="w-6 h-6" />
-                <span>Prompt</span>
+                <span>Prompts</span>
               </button>
               <button
                 className={`w-full flex items-center justify-center gap-2 transition-colors rounded-lg p-2 ${
