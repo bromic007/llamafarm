@@ -293,6 +293,9 @@ const Test = () => {
     }
   })
 
+  // Local diagnose loading for origin CTAs
+  const [diagnosing, setDiagnosing] = useState<Record<string, boolean>>({})
+
   // Persist preferences
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -473,6 +476,10 @@ const Test = () => {
                                 size="sm"
                                 className="ml-3 h-7 px-2 py-0 text-teal-700 border-teal-500/50 hover:bg-teal-500/10 dark:text-teal-300"
                                 onClick={() => {
+                                  setDiagnosing(prev => ({
+                                    ...prev,
+                                    [String(test.id)]: true,
+                                  }))
                                   try {
                                     window.dispatchEvent(
                                       new CustomEvent('lf-diagnose', {
@@ -488,9 +495,24 @@ const Test = () => {
                                     )
                                   } catch {}
                                   setIsPanelOpen(false)
+                                  setTimeout(
+                                    () =>
+                                      setDiagnosing(prev => ({
+                                        ...prev,
+                                        [String(test.id)]: false,
+                                      })),
+                                    1000
+                                  )
                                 }}
                               >
-                                Diagnose
+                                {diagnosing[String(test.id)] ? (
+                                  <span className="inline-flex items-center gap-2">
+                                    <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-teal-500 border-t-transparent" />
+                                    <span>Diagnosing…</span>
+                                  </span>
+                                ) : (
+                                  'Diagnose'
+                                )}
                               </Button>
                             )}
                           </div>

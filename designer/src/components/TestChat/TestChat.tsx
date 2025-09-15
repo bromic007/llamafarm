@@ -495,7 +495,15 @@ function TestChatMessage({
           <span className="opacity-40">•</span>
           <ActionLink
             label="Diagnose"
-            onClick={() =>
+            className={
+              thumb === 'down'
+                ? 'text-xs text-teal-500 hover:text-teal-400 hover:underline font-medium'
+                : undefined
+            }
+            onClick={() => {
+              // brief local visual loading cue by dimming text
+              const el = document.activeElement as HTMLElement | null
+              if (el) el.blur()
               window.dispatchEvent(
                 new CustomEvent('lf-diagnose', {
                   detail: {
@@ -504,7 +512,7 @@ function TestChatMessage({
                   },
                 })
               )
-            }
+            }}
           />
           <span className="opacity-40">/</span>
           <ActionLink
@@ -721,12 +729,17 @@ function ThumbButton({
 function ActionLink({
   label,
   onClick,
+  className,
 }: {
   label: string
   onClick: () => void
+  className?: string
 }) {
   return (
-    <button onClick={onClick} className="text-xs hover:underline">
+    <button
+      onClick={onClick}
+      className={className || 'text-xs hover:underline'}
+    >
       {label}
     </button>
   )
