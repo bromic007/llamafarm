@@ -10,8 +10,7 @@ import {
   DropdownMenuTrigger,
 } from './ui/dropdown-menu'
 import { useProjects } from '../hooks/useProjects'
-import { useProjectModal } from '../hooks/useProjectModal'
-import ProjectModal from './Project/ProjectModal'
+import { useProjectModalContext } from '../contexts/ProjectModalContext'
 import {
   setActiveProject as setActiveProjectUtil,
   getActiveProject,
@@ -41,11 +40,8 @@ function Header() {
     return getProjectsList(projectsResponse)
   }, [projectsResponse, isProjectOpen])
   const projectRef = useRef<HTMLDivElement>(null)
-  // Project modal over current context
-  const projectModal = useProjectModal({
-    namespace,
-    existingProjects: projects,
-  })
+  // Project modal from centralized context
+  const projectModal = useProjectModalContext()
 
   // Page switching overlay (fade only)
   const [isSwitching, setIsSwitching] = useState(false)
@@ -328,16 +324,7 @@ function Header() {
           </div>
         </div>
       </div>
-      {/* Global project modal mounted in header to keep context */}
-      <ProjectModal
-        isOpen={projectModal.isModalOpen}
-        mode={projectModal.modalMode}
-        initialName={projectModal.projectName}
-        initialDescription={''}
-        onClose={projectModal.closeModal}
-        onSave={projectModal.saveProject}
-        isLoading={projectModal.isLoading}
-      />
+      {/* Modal is rendered by ProjectModalRoot in App */}
     </header>
   )
 }

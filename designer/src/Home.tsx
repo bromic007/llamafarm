@@ -2,10 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 // removed decorative llama image
 import FontIcon from './common/FontIcon'
-import ProjectModal from './components/Project/ProjectModal'
+// Modal rendered globally in App
 import useChatbox from './hooks/useChatbox'
 import { useProjects } from './hooks/useProjects'
-import { useProjectModal } from './hooks/useProjectModal'
+import { useProjectModalContext } from './contexts/ProjectModalContext'
 import {
   filterProjectsBySearch,
   getProjectsList,
@@ -39,15 +39,7 @@ function Home() {
   )
 
   // Shared modal hook
-  const projectModal = useProjectModal({
-    namespace,
-    existingProjects: projectsList,
-    onSuccess: (_, mode) => {
-      if (mode === 'create') {
-        navigate('/chat/dashboard')
-      }
-    },
-  })
+  const projectModal = useProjectModalContext()
 
   const filteredProjectNames = useMemo(() => {
     return filterProjectsBySearch(
@@ -350,20 +342,7 @@ function Home() {
         </div>
       </div>
       {/* Project edit modal over Home */}
-      <ProjectModal
-        isOpen={projectModal.isModalOpen}
-        mode={projectModal.modalMode}
-        initialName={projectModal.projectName}
-        initialDescription={''}
-        onClose={projectModal.closeModal}
-        onSave={projectModal.saveProject}
-        onDelete={
-          projectModal.modalMode === 'edit'
-            ? projectModal.deleteProject
-            : undefined
-        }
-        isLoading={projectModal.isLoading}
-      />
+      {/* Modal rendered globally in App */}
     </div>
   )
 }

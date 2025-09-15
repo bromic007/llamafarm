@@ -225,44 +225,42 @@ export const useProjectModal = ({
         setProjectError('Invalid project configuration')
       } else if (error?.response?.status === 400) {
         setProjectError('Invalid request. Please check your input.')
-      } else {
+      } else if (modalMode === 'create') {
         // Network/offline or server error - optimistic local creation for UX
-        if (modalMode === 'create') {
-          setActiveProject(sanitizedName)
-          // Update list cache and local fallback so it appears in lists/dropdowns
-          try {
-            const prev = queryClient.getQueryData(
-              projectKeys.list(namespace)
-            ) as { total?: number; projects?: Project[] } | undefined
-            const nextProject: Project = {
-              namespace,
-              name: sanitizedName,
-              config: {},
-            }
-            const next = {
-              total: (prev?.total ?? 0) + 1,
-              projects: [...(prev?.projects ?? []), nextProject],
-            }
-            queryClient.setQueryData(projectKeys.list(namespace), next)
-          } catch {}
-          try {
-            const raw = localStorage.getItem('lf_custom_projects')
-            const arr: string[] = raw ? JSON.parse(raw) : []
-            if (!arr.includes(sanitizedName)) {
-              localStorage.setItem(
-                'lf_custom_projects',
-                JSON.stringify([...arr, sanitizedName])
-              )
-            }
-          } catch {}
-          closeModal()
-          toast({
-            message: `Created "${sanitizedName}" locally. Will sync when connected.`,
-          })
-          navigate('/chat/dashboard')
-        } else {
-          setProjectError(`Failed to ${modalMode} project. Please try again.`)
-        }
+        setActiveProject(sanitizedName)
+        // Update list cache and local fallback so it appears in lists/dropdowns
+        try {
+          const prev = queryClient.getQueryData(projectKeys.list(namespace)) as
+            | { total?: number; projects?: Project[] }
+            | undefined
+          const nextProject: Project = {
+            namespace,
+            name: sanitizedName,
+            config: {},
+          }
+          const next = {
+            total: (prev?.total ?? 0) + 1,
+            projects: [...(prev?.projects ?? []), nextProject],
+          }
+          queryClient.setQueryData(projectKeys.list(namespace), next)
+        } catch {}
+        try {
+          const raw = localStorage.getItem('lf_custom_projects')
+          const arr: string[] = raw ? JSON.parse(raw) : []
+          if (!arr.includes(sanitizedName)) {
+            localStorage.setItem(
+              'lf_custom_projects',
+              JSON.stringify([...arr, sanitizedName])
+            )
+          }
+        } catch {}
+        closeModal()
+        toast({
+          message: `Created "${sanitizedName}" locally. Will sync when connected.`,
+        })
+        navigate('/chat/dashboard')
+      } else {
+        setProjectError(`Failed to ${modalMode} project. Please try again.`)
       }
     }
   }
