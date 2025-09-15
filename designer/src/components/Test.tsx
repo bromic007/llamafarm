@@ -701,9 +701,9 @@ const Test = () => {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 flex relative">
+      <div className="flex-1 min-h-0 flex flex-col relative">
         {/* Main work area */}
-        <div className="flex-1 min-h-0 pb-6 pr-0">
+        <div className="flex-1 min-h-0 pb-2 pr-0">
           {mode !== 'designer' ? (
             <div className="h-full overflow-hidden">
               <ConfigEditor className="h-full" />
@@ -723,6 +723,15 @@ const Test = () => {
             </div>
           )}
         </div>
+        {/* Helper text below chat window, on dark background */}
+        {mode === 'designer' && (
+          <div className="px-1 pb-3">
+            <div className="text-[11px] text-muted-foreground">
+              Not sure where to start? Think about the questions people will
+              actually ask to test model reliability.
+            </div>
+          </div>
+        )}
       </div>
 
       {isEditOpen && (

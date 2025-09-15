@@ -200,7 +200,7 @@ export function useChatbox(initialSessionId?: string) {
 
     try {
       // If we don't have a valid sessionId (e.g., mock/test mode), skip server deletion
-      if (sessionId) {
+      if (sessionId && !sessionId.startsWith('local_')) {
         await deleteSessionMutation.mutateAsync(sessionId)
       }
 

@@ -25,8 +25,21 @@ const textareaClasses =
 
 function EmptyState() {
   return (
-    <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-      Start testing your tuned model by sending a message…
+    <div className="flex items-center justify-center h-full">
+      <div className="text-center px-6 py-10 rounded-xl border border-border bg-card/40">
+        <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-teal-500/20 border border-teal-500/30">
+          <FontIcon type="test" className="w-5 h-5 text-teal-400" />
+        </div>
+        <div className="text-lg font-medium text-foreground">
+          Start testing your model
+        </div>
+        <div className="mt-1 text-sm text-muted-foreground">
+          Send a message to evaluate responses and run diagnostics.
+        </div>
+        <div className="mt-3 text-xs text-muted-foreground">
+          Tip: Press Enter to send
+        </div>
+      </div>
     </div>
   )
 }
@@ -330,7 +343,7 @@ export default function TestChat({
 
       {/* Messages */}
       <div ref={listRef} className="flex-1 overflow-y-auto p-3 md:p-4">
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4 h-full">
           {!hasMessages ? (
             <EmptyState />
           ) : (
