@@ -25,6 +25,7 @@ COPY . .
 # npm recommends reinstalling without lock after copying sources
 RUN npm cache clean --force \
     && rm -rf node_modules package-lock.json \
+    && npm pkg set dependencies.@radix-ui/react-checkbox=^1.1.4 dependencies.@radix-ui/react-switch=^1.1.4 \
     && npm install --legacy-peer-deps
 
 # Build
