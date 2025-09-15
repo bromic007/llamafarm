@@ -178,8 +178,7 @@ export default function TestChat({
 
   // Wire lightweight global events for Retry and Use-as-prompt
   useEffect(() => {
-    const onRetry = (e: Event) => {
-      const detail = (e as CustomEvent).detail as { id: string }
+    const onRetry = () => {
       // For now, simply re-send the last user message
       const lastUser = [...messages].reverse().find(m => m.type === 'user')
       if (lastUser) {
@@ -582,6 +581,12 @@ function TestChatMessage({
               <Badge className="bg-teal-500/20 text-teal-400 border border-teal-500/30">
                 Test result
               </Badge>
+              <span
+                className="text-[11px] text-muted-foreground"
+                title="This is a simple lexical overlap metric and may not reflect semantic correctness."
+              >
+                experimental
+              </span>
               <span
                 className={`px-2 py-0.5 rounded-2xl text-xs ${
                   (message.metadata.testResult.score ?? 0) >= 95

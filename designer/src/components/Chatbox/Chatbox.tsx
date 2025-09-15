@@ -10,6 +10,7 @@ interface ChatboxProps {
 
 function Chatbox({ isPanelOpen, setIsPanelOpen }: ChatboxProps) {
   const [isDiagnosing, setIsDiagnosing] = useState<boolean>(false)
+  const diagnosingInFlightRef = useRef<boolean>(false)
   // Use the custom chatbox hook for all chat logic
   const {
     messages,
@@ -99,6 +100,9 @@ function Chatbox({ isPanelOpen, setIsPanelOpen }: ChatboxProps) {
     const onDiagnose = async (e: Event) => {
       const detail = (e as CustomEvent).detail as any
       try {
+        // Prevent overlapping diagnoses if events fire rapidly
+        if (diagnosingInFlightRef.current) return
+        diagnosingInFlightRef.current = true
         setIsDiagnosing(true)
         setIsPanelOpen(true)
         const message = composeDiagnoseMessage(detail)
@@ -107,7 +111,10 @@ function Chatbox({ isPanelOpen, setIsPanelOpen }: ChatboxProps) {
           updateInput('')
         }
         // keep the diagnose indicator visible briefly
-        setTimeout(() => setIsDiagnosing(false), 800)
+        setTimeout(() => {
+          setIsDiagnosing(false)
+          diagnosingInFlightRef.current = false
+        }, 800)
       } catch {}
     }
 
@@ -137,7 +144,7 @@ function Chatbox({ isPanelOpen, setIsPanelOpen }: ChatboxProps) {
           handleOnClick={() => setIsPanelOpen(!isPanelOpen)}
         />
       </div>
-      {isPanelOpen && isDiagnosing && (
+      {isDiagnosing && (
         <div className="mx-4 mb-2 flex items-center gap-2 text-xs text-muted-foreground">
           <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-teal-500 border-t-transparent" />
           <span>Diagnosing…</span>

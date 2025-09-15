@@ -3,6 +3,28 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChatboxMessage, ChatSession } from '../types/chatbox'
 import { chatKeys } from './useChat'
 
+// Helper to generate cryptographically secure random strings
+let __secureRandomCounter = 0
+function getSecureRandomString(length: number): string {
+  const cryptoObj =
+    typeof globalThis !== 'undefined' ? (globalThis as any).crypto : undefined
+  if (cryptoObj && typeof cryptoObj.getRandomValues === 'function') {
+    const bytes = new Uint8Array(length)
+    cryptoObj.getRandomValues(bytes)
+    const alphabet = '0123456789abcdefghijklmnopqrstuvwxyz'
+    let result = ''
+    for (let i = 0; i < bytes.length; i++) {
+      result += alphabet[bytes[i] % alphabet.length]
+    }
+    return result
+  }
+  // Fallback: unique, deterministic string without using Math.random
+  const nowPart = Date.now().toString(36)
+  __secureRandomCounter = (__secureRandomCounter + 1) >>> 0
+  const counterPart = __secureRandomCounter.toString(36)
+  return (nowPart + counterPart).slice(-length).padStart(length, '0')
+}
+
 // Session storage keys
 const SESSION_STORAGE_KEYS = {
   CURRENT_SESSION: 'chatbox_current_session',
@@ -30,7 +52,7 @@ export function useChatSession(initialSessionId?: string) {
   useEffect(() => {
     if (typeof window === 'undefined') return
     if (!currentSessionId) {
-      const localId = `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+      const localId = `local_${Date.now()}_${getSecureRandomString(6)}`
       setCurrentSessionId(localId)
       localStorage.setItem(SESSION_STORAGE_KEYS.CURRENT_SESSION, localId)
       // Initialize empty storage for messages to avoid null reads
@@ -39,6 +61,8 @@ export function useChatSession(initialSessionId?: string) {
           SESSION_STORAGE_KEYS.SESSION_MESSAGES(localId),
           JSON.stringify([])
         )
+        // Immediately reflect new session in the session list so it appears in UI
+        updateSessionMetadata(localId, [])
       } catch {}
     }
   }, [currentSessionId])
@@ -108,26 +132,6 @@ export function useChatSession(initialSessionId?: string) {
     }
   }, [])
 
-  // Save messages to localStorage
-  const saveSessionMessages = useCallback(
-    (sessionId: string, messages: ChatboxMessage[]) => {
-      if (typeof window === 'undefined') return
-
-      try {
-        localStorage.setItem(
-          SESSION_STORAGE_KEYS.SESSION_MESSAGES(sessionId),
-          JSON.stringify(messages)
-        )
-
-        // Update session metadata
-        updateSessionMetadata(sessionId, messages)
-      } catch (error) {
-        console.warn(`Failed to save messages for session ${sessionId}:`, error)
-      }
-    },
-    []
-  )
-
   // Update session metadata
   const updateSessionMetadata = useCallback(
     (sessionId: string, messages: ChatboxMessage[]) => {
@@ -176,10 +180,30 @@ export function useChatSession(initialSessionId?: string) {
     [loadAllSessions, queryClient]
   )
 
+  // Save messages to localStorage
+  const saveSessionMessages = useCallback(
+    (sessionId: string, messages: ChatboxMessage[]) => {
+      if (typeof window === 'undefined') return
+
+      try {
+        localStorage.setItem(
+          SESSION_STORAGE_KEYS.SESSION_MESSAGES(sessionId),
+          JSON.stringify(messages)
+        )
+
+        // Update session metadata
+        updateSessionMetadata(sessionId, messages)
+      } catch (error) {
+        console.warn(`Failed to save messages for session ${sessionId}:`, error)
+      }
+    },
+    [updateSessionMetadata]
+  )
+
   // Create new session (will get ID from server on first message)
   const createNewSession = useCallback(() => {
     // Create a local session immediately for persistence; can be migrated later
-    const newSessionId = `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+    const newSessionId = `local_${Date.now()}_${getSecureRandomString(6)}`
     setCurrentSessionId(newSessionId)
 
     if (typeof window !== 'undefined') {
@@ -190,6 +214,8 @@ export function useChatSession(initialSessionId?: string) {
           SESSION_STORAGE_KEYS.SESSION_MESSAGES(newSessionId),
           JSON.stringify([])
         )
+        // Immediately reflect new session in the session list so it appears in UI
+        updateSessionMetadata(newSessionId, [])
       } catch {}
     }
 
@@ -197,7 +223,7 @@ export function useChatSession(initialSessionId?: string) {
     queryClient.invalidateQueries({ queryKey: chatKeys.session(newSessionId) })
 
     return newSessionId
-  }, [queryClient])
+  }, [queryClient, updateSessionMetadata])
 
   // Switch to existing session
   const switchToSession = useCallback(

@@ -356,7 +356,9 @@ const Test = () => {
               <Checkbox
                 id="show-processed"
                 checked={showReferences}
-                onCheckedChange={v => setShowReferences(Boolean(v))}
+                onCheckedChange={(v: boolean | 'indeterminate') =>
+                  setShowReferences(Boolean(v))
+                }
               />
               <span className="whitespace-nowrap">Show referenced chunks</span>
             </label>
@@ -364,7 +366,9 @@ const Test = () => {
               <Checkbox
                 id="show-prompts"
                 checked={showPrompts}
-                onCheckedChange={v => setShowPrompts(Boolean(v))}
+                onCheckedChange={(v: boolean | 'indeterminate') =>
+                  setShowPrompts(Boolean(v))
+                }
               />
               <span className="whitespace-nowrap">Show prompts sent</span>
             </label>
@@ -372,7 +376,9 @@ const Test = () => {
               <Checkbox
                 id="show-thinking"
                 checked={showThinking}
-                onCheckedChange={v => setShowThinking(Boolean(v))}
+                onCheckedChange={(v: boolean | 'indeterminate') =>
+                  setShowThinking(Boolean(v))
+                }
               />
               <span className="whitespace-nowrap">Show thinking steps</span>
             </label>
@@ -385,7 +391,7 @@ const Test = () => {
             </span>
             <Switch
               checked={allowRanking}
-              onCheckedChange={v => setAllowRanking(Boolean(v))}
+              onCheckedChange={(v: boolean) => setAllowRanking(Boolean(v))}
               aria-label="Allow ranking"
             />
             <span className="text-muted-foreground whitespace-nowrap">
@@ -560,7 +566,9 @@ const Test = () => {
                     <div className="flex items-center gap-2">
                       <Switch
                         checked={useTestData}
-                        onCheckedChange={v => setUseTestData(Boolean(v))}
+                        onCheckedChange={(v: boolean) =>
+                          setUseTestData(Boolean(v))
+                        }
                         aria-label="Use test data"
                       />
                       <span className="text-muted-foreground">
@@ -572,7 +580,9 @@ const Test = () => {
                   <label className="inline-flex items-center gap-2">
                     <Checkbox
                       checked={showGenSettings}
-                      onCheckedChange={v => setShowGenSettings(Boolean(v))}
+                      onCheckedChange={(v: boolean | 'indeterminate') =>
+                        setShowGenSettings(Boolean(v))
+                      }
                     />
                     <span className="whitespace-nowrap">
                       Show generation settings in responses
@@ -678,7 +688,7 @@ const Test = () => {
                     <label className="inline-flex items-center gap-2">
                       <Checkbox
                         checked={gen.streaming}
-                        onCheckedChange={v =>
+                        onCheckedChange={(v: boolean | 'indeterminate') =>
                           setGen({ ...gen, streaming: Boolean(v) })
                         }
                       />
@@ -687,7 +697,7 @@ const Test = () => {
                     <label className="inline-flex items-center gap-2">
                       <Checkbox
                         checked={gen.jsonMode}
-                        onCheckedChange={v =>
+                        onCheckedChange={(v: boolean | 'indeterminate') =>
                           setGen({ ...gen, jsonMode: Boolean(v) })
                         }
                       />
