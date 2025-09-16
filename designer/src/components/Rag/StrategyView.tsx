@@ -420,59 +420,7 @@ function StrategyView() {
         </div>
       </section>
 
-      {/* Retrieval method */}
-      <section className="rounded-lg border border-border bg-card p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-medium">Retrieval Method</h3>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigate(`/chat/rag/${strategyId}/retrieval`)}
-          >
-            Configure
-          </Button>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="flex flex-col gap-1">
-            <div className="text-xs text-muted-foreground">Search type</div>
-            <Input value="Hybrid" readOnly className="bg-background" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <div className="text-xs text-muted-foreground">Results count</div>
-            <Input value="8" readOnly className="bg-background" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <div className="text-xs text-muted-foreground">Reranking</div>
-            <Input value="On" readOnly className="bg-background" />
-          </div>
-        </div>
-      </section>
-
-      {/* Embedding model card (same layout as DatasetView) */}
-      <section className="rounded-lg border border-border bg-card p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-medium">Embedding model</h3>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() =>
-                navigate(`/chat/rag/${strategyId}/change-embedding`)
-              }
-            >
-              Change
-            </Button>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <Badge variant="default" size="sm" className="rounded-xl">
-            {currentModel}
-          </Badge>
-          <Badge variant="secondary" size="sm" className="rounded-xl">
-            Active
-          </Badge>
-        </div>
-      </section>
+      {/* Retrieval and Embedding moved to project-level settings. */}
     </div>
   )
 }

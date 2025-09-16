@@ -57,11 +57,14 @@ function App() {
                 <Route path="data/:datasetId" element={<DatasetView />} />
                 <Route path="models" element={<Models />} />
                 <Route path="rag" element={<Rag />} />
+                {/* Project-level pages */}
+                <Route path="rag/processing" element={<StrategyView />} />
                 <Route path="rag/:strategyId" element={<StrategyView />} />
                 <Route
                   path="rag/:strategyId/change-embedding"
                   element={<ChangeEmbeddingModel />}
                 />
+                {/* Legacy routes above remain; new entries reuse same components */}
                 <Route
                   path="rag/:strategyId/extraction"
                   element={<ExtractionSettings />}

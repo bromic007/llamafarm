@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import FontIcon from '../../common/FontIcon'
 import { Button } from '../ui/button'
@@ -6,7 +6,6 @@ import ConfigEditor from '../ConfigEditor/ConfigEditor'
 import PageActions from '../common/PageActions'
 import { Mode } from '../ModeToggle'
 import { Badge } from '../ui/badge'
-import SearchInput from '../ui/search-input'
 import { defaultStrategies } from './strategies'
 import { useToast } from '../ui/toast'
 import {
@@ -27,19 +26,118 @@ type RagStrategy = import('./strategies').RagStrategy
 
 function Rag() {
   const navigate = useNavigate()
-  const [query, setQuery] = useState('')
+  // const [query, setQuery] = useState('') // removed search for strategies
   const { toast } = useToast()
   const [mode, setMode] = useState<Mode>('designer')
 
   const [metaTick, setMetaTick] = useState(0)
+  // Strategy (Processing) modal state
   const [isEditOpen, setIsEditOpen] = useState(false)
-  const [editId, setEditId] = useState<string>('')
+  const [editId, _setEditId] = useState<string>('')
   const [editName, setEditName] = useState('')
   const [editDescription, setEditDescription] = useState('')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [createName, setCreateName] = useState('')
   const [createDescription, setCreateDescription] = useState('')
   const [copyFromId, setCopyFromId] = useState('')
+
+  // Project-level configs (Embeddings / Retrievals) -------------------------
+  type EmbeddingItem = {
+    id: string
+    name: string
+    isDefault: boolean
+    enabled: boolean
+  }
+  type RetrievalItem = {
+    id: string
+    name: string
+    isDefault: boolean
+    enabled: boolean
+  }
+
+  const EMB_LIST_KEY = 'lf_project_embeddings'
+  const RET_LIST_KEY = 'lf_project_retrievals'
+
+  const getEmbeddings = (): EmbeddingItem[] => {
+    try {
+      const raw = localStorage.getItem(EMB_LIST_KEY)
+      if (!raw) return []
+      const arr = JSON.parse(raw)
+      if (!Array.isArray(arr)) return []
+      return arr
+        .filter(
+          (e: any) =>
+            e && typeof e.id === 'string' && typeof e.name === 'string'
+        )
+        .map((e: any) => ({
+          id: e.id,
+          name: e.name,
+          isDefault: Boolean(e.isDefault),
+          enabled: typeof e.enabled === 'boolean' ? e.enabled : true,
+        }))
+    } catch {
+      return []
+    }
+  }
+  const saveEmbeddings = (list: EmbeddingItem[]) => {
+    try {
+      localStorage.setItem(EMB_LIST_KEY, JSON.stringify(list))
+    } catch {}
+  }
+
+  const getRetrievals = (): RetrievalItem[] => {
+    try {
+      const raw = localStorage.getItem(RET_LIST_KEY)
+      if (!raw) return []
+      const arr = JSON.parse(raw)
+      if (!Array.isArray(arr)) return []
+      return arr
+        .filter(
+          (e: any) =>
+            e && typeof e.id === 'string' && typeof e.name === 'string'
+        )
+        .map((e: any) => ({
+          id: e.id,
+          name: e.name,
+          isDefault: Boolean(e.isDefault),
+          enabled: typeof e.enabled === 'boolean' ? e.enabled : true,
+        }))
+    } catch {
+      return []
+    }
+  }
+  const saveRetrievals = (list: RetrievalItem[]) => {
+    try {
+      localStorage.setItem(RET_LIST_KEY, JSON.stringify(list))
+    } catch {}
+  }
+
+  // Seed defaults once
+  useEffect(() => {
+    try {
+      if (getEmbeddings().length === 0) {
+        saveEmbeddings([
+          {
+            id: 'default_embeddings',
+            name: 'default_embeddings',
+            isDefault: true,
+            enabled: true,
+          },
+        ])
+      }
+      if (getRetrievals().length === 0) {
+        saveRetrievals([
+          {
+            id: 'basic_search',
+            name: 'basic_search',
+            isDefault: true,
+            enabled: true,
+          },
+        ])
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Derive display strategies with local overrides
   const strategies: RagStrategy[] = defaultStrategies
@@ -87,18 +185,7 @@ function Rag() {
     const list = getCustomStrategies().filter(s => s.id !== id)
     saveCustomStrategies(list)
   }
-  const resetStrategies = () => {
-    try {
-      localStorage.removeItem('lf_strategy_deleted')
-      defaultStrategies.forEach(s => {
-        localStorage.removeItem(`lf_strategy_name_override_${s.id}`)
-        localStorage.removeItem(`lf_strategy_description_${s.id}`)
-      })
-      localStorage.removeItem('lf_custom_strategies')
-    } catch {}
-    setMetaTick(t => t + 1)
-    toast({ message: 'Strategies reset', variant: 'default' })
-  }
+  // const resetStrategies = () => { /* no-op in project-level layout */ }
   const getDeletedSet = (): Set<string> => {
     try {
       const raw = localStorage.getItem('lf_strategy_deleted')
@@ -142,13 +229,196 @@ function Rag() {
       })
   }, [metaTick])
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return display
-    return display.filter(s =>
-      [s.name, s.description].some(v => v.toLowerCase().includes(q))
+  // Helpers for card summaries ------------------------------------------------
+  const getStrategyMetaById = (
+    sid: string
+  ): { name: string; description: string } => {
+    try {
+      const overrideName = localStorage.getItem(
+        `lf_strategy_name_override_${sid}`
+      )
+      const overrideDesc = localStorage.getItem(
+        `lf_strategy_description_${sid}`
+      )
+      if (
+        (overrideName && overrideName.trim()) ||
+        (overrideDesc && overrideDesc.trim())
+      ) {
+        return {
+          name:
+            overrideName?.trim() ||
+            defaultStrategies.find(s => s.id === sid)?.name ||
+            'Strategy',
+          description:
+            overrideDesc !== null && overrideDesc !== undefined
+              ? overrideDesc
+              : defaultStrategies.find(s => s.id === sid)?.description || '',
+        }
+      }
+    } catch {}
+    const found = defaultStrategies.find(s => s.id === sid)
+    return {
+      name: found?.name || 'Strategy',
+      description: found?.description || '',
+    }
+  }
+  const PROCESSING_ID = 'processing-universal'
+  const processingMeta = useMemo(
+    () => getStrategyMetaById(PROCESSING_ID),
+    [metaTick]
+  )
+
+  const getEmbeddingSummary = (id: string): string => {
+    try {
+      const storedCfg = localStorage.getItem(
+        `lf_strategy_embedding_config_${id}`
+      )
+      const storedModel = localStorage.getItem(
+        `lf_strategy_embedding_model_${id}`
+      )
+      if (storedModel) return storedModel
+      if (storedCfg) {
+        const parsed = JSON.parse(storedCfg)
+        if (parsed?.modelId) return parsed.modelId
+      }
+    } catch {}
+    return 'Not set'
+  }
+  const getEmbeddingProvider = (id: string): string | null => {
+    try {
+      const raw = localStorage.getItem(`lf_strategy_embedding_config_${id}`)
+      if (!raw) return null
+      const cfg = JSON.parse(raw)
+      const p = cfg?.provider || cfg?.runtime || null
+      if (!p) return null
+      if (typeof p === 'string') {
+        if (p.includes('Ollama')) return 'OllamaEmbedder'
+        if (p.includes('OpenAI')) return 'OpenAIEmbedder'
+        if (p.includes('Cohere')) return 'CohereEmbedder'
+        if (p.includes('Google')) return 'GoogleEmbedder'
+        if (p.includes('Azure')) return 'AzureOpenAIEmbedder'
+        if (p.includes('Bedrock')) return 'BedrockEmbedder'
+      }
+      return String(p)
+    } catch {
+      return null
+    }
+  }
+  const getEmbeddingDescription = (id: string): string => {
+    const provider = getEmbeddingProvider(id)
+    const short = provider?.replace(/Embedder$/g, '') || 'cloud/local'
+    return `Document vectorization using ${short} embedding models`
+  }
+  // (removed) summary helper was unused
+  const getRetrievalDescription = (_id: string): string => {
+    return 'Vector search with configurable extraction pipeline'
+  }
+  const getRetrievalMeta = (rid: string): string => {
+    if (rid.includes('filtered')) return 'MetadataFilteredStrategy'
+    return 'BasicSimilarityStrategy'
+  }
+
+  // Create handlers for new cards --------------------------------------------
+  // const createEmbedding = () => {
+  //   const name = prompt('Enter embedding strategy name')?.trim()
+  //   if (!name) return
+  //   const slug = name
+  //     .toLowerCase()
+  //     .replace(/[^a-z0-9]+/g, '-')
+  //     .replace(/^-+|-+$/g, '')
+  //   const id = `emb-${slug || Date.now()}`
+  //   const list = getEmbeddings()
+  //   list.push({ id, name, isDefault: list.length === 0, enabled: true })
+  //   saveEmbeddings(list)
+  //   setMetaTick(t => t + 1)
+  //   navigate(`/chat/rag/${id}/change-embedding`)
+  // }
+  // const createRetrieval = () => {
+  //   const name = prompt('Enter retrieval strategy name')?.trim()
+  //   if (!name) return
+  //   const slug = name
+  //     .toLowerCase()
+  //     .replace(/[^a-z0-9]+/g, '-')
+  //     .replace(/^-+|-+$/g, '')
+  //   const id = `ret-${slug || Date.now()}`
+  //   const list = getRetrievals()
+  //   list.push({ id, name, isDefault: list.length === 0, enabled: true })
+  //   saveRetrievals(list)
+  //   setMetaTick(t => t + 1)
+  //   navigate(`/chat/rag/${id}/retrieval`)
+  // }
+
+  const setDefaultEmbedding = (id: string) => {
+    const list = getEmbeddings().map(e => ({ ...e, isDefault: e.id === id }))
+    saveEmbeddings(list)
+    setMetaTick(t => t + 1)
+  }
+  const toggleEmbeddingEnabled = (id: string) => {
+    const list = getEmbeddings().map(e =>
+      e.id === id ? { ...e, enabled: !e.enabled } : e
     )
-  }, [query, display])
+    saveEmbeddings(list)
+    setMetaTick(t => t + 1)
+  }
+  const duplicateEmbedding = (id: string) => {
+    const list = getEmbeddings()
+    const found = list.find(e => e.id === id)
+    if (!found) return
+    const base = `${found.name} (copy)`
+    const slug = base
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+    const newId = `emb-${slug}-${Date.now()}`
+    list.push({ ...found, id: newId, name: base, isDefault: false })
+    saveEmbeddings(list)
+    setMetaTick(t => t + 1)
+  }
+  const setDefaultRetrieval = (id: string) => {
+    const list = getRetrievals().map(r => ({ ...r, isDefault: r.id === id }))
+    saveRetrievals(list)
+    setMetaTick(t => t + 1)
+  }
+  const toggleRetrievalEnabled = (id: string) => {
+    const list = getRetrievals().map(r =>
+      r.id === id ? { ...r, enabled: !r.enabled } : r
+    )
+    saveRetrievals(list)
+    setMetaTick(t => t + 1)
+  }
+  const duplicateRetrieval = (id: string) => {
+    const list = getRetrievals()
+    const found = list.find(r => r.id === id)
+    if (!found) return
+    const base = `${found.name} (copy)`
+    const slug = base
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+    const newId = `ret-${slug}-${Date.now()}`
+    list.push({ ...found, id: newId, name: base, isDefault: false })
+    saveRetrievals(list)
+    setMetaTick(t => t + 1)
+  }
+
+  const sortedEmbeddings = useMemo(() => {
+    const list = getEmbeddings()
+    return [...list].sort((a, b) => {
+      if (a.isDefault !== b.isDefault) return a.isDefault ? -1 : 1
+      if (a.enabled !== b.enabled) return a.enabled ? -1 : 1
+      return a.name.localeCompare(b.name)
+    })
+  }, [metaTick])
+  const sortedRetrievals = useMemo(() => {
+    const list = getRetrievals()
+    return [...list].sort((a, b) => {
+      if (a.isDefault !== b.isDefault) return a.isDefault ? -1 : 1
+      if (a.enabled !== b.enabled) return a.enabled ? -1 : 1
+      return a.name.localeCompare(b.name)
+    })
+  }, [metaTick])
+  const embeddingCount = sortedEmbeddings.length
+  const retrievalCount = sortedRetrievals.length
 
   return (
     <>
@@ -172,53 +442,31 @@ function Rag() {
           </div>
         ) : (
           <>
-            <div className="text-sm text-muted-foreground mb-1">
-              simple description – these can be applied to datasets
+            {/* Page helper subtitle removed per request */}
+
+            {/* Embedding and Retrieval strategies - title outside card */}
+            <div className="text-sm font-medium mb-1">
+              Project Embedding and retrieval strategies
             </div>
-
             <div className="rounded-lg border border-border bg-card p-4">
-              <div className="flex items-center justify-between mb-2">
-                <div className="text-sm font-medium">
-                  Default RAG strategies
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={resetStrategies}>
-                    Reset list
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      setCreateName('')
-                      setCreateDescription('')
-                      setCopyFromId('')
-                      setIsCreateOpen(true)
-                    }}
-                  >
-                    Create new
-                  </Button>
-                </div>
+              {/* Embeddings block */}
+              <div className="text-sm text-muted-foreground mb-2">
+                Embedding strategies ({embeddingCount})
               </div>
-
-              <div className="mb-3 max-w-xl">
-                <SearchInput
-                  placeholder="Search RAG Strategies"
-                  value={query}
-                  onChange={e => setQuery(e.target.value)}
-                />
-              </div>
-
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                {filtered.map(s => (
+                {sortedEmbeddings.map(ei => (
                   <div
-                    key={s.id}
-                    className="w-full bg-card rounded-lg border border-border flex flex-col gap-2 p-4 relative hover:bg-accent/20 hover:cursor-pointer transition-colors"
-                    onClick={() => navigate(`/chat/rag/${s.id}`)}
+                    key={ei.id}
+                    className={`w-full bg-card rounded-lg border border-border flex flex-col gap-2 p-4 relative hover:bg-accent/20 hover:cursor-pointer transition-colors ${ei.enabled ? '' : 'opacity-70'} ${embeddingCount === 1 ? 'md:col-span-2' : ''}`}
+                    onClick={() =>
+                      navigate(`/chat/rag/${ei.id}/change-embedding`)
+                    }
                     role="button"
                     tabIndex={0}
                     onKeyDown={e => {
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault()
-                        navigate(`/chat/rag/${s.id}`)
+                        navigate(`/chat/rag/${ei.id}/change-embedding`)
                       }
                     }}
                   >
@@ -234,61 +482,68 @@ function Rag() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent
                           align="end"
-                          className="min-w-[10rem] w-[10rem]"
+                          className="min-w-[12rem] w-[12rem]"
                         >
                           <DropdownMenuItem
                             onClick={e => {
                               e.stopPropagation()
-                              e.preventDefault()
-                              setEditId(s.id)
-                              setEditName(s.name)
-                              setEditDescription(s.description)
-                              setIsEditOpen(true)
+                              const name = prompt(
+                                'Rename embedding strategy',
+                                ei.name
+                              )?.trim()
+                              if (!name) return
+                              const list = getEmbeddings().map(x =>
+                                x.id === ei.id ? { ...x, name } : x
+                              )
+                              saveEmbeddings(list)
+                              setMetaTick(t => t + 1)
                             }}
                           >
-                            Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => navigate(`/chat/rag/${s.id}`)}
-                          >
-                            Configure
+                            Rename
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={e => {
                               e.stopPropagation()
-                              e.preventDefault()
-                              setCopyFromId(s.id)
-                              setCreateName(`${s.name} (copy)`)
-                              setCreateDescription(s.description || '')
-                              setIsCreateOpen(true)
+                              duplicateEmbedding(ei.id)
                             }}
                           >
                             Duplicate
                           </DropdownMenuItem>
                           <DropdownMenuItem
+                            onClick={e => {
+                              e.stopPropagation()
+                              setDefaultEmbedding(ei.id)
+                            }}
+                          >
+                            Set as default
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={e => {
+                              e.stopPropagation()
+                              toggleEmbeddingEnabled(ei.id)
+                            }}
+                          >
+                            {ei.enabled ? 'Disable' : 'Enable'}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
                             className="text-destructive focus:text-destructive"
                             onClick={e => {
                               e.stopPropagation()
-                              e.preventDefault()
                               const ok = confirm(
-                                'Are you sure you want to delete this strategy?'
+                                'Delete this embedding strategy?'
                               )
-                              if (ok) {
-                                try {
-                                  localStorage.removeItem(
-                                    `lf_strategy_name_override_${s.id}`
-                                  )
-                                  localStorage.removeItem(
-                                    `lf_strategy_description_${s.id}`
-                                  )
-                                } catch {}
-                                removeCustomStrategy(s.id)
-                                markDeleted(s.id)
-                                toast({
-                                  message: 'Strategy deleted',
-                                  variant: 'default',
-                                })
+                              if (!ok) return
+                              let list = getEmbeddings().filter(
+                                x => x.id !== ei.id
+                              )
+                              if (
+                                list.length > 0 &&
+                                !list.some(x => x.isDefault)
+                              ) {
+                                list[0].isDefault = true
                               }
+                              saveEmbeddings(list)
+                              setMetaTick(t => t + 1)
                             }}
                           >
                             Delete
@@ -297,53 +552,293 @@ function Rag() {
                       </DropdownMenu>
                     </div>
 
-                    <div className="text-sm font-medium">{s.name}</div>
-                    <div className="text-xs text-primary text-left w-fit">
-                      {s.description}
+                    <div className="text-sm font-medium">{ei.name}</div>
+                    <div className="text-xs text-primary text-left w-full truncate">
+                      {getEmbeddingDescription(ei.id)}
                     </div>
-
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {s.isDefault ? (
-                        <Badge
-                          variant="default"
-                          size="sm"
-                          className="rounded-xl"
-                        >
-                          Default
-                        </Badge>
-                      ) : (
-                        <Badge
-                          variant="secondary"
-                          size="sm"
-                          className="rounded-xl"
-                        >
-                          Custom
-                        </Badge>
-                      )}
-                      <Badge
-                        variant={s.datasetsUsing > 0 ? 'default' : 'secondary'}
-                        size="sm"
-                        className={`rounded-xl ${s.datasetsUsing > 0 ? 'bg-emerald-600 text-emerald-50 dark:bg-emerald-400 dark:text-emerald-900' : ''}`}
-                      >
-                        {`${s.datasetsUsing} datasets using`}
-                      </Badge>
+                    <div className="text-xs text-muted-foreground w-full truncate">
+                      {getEmbeddingProvider(ei.id) || 'Embedder'} •{' '}
+                      {getEmbeddingSummary(ei.id)}
                     </div>
-
-                    <div className="flex justify-end pt-1">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="px-3"
-                        onClick={e => {
-                          e.stopPropagation()
-                          navigate(`/chat/rag/${s.id}`)
-                        }}
-                      >
-                        Configure
-                      </Button>
+                    <div className="flex items-center gap-2 flex-wrap justify-between pt-0.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {ei.isDefault ? (
+                          <Badge
+                            variant="default"
+                            size="sm"
+                            className="rounded-xl"
+                          >
+                            Default
+                          </Badge>
+                        ) : null}
+                      </div>
+                      <div className="ml-auto">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="px-3 h-7"
+                          onClick={e => {
+                            e.stopPropagation()
+                            navigate(`/chat/rag/${ei.id}/change-embedding`)
+                          }}
+                        >
+                          Configure
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 ))}
+              </div>
+              {/* Retrievals block */}
+              <div className="text-sm text-muted-foreground mt-3 mb-2">
+                Retrieval strategies ({retrievalCount})
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {sortedRetrievals.map(ri => (
+                  <div
+                    key={ri.id}
+                    className={`w-full bg-card rounded-lg border border-border flex flex-col gap-2 p-4 relative hover:bg-accent/20 hover:cursor-pointer transition-colors ${ri.enabled ? '' : 'opacity-70'} ${retrievalCount === 1 ? 'md:col-span-2' : ''}`}
+                    onClick={() => navigate(`/chat/rag/${ri.id}/retrieval`)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        navigate(`/chat/rag/${ri.id}/retrieval`)
+                      }
+                    }}
+                  >
+                    <div className="absolute top-2 right-2">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            className="w-6 h-6 grid place-items-center rounded-md text-muted-foreground hover:bg-accent/30"
+                            onClick={e => e.stopPropagation()}
+                          >
+                            <FontIcon type="overflow" className="w-4 h-4" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          align="end"
+                          className="min-w-[12rem] w-[12rem]"
+                        >
+                          <DropdownMenuItem
+                            onClick={e => {
+                              e.stopPropagation()
+                              const name = prompt(
+                                'Rename retrieval strategy',
+                                ri.name
+                              )?.trim()
+                              if (!name) return
+                              const list = getRetrievals().map(x =>
+                                x.id === ri.id ? { ...x, name } : x
+                              )
+                              saveRetrievals(list)
+                              setMetaTick(t => t + 1)
+                            }}
+                          >
+                            Rename
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={e => {
+                              e.stopPropagation()
+                              duplicateRetrieval(ri.id)
+                            }}
+                          >
+                            Duplicate
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={e => {
+                              e.stopPropagation()
+                              setDefaultRetrieval(ri.id)
+                            }}
+                          >
+                            Set as default
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={e => {
+                              e.stopPropagation()
+                              toggleRetrievalEnabled(ri.id)
+                            }}
+                          >
+                            {ri.enabled ? 'Disable' : 'Enable'}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={e => {
+                              e.stopPropagation()
+                              const ok = confirm(
+                                'Delete this retrieval strategy?'
+                              )
+                              if (!ok) return
+                              let list = getRetrievals().filter(
+                                x => x.id !== ri.id
+                              )
+                              if (
+                                list.length > 0 &&
+                                !list.some(x => x.isDefault)
+                              ) {
+                                list[0].isDefault = true
+                              }
+                              saveRetrievals(list)
+                              setMetaTick(t => t + 1)
+                            }}
+                          >
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+
+                    <div className="text-sm font-medium">{ri.name}</div>
+                    <div className="text-xs text-primary text-left w-full truncate">
+                      {getRetrievalDescription(ri.id)}
+                    </div>
+                    <div className="text-xs text-muted-foreground w-full truncate">
+                      {getRetrievalMeta(ri.id)}
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap justify-between pt-0.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {ri.isDefault ? (
+                          <Badge
+                            variant="default"
+                            size="sm"
+                            className="rounded-xl"
+                          >
+                            Default
+                          </Badge>
+                        ) : null}
+                      </div>
+                      <div className="ml-auto">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="px-3 h-7"
+                          onClick={e => {
+                            e.stopPropagation()
+                            navigate(`/chat/rag/${ri.id}/retrieval`)
+                          }}
+                        >
+                          Configure
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Processing strategy - title outside card */}
+            <div className="flex items-center justify-between mt-3 mb-1">
+              <div>
+                <div className="text-sm font-medium">Processing strategies</div>
+                <div className="h-1" />
+                <div className="text-xs text-muted-foreground">
+                  Processing strategies are applied to datasets.
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setCreateName('')
+                    setCreateDescription('')
+                    setCopyFromId('')
+                    setIsCreateOpen(true)
+                  }}
+                >
+                  Create new
+                </Button>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div
+                className="w-full bg-card rounded-lg border border-border flex flex-col gap-2 p-4 relative hover:bg-accent/20 hover:cursor-pointer transition-colors md:col-span-2"
+                onClick={() => navigate(`/chat/rag/processing`)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    navigate(`/chat/rag/processing`)
+                  }
+                }}
+              >
+                <div className="absolute top-2 right-2">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        className="w-6 h-6 grid place-items-center rounded-md text-muted-foreground hover:bg-accent/30"
+                        onClick={e => e.stopPropagation()}
+                      >
+                        <FontIcon type="overflow" className="w-4 h-4" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="end"
+                      className="min-w-[12rem] w-[12rem]"
+                    >
+                      <DropdownMenuItem
+                        onClick={e => {
+                          e.stopPropagation()
+                          _setEditId(PROCESSING_ID)
+                          setEditName(processingMeta.name)
+                          setEditDescription(processingMeta.description)
+                          setIsEditOpen(true)
+                        }}
+                      >
+                        Rename
+                      </DropdownMenuItem>
+                      <DropdownMenuItem disabled>Make default</DropdownMenuItem>
+                      <DropdownMenuItem
+                        disabled
+                        className="text-destructive focus:text-destructive"
+                      >
+                        Delete
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={e => {
+                          e.stopPropagation()
+                          setCreateName(`${processingMeta.name} (copy)`) // prefill
+                          setCreateDescription(processingMeta.description)
+                          setCopyFromId(PROCESSING_ID)
+                          setIsCreateOpen(true)
+                        }}
+                      >
+                        Duplicate
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+                <div className="text-sm font-medium">{processingMeta.name}</div>
+                <div className="text-xs text-primary text-left w-fit">
+                  {processingMeta.description ||
+                    'Unified processor for PDFs, Word docs, CSVs, Markdown, and text files.'}
+                </div>
+                <div className="flex items-center gap-2 flex-wrap pt-0.5">
+                  <Badge variant="default" size="sm" className="rounded-xl">
+                    Default
+                  </Badge>
+                  <Badge variant="secondary" size="sm" className="rounded-xl">
+                    Active
+                  </Badge>
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  8 parsers • 8 extractors
+                </div>
+                <div className="flex justify-end pt-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="px-3 h-7"
+                    onClick={e => {
+                      e.stopPropagation()
+                      navigate(`/chat/rag/processing`)
+                    }}
+                  >
+                    Configure
+                  </Button>
+                </div>
               </div>
             </div>
           </>
