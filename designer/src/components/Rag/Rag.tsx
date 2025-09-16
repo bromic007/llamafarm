@@ -229,44 +229,7 @@ function Rag() {
       })
   }, [metaTick])
 
-  // Helpers for card summaries ------------------------------------------------
-  const getStrategyMetaById = (
-    sid: string
-  ): { name: string; description: string } => {
-    try {
-      const overrideName = localStorage.getItem(
-        `lf_strategy_name_override_${sid}`
-      )
-      const overrideDesc = localStorage.getItem(
-        `lf_strategy_description_${sid}`
-      )
-      if (
-        (overrideName && overrideName.trim()) ||
-        (overrideDesc && overrideDesc.trim())
-      ) {
-        return {
-          name:
-            overrideName?.trim() ||
-            defaultStrategies.find(s => s.id === sid)?.name ||
-            'Strategy',
-          description:
-            overrideDesc !== null && overrideDesc !== undefined
-              ? overrideDesc
-              : defaultStrategies.find(s => s.id === sid)?.description || '',
-        }
-      }
-    } catch {}
-    const found = defaultStrategies.find(s => s.id === sid)
-    return {
-      name: found?.name || 'Strategy',
-      description: found?.description || '',
-    }
-  }
-  const PROCESSING_ID = 'processing-universal'
-  const processingMeta = useMemo(
-    () => getStrategyMetaById(PROCESSING_ID),
-    [metaTick]
-  )
+  // Note: processing strategies are derived from `display`
 
   const getEmbeddingSummary = (id: string): string => {
     try {
@@ -316,6 +279,21 @@ function Rag() {
   const getRetrievalMeta = (rid: string): string => {
     if (rid.includes('filtered')) return 'MetadataFilteredStrategy'
     return 'BasicSimilarityStrategy'
+  }
+
+  // Processing strategy helpers ----------------------------------------------
+  const getStrategyDatasets = (sid: string): string[] => {
+    try {
+      const raw = localStorage.getItem(`lf_strategy_datasets_using_${sid}`)
+      if (!raw) return []
+      const arr = JSON.parse(raw)
+      if (!Array.isArray(arr)) return []
+      return arr
+        .filter((d: any) => typeof d === 'string' && d.trim().length > 0)
+        .map((d: string) => d.trim())
+    } catch {
+      return []
+    }
   }
 
   // Create handlers for new cards --------------------------------------------
@@ -752,94 +730,136 @@ function Rag() {
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              <div
-                className="w-full bg-card rounded-lg border border-border flex flex-col gap-2 p-4 relative hover:bg-accent/20 hover:cursor-pointer transition-colors md:col-span-2"
-                onClick={() => navigate(`/chat/rag/processing`)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
-                    navigate(`/chat/rag/processing`)
-                  }
-                }}
-              >
-                <div className="absolute top-2 right-2">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button
-                        className="w-6 h-6 grid place-items-center rounded-md text-muted-foreground hover:bg-accent/30"
-                        onClick={e => e.stopPropagation()}
-                      >
-                        <FontIcon type="overflow" className="w-4 h-4" />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent
-                      align="end"
-                      className="min-w-[12rem] w-[12rem]"
-                    >
-                      <DropdownMenuItem
-                        onClick={e => {
-                          e.stopPropagation()
-                          _setEditId(PROCESSING_ID)
-                          setEditName(processingMeta.name)
-                          setEditDescription(processingMeta.description)
-                          setIsEditOpen(true)
-                        }}
-                      >
-                        Rename
-                      </DropdownMenuItem>
-                      <DropdownMenuItem disabled>Make default</DropdownMenuItem>
-                      <DropdownMenuItem
-                        disabled
-                        className="text-destructive focus:text-destructive"
-                      >
-                        Delete
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={e => {
-                          e.stopPropagation()
-                          setCreateName(`${processingMeta.name} (copy)`) // prefill
-                          setCreateDescription(processingMeta.description)
-                          setCopyFromId(PROCESSING_ID)
-                          setIsCreateOpen(true)
-                        }}
-                      >
-                        Duplicate
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-                <div className="text-sm font-medium">{processingMeta.name}</div>
-                <div className="text-xs text-primary text-left w-fit">
-                  {processingMeta.description ||
-                    'Unified processor for PDFs, Word docs, CSVs, Markdown, and text files.'}
-                </div>
-                <div className="flex items-center gap-2 flex-wrap pt-0.5">
-                  <Badge variant="default" size="sm" className="rounded-xl">
-                    Default
-                  </Badge>
-                  <Badge variant="secondary" size="sm" className="rounded-xl">
-                    Active
-                  </Badge>
-                </div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  8 parsers • 8 extractors
-                </div>
-                <div className="flex justify-end pt-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="px-3 h-7"
-                    onClick={e => {
-                      e.stopPropagation()
-                      navigate(`/chat/rag/processing`)
+              {display.map(s => {
+                const datasets = getStrategyDatasets(s.id)
+                const usageLabel = (() => {
+                  if (datasets.length === 1) return datasets[0]
+                  if (datasets.length > 1)
+                    return `${datasets.length} datasets using`
+                  if (
+                    typeof s.datasetsUsing === 'number' &&
+                    s.datasetsUsing > 1
+                  )
+                    return `${s.datasetsUsing} datasets using`
+                  if (s.datasetsUsing === 1) return '1 dataset using'
+                  return ''
+                })()
+                return (
+                  <div
+                    key={s.id}
+                    className={`w-full bg-card rounded-lg border border-border flex flex-col gap-2 p-4 relative hover:bg-accent/20 hover:cursor-pointer transition-colors ${display.length === 1 ? 'md:col-span-2' : ''}`}
+                    onClick={() => navigate(`/chat/rag/${s.id}`)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        navigate(`/chat/rag/${s.id}`)
+                      }
                     }}
                   >
-                    Configure
-                  </Button>
-                </div>
-              </div>
+                    <div className="absolute top-2 right-2">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            className="w-6 h-6 grid place-items-center rounded-md text-muted-foreground hover:bg-accent/30"
+                            onClick={e => e.stopPropagation()}
+                          >
+                            <FontIcon type="overflow" className="w-4 h-4" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          align="end"
+                          className="min-w-[12rem] w-[12rem]"
+                        >
+                          <DropdownMenuItem
+                            onClick={e => {
+                              e.stopPropagation()
+                              _setEditId(s.id)
+                              setEditName(s.name)
+                              setEditDescription(s.description)
+                              setIsEditOpen(true)
+                            }}
+                          >
+                            Rename
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={e => {
+                              e.stopPropagation()
+                              setCreateName(`${s.name} (copy)`) // prefill
+                              setCreateDescription(s.description)
+                              setCopyFromId(s.id)
+                              setIsCreateOpen(true)
+                            }}
+                          >
+                            Duplicate
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={e => {
+                              e.stopPropagation()
+                              const ok = confirm(
+                                'Delete this processing strategy?'
+                              )
+                              if (!ok) return
+                              // Mark as deleted and remove if custom
+                              try {
+                                removeCustomStrategy(s.id)
+                                const set = getDeletedSet()
+                                set.add(s.id)
+                                saveDeletedSet(set)
+                                setMetaTick(t => t + 1)
+                              } catch {}
+                            }}
+                          >
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+
+                    <div className="text-sm font-medium">{s.name}</div>
+                    <div className="text-xs text-primary text-left w-fit">
+                      {s.description ||
+                        'Unified processor for PDFs, Word docs, CSVs, Markdown, and text files.'}
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap pt-0.5">
+                      {usageLabel ? (
+                        <Badge
+                          variant="secondary"
+                          size="sm"
+                          className="rounded-xl bg-teal-700 text-white dark:bg-teal-400 dark:text-gray-900"
+                        >
+                          {usageLabel}
+                        </Badge>
+                      ) : null}
+                      <Badge
+                        variant="secondary"
+                        size="sm"
+                        className="rounded-xl"
+                      >
+                        Active
+                      </Badge>
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      8 parsers • 8 extractors
+                    </div>
+                    <div className="flex justify-end pt-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="px-3 h-7"
+                        onClick={e => {
+                          e.stopPropagation()
+                          navigate(`/chat/rag/${s.id}`)
+                        }}
+                      >
+                        Configure
+                      </Button>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           </>
         )}
@@ -953,7 +973,7 @@ function Rag() {
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle className="text-lg text-foreground">
-              Create new RAG strategy
+              Create new processing strategy
             </DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-3 pt-1">
@@ -1060,7 +1080,7 @@ function Rag() {
                 setCopyFromId('')
                 setMetaTick(t => t + 1)
                 toast({ message: 'Strategy created', variant: 'default' })
-                navigate(`/chat/rag/${newId}`)
+                // Stay on home so the new card is visible immediately
               }}
               disabled={createName.trim().length === 0}
               type="button"

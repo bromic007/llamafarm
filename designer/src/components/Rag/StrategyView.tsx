@@ -3,12 +3,13 @@ import { useNavigate, useParams } from 'react-router-dom'
 import FontIcon from '../../common/FontIcon'
 import Loader from '../../common/Loader'
 import { Button } from '../ui/button'
-import { Input } from '../ui/input'
 import { Badge } from '../ui/badge'
 import { defaultStrategies } from './strategies'
 import { useToast } from '../ui/toast'
 import PageActions from '../common/PageActions'
 import { Mode } from '../ModeToggle'
+import Tabs from '../Tabs'
+import { ChevronDown, Plus, Settings, Trash2 } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -124,17 +125,164 @@ function StrategyView() {
       )
   }, [strategyId])
 
-  const docTypeFromExtraction = useMemo(() => {
-    try {
-      if (!strategyId) return null
-      const raw = localStorage.getItem(`lf_strategy_extraction_${strategyId}`)
-      if (!raw) return null
-      const cfg = JSON.parse(raw)
-      return cfg?.documentType || null
-    } catch {
-      return null
-    }
-  }, [strategyId])
+  // Tabbed Parsers/Extractors data -------------------------------------------
+  type ParserRow = {
+    id: string
+    name: string
+    priority: number
+    include: string
+    exclude: string
+    summary: string
+  }
+  type ExtractorRow = {
+    id: string
+    name: string
+    priority: number
+    applyTo: string
+    summary: string
+  }
+
+  const parserRows: ParserRow[] = [
+    {
+      id: 'pdf-llamaindex',
+      name: 'PDFParser_LlamaIndex',
+      priority: 100,
+      include: '*.pdf, *.PDF',
+      exclude: '*_draft.pdf, *.tmp.pdf',
+      summary:
+        'Semantic chunking, 1000 chars, 200 overlap, extract metadata & tables',
+    },
+    {
+      id: 'pdf-pypdf2',
+      name: 'PDFParser_PyPDF2',
+      priority: 50,
+      include: '*.pdf, *.PDF',
+      exclude: '*_draft.pdf, *.tmp.pdf',
+      summary: 'Paragraph chunking, 1000 chars, 150 overlap, extract metadata',
+    },
+    {
+      id: 'docx-llamaindex',
+      name: 'DocxParser_LlamaIndex',
+      priority: 100,
+      include: '*.docx, *.DOCX, *.doc, *.DOC',
+      exclude: '~$*, *.tmp',
+      summary: '1000 chars, 150 overlap, extract tables & metadata',
+    },
+    {
+      id: 'md-python',
+      name: 'MarkdownParser_Python',
+      priority: 100,
+      include: '*.md, *.markdown, *.mdown, *.mkd, README*',
+      exclude: '*.tmp.md, _draft*.md',
+      summary: 'Section-based, extract code & links',
+    },
+    {
+      id: 'csv-pandas',
+      name: 'CSVParser_Pandas',
+      priority: 100,
+      include: '*.csv, *.CSV, *.tsv, *.TSV, *.dat',
+      exclude: '*_backup.csv, *.tmp.csv',
+      summary: 'Row-based, 500 chars, UTF-8',
+    },
+    {
+      id: 'excel-pandas',
+      name: 'ExcelParser_Pandas',
+      priority: 100,
+      include: '*.xlsx, *.XLSX, *.xls, *.XLS',
+      exclude: '~$*, *.tmp.xlsx',
+      summary: 'Process all sheets, 500 chars, extract metadata',
+    },
+    {
+      id: 'text-python',
+      name: 'TextParser_Python',
+      priority: 50,
+      include: '*.txt, *.json, *.xml, *.yaml, *.py, *.js, LICENSE*, etc.',
+      exclude: '*.pyc, *.pyo, *.class',
+      summary: 'Sentence-based, 1200 chars, 200 overlap',
+    },
+  ]
+
+  const extractorRows: ExtractorRow[] = [
+    {
+      id: 'content-stats',
+      name: 'ContentStatisticsExtractor',
+      priority: 100,
+      applyTo: 'All files (*)',
+      summary: 'Include readability, vocabulary & structure analysis',
+    },
+    {
+      id: 'entity',
+      name: 'EntityExtractor',
+      priority: 90,
+      applyTo: 'All files (*)',
+      summary:
+        'Extract: PERSON, ORG, GPE, DATE, PRODUCT, MONEY, PERCENT | Min length: 2',
+    },
+    {
+      id: 'keyword',
+      name: 'KeywordExtractor',
+      priority: 80,
+      applyTo: 'All files (*)',
+      summary: 'YAKE algorithm, 10 max keywords, 3 min keyword length',
+    },
+    {
+      id: 'table',
+      name: 'TableExtractor',
+      priority: 100,
+      applyTo: '*.pdf, *.PDF only',
+      summary: 'Dict format output, extract headers, merge cells',
+    },
+    {
+      id: 'datetime',
+      name: 'DateTimeExtractor',
+      priority: 100,
+      applyTo: '*.csv, *.xlsx, *.xls, *.tsv',
+      summary: 'Formats: ISO8601, US, EU | Extract relative dates & times',
+    },
+    {
+      id: 'pattern',
+      name: 'PatternExtractor',
+      priority: 100,
+      applyTo: '*.py, *.js, *.java, *.cpp, *.c, *.h',
+      summary:
+        'Email, URL, IP, version + custom function/class definition patterns',
+    },
+    {
+      id: 'heading',
+      name: 'HeadingExtractor',
+      priority: 100,
+      applyTo: '*.md, *.markdown, README*',
+      summary: 'Max level 6, include hierarchy & outline extraction',
+    },
+    {
+      id: 'link',
+      name: 'LinkExtractor',
+      priority: 90,
+      applyTo: '*.md, *.markdown, *.html, *.htm',
+      summary: 'Extract URLs, emails, and domains',
+    },
+  ]
+
+  const [activeTab, setActiveTab] = useState<'parsers' | 'extractors'>(
+    'parsers'
+  )
+  const [openRows, setOpenRows] = useState<Set<string>>(new Set())
+  const toggleRow = (id: string) => {
+    setOpenRows(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const getPriorityVariant = (
+    p: number
+  ): 'default' | 'secondary' | 'outline' => {
+    if (p >= 100) return 'default'
+    if (p >= 50) return 'secondary'
+    return 'outline'
+  }
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -180,7 +328,7 @@ function StrategyView() {
   }
 
   return (
-    <div className="h-full w-full flex flex-col gap-3 pb-20">
+    <div className="w-full flex flex-col gap-3 pb-20">
       {/* Breadcrumb + Actions */}
       <div className="flex items-center justify-between mb-1">
         <nav className="text-sm md:text-base flex items-center gap-1.5">
@@ -190,6 +338,8 @@ function StrategyView() {
           >
             RAG
           </button>
+          <span className="text-muted-foreground px-1">/</span>
+          <span className="text-foreground">Processing strategies</span>
           <span className="text-muted-foreground px-1">/</span>
           <span className="text-foreground">{strategyName}</span>
         </nav>
@@ -213,7 +363,30 @@ function StrategyView() {
             <FontIcon type="edit" className="w-4 h-4" />
           </button>
         </div>
-        <div className="flex items-center gap-2">
+      </div>
+      {strategyDescription && (
+        <div className="text-sm text-muted-foreground">
+          {strategyDescription}
+        </div>
+      )}
+
+      {/* Used by + Actions */}
+      <div className="flex items-center justify-between gap-2 flex-wrap mb-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="text-xs text-muted-foreground">Used by</div>
+          {usedBy.map(u => (
+            <Badge key={u} variant="secondary" size="sm" className="rounded-xl">
+              {u}
+            </Badge>
+          ))}
+        </div>
+        <div className="flex items-center gap-2 ml-auto">
+          <Button variant="outline" size="sm">
+            <Plus className="w-4 h-4" /> Add Parser
+          </Button>
+          <Button variant="outline" size="sm">
+            <Plus className="w-4 h-4" /> Add Extractor
+          </Button>
           <Button
             size="sm"
             onClick={handleSave}
@@ -236,52 +409,153 @@ function StrategyView() {
           </Button>
         </div>
       </div>
-      {strategyDescription && (
-        <div className="text-sm text-muted-foreground">
-          {strategyDescription}
-        </div>
-      )}
 
-      {/* Used by */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <div className="text-xs text-muted-foreground">Used by</div>
-        {usedBy.map(u => (
-          <Badge key={u} variant="secondary" size="sm" className="rounded-xl">
-            {u}
-          </Badge>
-        ))}
-      </div>
-
-      {/* Extraction settings */}
+      {/* Processing editors */}
+      {/* Tabs header outside card */}
+      <Tabs
+        activeTab={activeTab}
+        setActiveTab={t => setActiveTab(t as 'parsers' | 'extractors')}
+        tabs={[
+          { id: 'parsers', label: `Parsers (${parserRows.length})` },
+          { id: 'extractors', label: `Extractors (${extractorRows.length})` },
+        ]}
+      />
       <section className="rounded-lg border border-border bg-card p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-medium">Extraction settings</h3>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigate(`/chat/rag/${strategyId}/extraction`)}
-          >
-            Configure
-          </Button>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="flex flex-col gap-1">
-            <div className="text-xs text-muted-foreground">Document type</div>
-            <Input
-              value={docTypeFromExtraction ?? 'PDFs ?'}
-              readOnly
-              className="bg-background"
-            />
+        {activeTab === 'parsers' ? (
+          <div className="flex flex-col gap-2">
+            {parserRows.map(row => {
+              const open = openRows.has(row.id)
+              return (
+                <div
+                  key={row.id}
+                  className="rounded-lg border border-border bg-card p-3 hover:bg-accent/20 transition-colors"
+                >
+                  <button
+                    className="w-full flex items-center gap-2 text-left"
+                    onClick={() => toggleRow(row.id)}
+                    aria-expanded={open}
+                  >
+                    <ChevronDown
+                      className={`w-4 h-4 transition-transform ${open ? 'rotate-180' : ''}`}
+                    />
+                    <div className="flex-1 text-sm font-medium">{row.name}</div>
+                    <Badge
+                      variant={getPriorityVariant(row.priority)}
+                      size="sm"
+                      className="rounded-xl mr-2"
+                    >
+                      Priority: {row.priority}
+                    </Badge>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label="Configure parser"
+                        onClick={e => {
+                          e.stopPropagation()
+                        }}
+                      >
+                        <Settings className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label="Remove parser"
+                        onClick={e => {
+                          e.stopPropagation()
+                        }}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </button>
+                  {open ? (
+                    <div className="mt-2 rounded-md border border-border bg-accent/10 p-2 text-sm">
+                      <div className="text-muted-foreground">
+                        <span className="font-medium text-foreground">
+                          Include:
+                        </span>{' '}
+                        {row.include}{' '}
+                        <span className="ml-2 font-medium text-foreground">
+                          Exclude:
+                        </span>{' '}
+                        {row.exclude}
+                      </div>
+                      <div className="mt-1 text-muted-foreground">
+                        {row.summary}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              )
+            })}
           </div>
-          <div className="flex flex-col gap-1">
-            <div className="text-xs text-muted-foreground">OCR Fallback</div>
-            <Input value="On" readOnly className="bg-background" />
+        ) : (
+          <div className="flex flex-col gap-2">
+            {extractorRows.map(row => {
+              const open = openRows.has(row.id)
+              return (
+                <div
+                  key={row.id}
+                  className="rounded-lg border border-border bg-card p-3 hover:bg-accent/20 transition-colors"
+                >
+                  <button
+                    className="w-full flex items-center gap-2 text-left"
+                    onClick={() => toggleRow(row.id)}
+                    aria-expanded={open}
+                  >
+                    <ChevronDown
+                      className={`w-4 h-4 transition-transform ${open ? 'rotate-180' : ''}`}
+                    />
+                    <div className="flex-1 text-sm font-medium">{row.name}</div>
+                    <Badge
+                      variant={getPriorityVariant(row.priority)}
+                      size="sm"
+                      className="rounded-xl mr-2"
+                    >
+                      Priority: {row.priority}
+                    </Badge>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label="Configure extractor"
+                        onClick={e => {
+                          e.stopPropagation()
+                        }}
+                      >
+                        <Settings className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label="Remove extractor"
+                        onClick={e => {
+                          e.stopPropagation()
+                        }}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </button>
+                  {open ? (
+                    <div className="mt-2 rounded-md border border-border bg-accent/10 p-2 text-sm">
+                      <div className="text-muted-foreground">
+                        <span className="font-medium text-foreground">
+                          Apply to:
+                        </span>{' '}
+                        {row.applyTo}
+                      </div>
+                      <div className="mt-1 text-muted-foreground">
+                        {row.summary}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              )
+            })}
           </div>
-          <div className="flex flex-col gap-1">
-            <div className="text-xs text-muted-foreground">Table detection</div>
-            <Input value="On" readOnly className="bg-background" />
-          </div>
-        </div>
+        )}
       </section>
 
       {/* Edit Strategy Modal */}
@@ -317,7 +591,7 @@ function StrategyView() {
               />
             </div>
           </div>
-          <DialogFooter className="flex items-center justify-between gap-2">
+          <DialogFooter className="flex items-center gap-2">
             <button
               className="px-3 py-2 rounded-md bg-destructive text-destructive-foreground hover:opacity-90 text-sm"
               onClick={() => {
@@ -388,37 +662,7 @@ function StrategyView() {
         </DialogContent>
       </Dialog>
 
-      {/* Parsing strategy */}
-      <section className="rounded-lg border border-border bg-card p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-medium">Parsing Strategy</h3>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigate(`/chat/rag/${strategyId}/parsing`)}
-          >
-            Configure
-          </Button>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="flex flex-col gap-1">
-            <div className="text-xs text-muted-foreground">Parsing</div>
-            <Input value="PDF-aware" readOnly className="bg-background" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <div className="text-xs text-muted-foreground">Chunk size</div>
-            <Input value="800" readOnly className="bg-background" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <div className="text-xs text-muted-foreground">Overlap</div>
-            <Input value="100" readOnly className="bg-background" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <div className="text-xs text-muted-foreground">Deduplication</div>
-            <Input value="On" readOnly className="bg-background" />
-          </div>
-        </div>
-      </section>
+      {/* End processing editors */}
 
       {/* Retrieval and Embedding moved to project-level settings. */}
     </div>

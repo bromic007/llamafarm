@@ -13,6 +13,6 @@ export const defaultStrategies: RagStrategy[] = [
     description:
       'Unified processor for PDFs, Word docs, CSVs, Markdown, and text files.',
     isDefault: true,
-    datasetsUsing: 0,
+    datasetsUsing: 2,
   },
 ]
