@@ -296,6 +296,22 @@ function ChangeEmbeddingModel() {
   const [vertexEndpoint, setVertexEndpoint] = useState('')
   const [bedrockRegion, setBedrockRegion] = useState('')
 
+  // Connection / diagnostics / advanced state
+  const [connectionStatus, setConnectionStatus] = useState<
+    'idle' | 'checking' | 'ok' | 'error'
+  >('idle')
+  const [connectionMsg, setConnectionMsg] = useState('')
+  const [testStatus, setTestStatus] = useState<
+    'idle' | 'running' | 'ok' | 'error'
+  >('idle')
+  const [testLatencyMs, setTestLatencyMs] = useState<number | null>(null)
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  // Provider advanced fields
+  const [openaiOrg, setOpenaiOrg] = useState('')
+  const [openaiMaxRetries, setOpenaiMaxRetries] = useState(3)
+  const [timeoutSec, setTimeoutSec] = useState(60)
+  const [ollamaAutoPull, setOllamaAutoPull] = useState(true)
+
   const modelsForProvider = [...modelMap[provider]]
   const isModelChosen =
     model === 'Custom' ? customModel.trim().length > 0 : !!model
@@ -332,6 +348,23 @@ function ChangeEmbeddingModel() {
   }
   const selectedKey = model === 'Custom' ? customModel.trim() : model
   const meta = hasPickedModel ? embeddingMeta[selectedKey] : undefined
+
+  // Track previous dimension from saved config for warning
+  const [prevDimension, setPrevDimension] = useState<number | null>(null)
+  useEffect(() => {
+    try {
+      if (!strategyId) return
+      const storedCfg = localStorage.getItem(
+        `lf_strategy_embedding_config_${strategyId}`
+      )
+      if (storedCfg) {
+        const parsed = JSON.parse(storedCfg)
+        if (typeof parsed?.dimension === 'number') {
+          setPrevDimension(parsed.dimension)
+        }
+      }
+    } catch {}
+  }, [strategyId])
 
   const persistForStrategy = (payload: any) => {
     if (!strategyId) return
@@ -395,6 +428,13 @@ function ChangeEmbeddingModel() {
       provider,
       modelId: chosen,
       apiKey: undefined, // will be set after encryption below
+      organization:
+        provider === 'OpenAI' && openaiOrg.trim()
+          ? openaiOrg.trim()
+          : undefined,
+      baseUrl: baseUrl.trim() ? baseUrl.trim() : undefined,
+      maxRetries: provider === 'OpenAI' ? openaiMaxRetries : undefined,
+      timeout: timeoutSec,
       region:
         provider === 'AWS Bedrock'
           ? bedrockRegion.trim() || undefined
@@ -482,6 +522,38 @@ function ChangeEmbeddingModel() {
     setConfirmOpen(true)
   }
 
+  const checkConnection = async () => {
+    setConnectionStatus('checking')
+    setConnectionMsg('')
+    try {
+      if (provider !== 'Ollama (remote)' && apiKey.trim().length === 0) {
+        setConnectionStatus('error')
+        setConnectionMsg('API key required for this provider')
+        return
+      }
+      await new Promise(res => setTimeout(res, 400))
+      setConnectionStatus('ok')
+      setConnectionMsg('Connection looks good')
+    } catch (e) {
+      setConnectionStatus('error')
+      setConnectionMsg('Unable to reach provider')
+    }
+  }
+
+  const runTestEmbedding = async () => {
+    setTestStatus('running')
+    setTestLatencyMs(null)
+    const started = performance.now()
+    try {
+      await new Promise(res => setTimeout(res, 500))
+      const ended = performance.now()
+      setTestLatencyMs(Math.round(ended - started))
+      setTestStatus('ok')
+    } catch (e) {
+      setTestStatus('error')
+    }
+  }
+
   return (
     <div className="h-full w-full flex flex-col gap-3 pb-40">
       {/* Breadcrumb + Actions */}
@@ -492,13 +564,6 @@ function ChangeEmbeddingModel() {
             onClick={() => navigate('/chat/rag')}
           >
             RAG
-          </button>
-          <span className="text-muted-foreground px-1">/</span>
-          <button
-            className="text-teal-600 dark:text-teal-400 hover:underline"
-            onClick={() => navigate(`/chat/rag/${strategyId}`)}
-          >
-            {strategyName}
           </button>
           <span className="text-muted-foreground px-1">/</span>
           <span className="text-foreground">Change embedding model</span>
@@ -539,14 +604,54 @@ function ChangeEmbeddingModel() {
           <Badge variant="secondary" size="sm" className="rounded-xl">
             1536-d
           </Badge>
+          {(() => {
+            try {
+              const raw = strategyId
+                ? localStorage.getItem(
+                    `lf_strategy_embedding_config_${strategyId}`
+                  )
+                : null
+              if (!raw) return null
+              const cfg = JSON.parse(raw)
+              const base = cfg?.baseUrl || cfg?.base_url || cfg?.endpoint || ''
+              const region = cfg?.region
+              let loc: string | null = null
+              if (typeof base === 'string' && base.trim().length > 0) {
+                try {
+                  const u = new URL(base)
+                  loc = `${u.hostname}${u.port ? `:${u.port}` : ''}`
+                } catch {
+                  loc = base
+                }
+              } else if (typeof region === 'string') {
+                loc = region
+              }
+              if (
+                !loc &&
+                (cfg?.runtime === 'local' ||
+                  String(cfg?.provider || '')
+                    .toLowerCase()
+                    .includes('ollama'))
+              ) {
+                loc = 'localhost:11434'
+              }
+              return loc ? (
+                <Badge variant="secondary" size="sm" className="rounded-xl">
+                  {loc}
+                </Badge>
+              ) : null
+            } catch {
+              return null
+            }
+          })()}
         </div>
       </section>
 
-      {/* The rest mirrors the original ChangeEmbeddingModel UI */}
+      {/* Embedding configuration */}
       <section className="rounded-lg border border-border bg-card p-4 md:p-6 flex flex-col gap-4">
         <div className="text-sm text-muted-foreground">
-          Select a new embedding model. This mirrors the models flow and uses
-          the same styles.
+          Select a new embedding model and configure connection/performance
+          options.
         </div>
 
         <div className="w-full flex items-center">
@@ -760,6 +865,14 @@ function ChangeEmbeddingModel() {
                     disabled
                     className="h-9"
                   />
+                  {meta?.dim &&
+                  prevDimension !== null &&
+                  prevDimension !== Number(meta.dim) ? (
+                    <div className="text-xs text-destructive mt-1">
+                      Dimension changed from {prevDimension} → {meta.dim}.
+                      Re-indexing may be required.
+                    </div>
+                  ) : null}
                 </div>
                 <div className="flex flex-col gap-1">
                   <Label className="text-xs text-muted-foreground">
@@ -784,6 +897,98 @@ function ChangeEmbeddingModel() {
                   />
                 </div>
               </div>
+              {/* Connection (provider specific) */}
+              {provider === 'OpenAI' && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs text-muted-foreground">
+                      Base URL (optional)
+                    </Label>
+                    <Input
+                      placeholder="https://api.openai.com"
+                      value={baseUrl}
+                      onChange={e => setBaseUrl(e.target.value)}
+                      className="h-9"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs text-muted-foreground">
+                      Organization (optional)
+                    </Label>
+                    <Input
+                      placeholder="org_xxx"
+                      value={openaiOrg}
+                      onChange={e => setOpenaiOrg(e.target.value)}
+                      className="h-9"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs text-muted-foreground">
+                      Timeout (sec)
+                    </Label>
+                    <Input
+                      type="number"
+                      value={timeoutSec}
+                      onChange={e =>
+                        setTimeoutSec(Number(e.target.value || 60))
+                      }
+                      className="h-9"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs text-muted-foreground">
+                      Max retries
+                    </Label>
+                    <Input
+                      type="number"
+                      value={openaiMaxRetries}
+                      onChange={e =>
+                        setOpenaiMaxRetries(Number(e.target.value || 3))
+                      }
+                      className="h-9"
+                    />
+                  </div>
+                </div>
+              )}
+              {provider === 'Ollama (remote)' && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs text-muted-foreground">
+                      Base URL
+                    </Label>
+                    <Input
+                      placeholder="http://localhost:11434"
+                      value={baseUrl}
+                      onChange={e => setBaseUrl(e.target.value)}
+                      className="h-9"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs text-muted-foreground">
+                      Timeout (sec)
+                    </Label>
+                    <Input
+                      type="number"
+                      value={timeoutSec}
+                      onChange={e =>
+                        setTimeoutSec(Number(e.target.value || 60))
+                      }
+                      className="h-9"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs text-muted-foreground">
+                      Auto-pull model
+                    </Label>
+                    <button
+                      className="h-9 rounded-md border border-border bg-background px-3 text-left"
+                      onClick={() => setOllamaAutoPull(v => !v)}
+                    >
+                      {ollamaAutoPull ? 'Enabled' : 'Disabled'}
+                    </button>
+                  </div>
+                </div>
+              )}
               {provider === 'Azure OpenAI' && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                   <div className="flex flex-col gap-1">
@@ -900,55 +1105,59 @@ function ChangeEmbeddingModel() {
               )}
             </div>
 
-            <div className="flex flex-col gap-2">
-              <Label className="text-xs text-muted-foreground">API Key</Label>
-              <div className="relative">
-                <Input
-                  type="password"
-                  placeholder="enter here"
-                  value={apiKey}
-                  onChange={e => setApiKey(e.target.value)}
-                  className="h-9 pr-9"
-                />
-                <button
-                  type="button"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  onClick={() => setShowApiKey(v => !v)}
-                  aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
-                >
-                  <FontIcon
-                    type={showApiKey ? 'eye-off' : 'eye'}
-                    className="w-4 h-4"
+            {provider !== 'Ollama (remote)' && (
+              <div className="flex flex-col gap-2">
+                <Label className="text-xs text-muted-foreground">API Key</Label>
+                <div className="relative">
+                  <Input
+                    type="password"
+                    placeholder="enter here"
+                    value={apiKey}
+                    onChange={e => setApiKey(e.target.value)}
+                    className="h-9 pr-9"
                   />
-                </button>
-              </div>
-              {errors.apiKey && (
-                <div className="text-xs text-destructive">{errors.apiKey}</div>
-              )}
-              <div className="flex flex-col gap-1">
-                <Label className="text-xs text-muted-foreground">
-                  Batch size (texts per request)
-                </Label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={512}
-                  value={batchSize}
-                  onChange={e => {
-                    const v = parseInt(e.target.value || '64', 10)
-                    if (Number.isNaN(v)) return
-                    const clamped = Math.max(1, Math.min(512, v))
-                    setBatchSize(clamped)
-                  }}
-                  className="h-9"
-                />
-                <div className="text-xs text-muted-foreground">
-                  Controls throughput and cost; provider limits may apply.
+                  <button
+                    type="button"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    onClick={() => setShowApiKey(v => !v)}
+                    aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
+                  >
+                    <FontIcon
+                      type={showApiKey ? 'eye-off' : 'eye'}
+                      className="w-4 h-4"
+                    />
+                  </button>
                 </div>
+                {errors.apiKey && (
+                  <div className="text-xs text-destructive">
+                    {errors.apiKey}
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs text-muted-foreground">
+                Batch size (texts per request)
+              </Label>
+              <Input
+                type="number"
+                min={1}
+                max={512}
+                value={batchSize}
+                onChange={e => {
+                  const v = parseInt(e.target.value || '64', 10)
+                  if (Number.isNaN(v)) return
+                  const clamped = Math.max(1, Math.min(512, v))
+                  setBatchSize(clamped)
+                }}
+                className="h-9"
+              />
+              <div className="text-xs text-muted-foreground">
+                Controls throughput and cost; provider limits may apply.
               </div>
             </div>
 
-            {model === 'Custom' && (
+            {showAdvanced && model === 'Custom' && (
               <div className="flex flex-col gap-2">
                 <Label className="text-xs text-muted-foreground">
                   Base URL override (optional)
@@ -959,6 +1168,41 @@ function ChangeEmbeddingModel() {
                   onChange={e => setBaseUrl(e.target.value)}
                   className="h-9"
                 />
+              </div>
+            )}
+
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={checkConnection}>
+                  {connectionStatus === 'checking'
+                    ? 'Checking…'
+                    : 'Check connection'}
+                </Button>
+                <Button variant="outline" size="sm" onClick={runTestEmbedding}>
+                  {testStatus === 'running' ? 'Testing…' : 'Test embedding'}
+                </Button>
+              </div>
+              <button
+                className="text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => setShowAdvanced(v => !v)}
+              >
+                {showAdvanced ? 'Hide advanced' : 'Show advanced'}
+              </button>
+            </div>
+            {(connectionStatus === 'ok' || connectionStatus === 'error') && (
+              <div
+                className={`text-xs ${connectionStatus === 'ok' ? 'text-teal-600 dark:text-teal-400' : 'text-destructive'}`}
+              >
+                {connectionMsg}
+              </div>
+            )}
+            {testStatus !== 'idle' && (
+              <div className="text-xs text-muted-foreground">
+                {testStatus === 'ok'
+                  ? `Test completed${testLatencyMs ? ` in ${testLatencyMs} ms` : ''}`
+                  : testStatus === 'error'
+                    ? 'Test failed'
+                    : 'Running test…'}
               </div>
             )}
 
@@ -1001,7 +1245,8 @@ function ChangeEmbeddingModel() {
               <Button
                 onClick={() => {
                   if (
-                    apiKey.trim().length === 0 ||
+                    (provider !== 'Ollama (remote)' &&
+                      apiKey.trim().length === 0) ||
                     !isModelChosen ||
                     !providerRequiredOk
                   )

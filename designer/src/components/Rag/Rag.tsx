@@ -290,6 +290,45 @@ function Rag() {
     const short = provider?.replace(/Embedder$/g, '') || 'cloud/local'
     return `Document vectorization using ${short} embedding models`
   }
+  const getEmbeddingLocation = (id: string): string | null => {
+    try {
+      let raw = localStorage.getItem(`lf_strategy_embedding_config_${id}`)
+      if (!raw) {
+        raw = localStorage.getItem('lf_last_embedding_provider_config')
+      }
+      if (!raw) return null
+      const cfg = JSON.parse(raw)
+      const baseUrl = cfg?.baseUrl || cfg?.base_url
+      if (typeof baseUrl === 'string' && baseUrl.trim().length > 0) {
+        try {
+          const u = new URL(baseUrl)
+          return `${u.hostname}${u.port ? `:${u.port}` : ''}`
+        } catch {
+          return baseUrl
+        }
+      }
+      if (cfg?.endpoint) {
+        try {
+          const u = new URL(cfg.endpoint)
+          return `${u.hostname}${u.port ? `:${u.port}` : ''}`
+        } catch {
+          return String(cfg.endpoint)
+        }
+      }
+      if (cfg?.region) return String(cfg.region)
+      if (cfg?.deployment) return String(cfg.deployment)
+      if (
+        (cfg?.provider &&
+          String(cfg.provider).toLowerCase().includes('ollama')) ||
+        cfg?.runtime === 'local'
+      ) {
+        return 'localhost:11434'
+      }
+      return null
+    } catch {
+      return null
+    }
+  }
   // (removed) summary helper was unused
   const getRetrievalDescription = (_id: string): string => {
     return 'Vector search with configurable extraction pipeline'
@@ -595,11 +634,11 @@ function Rag() {
                         Active
                       </Badge>
                     </div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      {getParsersCount(s.id)} parsers •{' '}
-                      {getExtractorsCount(s.id)} extractors
-                    </div>
-                    <div className="flex justify-end pt-2">
+                    <div className="flex items-center justify-between mt-1">
+                      <div className="text-xs text-muted-foreground">
+                        {getParsersCount(s.id)} parsers •{' '}
+                        {getExtractorsCount(s.id)} extractors
+                      </div>
                       <Button
                         variant="outline"
                         size="sm"
@@ -618,7 +657,7 @@ function Rag() {
             </div>
 
             {/* Embedding and Retrieval strategies - title outside card */}
-            <div className="text-sm font-medium mb-1">
+            <div className="text-sm font-medium mb-1 mt-6">
               Project Embedding and retrieval strategies
             </div>
             <div className="rounded-lg border border-border bg-card p-4">
@@ -732,6 +771,10 @@ function Rag() {
                     <div className="text-xs text-muted-foreground w-full truncate">
                       {getEmbeddingProvider(ei.id) || 'Embedder'} •{' '}
                       {getEmbeddingSummary(ei.id)}
+                      {(() => {
+                        const loc = getEmbeddingLocation(ei.id)
+                        return loc ? ` • ${loc}` : ''
+                      })()}
                     </div>
                     <div className="flex items-center gap-2 flex-wrap justify-between pt-0.5">
                       <div className="flex items-center gap-2 flex-wrap">
