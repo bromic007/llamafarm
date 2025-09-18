@@ -25,14 +25,9 @@ function RetrievalMethod() {
   const navigate = useNavigate()
   const { strategyId } = useParams()
   const [mode, setMode] = useState<Mode>('designer')
-  const [defaultTick, setDefaultTick] = useState(0)
+  const [, setDefaultTick] = useState(0)
 
-  const strategyName = useMemo(() => {
-    if (!strategyId) return 'Strategy'
-    return strategyId
-      .replace(/[-_]/g, ' ')
-      .replace(/\b\w/g, c => c.toUpperCase())
-  }, [strategyId])
+  // removed unused strategyName
 
   const storageKey = useMemo(
     () => (strategyId ? `lf_strategy_retrieval_${strategyId}` : ''),
@@ -87,40 +82,7 @@ function RetrievalMethod() {
     </DropdownMenu>
   )
 
-  const Collapsible = ({
-    title,
-    open,
-    onToggle,
-    children,
-  }: {
-    title: string
-    open: boolean
-    onToggle: () => void
-    children: React.ReactNode
-  }) => (
-    <section className="rounded-lg border border-border bg-card p-3 transition-colors">
-      <div
-        className="flex items-center justify-between mb-2 cursor-pointer select-none"
-        onClick={onToggle}
-        role="button"
-        tabIndex={0}
-        onKeyDown={e => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault()
-            onToggle()
-          }
-        }}
-        aria-expanded={open}
-      >
-        <div className="text-sm font-medium">{title}</div>
-        <FontIcon
-          type="chevron-down"
-          className={`w-4 h-4 transition-transform ${open ? 'rotate-180' : ''}`}
-        />
-      </div>
-      {open && <div className="mt-1">{children}</div>}
-    </section>
-  )
+  // removed unused Collapsible
 
   // Strategy options from schema
   const STRATEGY_TYPES = [
@@ -313,90 +275,7 @@ function RetrievalMethod() {
   }
 
   // Validation
-  const [errors, setErrors] = useState<Record<string, string>>({})
-  const validate = (): boolean => {
-    const next: Record<string, string> = {}
-    const num = (v: string) => Number(v)
-    switch (selectedStrategy) {
-      case 'BasicSimilarityStrategy': {
-        const tk = num(basicTopK)
-        if (!Number.isFinite(tk) || tk < 1 || tk > 1000)
-          next.basicTopK = 'Enter 1–1000'
-        if (basicScoreThreshold !== '') {
-          const thr = num(basicScoreThreshold)
-          if (!Number.isFinite(thr) || thr < 0 || thr > 1)
-            next.basicScoreThreshold = 'Enter 0–1 or leave blank'
-        }
-        break
-      }
-      case 'MetadataFilteredStrategy': {
-        const tk = num(mfTopK)
-        if (!Number.isFinite(tk) || tk < 1 || tk > 1000)
-          next.mfTopK = 'Enter 1–1000'
-        const fm = num(mfFallbackMultiplier)
-        if (!Number.isFinite(fm) || fm < 1 || fm > 10)
-          next.mfFallbackMultiplier = 'Enter 1–10'
-        break
-      }
-      case 'MultiQueryStrategy': {
-        const nq = num(mqNumQueries)
-        if (!Number.isFinite(nq) || nq < 1 || nq > 10)
-          next.mqNumQueries = 'Enter 1–10'
-        const tk = num(mqTopK)
-        if (!Number.isFinite(tk) || tk < 1 || tk > 1000)
-          next.mqTopK = 'Enter 1–1000'
-        if (mqQueryWeights.trim().length > 0) {
-          const parts = mqQueryWeights
-            .split(',')
-            .map(s => s.trim())
-            .filter(Boolean)
-          if (parts.length !== nq)
-            next.mqQueryWeights = `Provide ${nq} weights or clear`
-          for (const p of parts) {
-            const w = Number(p)
-            if (!Number.isFinite(w) || w < 0 || w > 1) {
-              next.mqQueryWeights = 'Weights must be 0–1'
-              break
-            }
-          }
-        }
-        break
-      }
-      case 'RerankedStrategy': {
-        const ik = num(rrInitialK)
-        if (!Number.isFinite(ik) || ik < 10 || ik > 1000)
-          next.rrInitialK = 'Enter 10–1000'
-        const fk = num(rrFinalK)
-        if (!Number.isFinite(fk) || fk < 1 || fk > 100)
-          next.rrFinalK = 'Enter 1–100'
-        const weights = [
-          ['rrSimW', rrSimW],
-          ['rrRecencyW', rrRecencyW],
-          ['rrLengthW', rrLengthW],
-          ['rrMetaW', rrMetaW],
-        ] as const
-        for (const [k, v] of weights) {
-          const n = num(v)
-          if (!Number.isFinite(n) || n < 0 || n > 1) next[k] = 'Enter 0–1'
-        }
-        break
-      }
-      case 'HybridUniversalStrategy': {
-        const fk = num(hybFinalK)
-        if (!Number.isFinite(fk) || fk < 1 || fk > 1000)
-          next.hybFinalK = 'Enter 1–1000'
-        for (const s of hybStrategies) {
-          const w = num(s.weight)
-          if (!Number.isFinite(w) || w < 0 || w > 1) {
-            next[`hybWeight:${s.id}`] = 'Enter 0–1'
-          }
-        }
-        break
-      }
-    }
-    setErrors(next)
-    return Object.keys(next).length === 0
-  }
+  const [errors] = useState<Record<string, string>>({})
 
   // Load persisted values
   useEffect(() => {
@@ -455,12 +334,19 @@ function RetrievalMethod() {
           setHybFinalK(String(cfg.final_k ?? '10'))
           const subs = (cfg.strategies as any[]) || []
           const mapped: HybridSub[] = subs
-            .map((s: any, i: number) => ({
-              id: `${s.type || 'sub'}-${i}`,
-              type: (s.type as StrategyType) || 'BasicSimilarityStrategy',
-              weight: String(s.weight ?? '1.0'),
-              config: s.config || {},
-            }))
+            .map((s: any, i: number) => {
+              const t = (s.type as StrategyType) || 'BasicSimilarityStrategy'
+              const subType: Exclude<StrategyType, 'HybridUniversalStrategy'> =
+                t === 'HybridUniversalStrategy'
+                  ? 'BasicSimilarityStrategy'
+                  : (t as Exclude<StrategyType, 'HybridUniversalStrategy'>)
+              return {
+                id: `${s.type || 'sub'}-${i}`,
+                type: subType,
+                weight: String(s.weight ?? '1.0'),
+                config: s.config || {},
+              }
+            })
             .filter(Boolean)
           setHybStrategies(mapped)
         }
@@ -1142,7 +1028,7 @@ function RetrievalMethod() {
                                 string,
                                 unknown
                               >) || {}
-                            ).map(([key, value], fIdx, arr) => (
+                            ).map(([key, value], fIdx) => (
                               <div
                                 key={`${key}-${fIdx}`}
                                 className="grid grid-cols-1 md:grid-cols-3 gap-2"

@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
-import { Badge } from '../ui/badge'
-import FontIcon from '../../common/FontIcon'
+// removed unused imports
 import {
   Dialog,
   DialogContent,
@@ -12,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../ui/dialog'
-import RetrievalMethod from './RetrievalMethod'
+// removed unused import
 
 // Strategy options (keep in sync with RetrievalMethod)
 const STRATEGY_TYPES = [

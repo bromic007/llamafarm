@@ -590,25 +590,7 @@ function DatasetView() {
     return `${sorted.length} configured: ${top.join(', ')}${more}`
   }, [strategyId, processingMetaTick])
 
-  const docType = useMemo(() => {
-    const id = strategyId
-    if (id.includes('pdf')) return 'PDFs'
-    if (id.includes('csv')) return 'CSVs'
-    if (id.includes('chat')) return 'Conversations'
-    if (id.includes('json')) return 'JSON'
-    return 'Documents'
-  }, [strategyId])
-
-  const embeddingModel = useMemo(() => {
-    try {
-      return (
-        localStorage.getItem(`lf_strategy_embedding_model_${strategyId}`) ||
-        'text-embedding-3-large'
-      )
-    } catch {
-      return 'text-embedding-3-large'
-    }
-  }, [strategyId])
+  // Removed unused derived values
 
   return (
     <div
