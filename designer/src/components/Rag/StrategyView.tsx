@@ -101,11 +101,23 @@ function StrategyView() {
     summary: string
   }
 
+  // Map legacy high-number priorities to new low-number scale
+  const migratePriority = (value: unknown): number => {
+    const n = Number(value)
+    if (!Number.isFinite(n)) return 1
+    if (n >= 100) return 1
+    if (n >= 90) return 2
+    if (n >= 80) return 3
+    if (n >= 50) return 4
+    if (n < 1) return 1
+    return n
+  }
+
   const defaultParsers: ParserRow[] = [
     {
       id: 'pdf-llamaindex',
       name: 'PDFParser_LlamaIndex',
-      priority: 100,
+      priority: 1,
       include: '*.pdf, *.PDF',
       exclude: '*_draft.pdf, *.tmp.pdf',
       summary:
@@ -115,7 +127,7 @@ function StrategyView() {
     {
       id: 'pdf-pypdf2',
       name: 'PDFParser_PyPDF2',
-      priority: 50,
+      priority: 4,
       include: '*.pdf, *.PDF',
       exclude: '*_draft.pdf, *.tmp.pdf',
       summary: 'Paragraph chunking, 1000 chars, 150 overlap, extract metadata',
@@ -124,7 +136,7 @@ function StrategyView() {
     {
       id: 'docx-llamaindex',
       name: 'DocxParser_LlamaIndex',
-      priority: 100,
+      priority: 1,
       include: '*.docx, *.DOCX, *.doc, *.DOC',
       exclude: '~$*, *.tmp',
       summary: '1000 chars, 150 overlap, extract tables & metadata',
@@ -133,7 +145,7 @@ function StrategyView() {
     {
       id: 'md-python',
       name: 'MarkdownParser_Python',
-      priority: 100,
+      priority: 1,
       include: '*.md, *.markdown, *.mdown, *.mkd, README*',
       exclude: '*.tmp.md, _draft*.md',
       summary: 'Section-based, extract code & links',
@@ -142,7 +154,7 @@ function StrategyView() {
     {
       id: 'csv-pandas',
       name: 'CSVParser_Pandas',
-      priority: 100,
+      priority: 1,
       include: '*.csv, *.CSV, *.tsv, *.TSV, *.dat',
       exclude: '*_backup.csv, *.tmp.csv',
       summary: 'Row-based, 500 chars, UTF-8',
@@ -151,7 +163,7 @@ function StrategyView() {
     {
       id: 'excel-pandas',
       name: 'ExcelParser_Pandas',
-      priority: 100,
+      priority: 1,
       include: '*.xlsx, *.XLSX, *.xls, *.XLS',
       exclude: '~$*, *.tmp.xlsx',
       summary: 'Process all sheets, 500 chars, extract metadata',
@@ -160,7 +172,7 @@ function StrategyView() {
     {
       id: 'text-python',
       name: 'TextParser_Python',
-      priority: 50,
+      priority: 4,
       include: '*.txt, *.json, *.xml, *.yaml, *.py, *.js, LICENSE*, etc.',
       exclude: '*.pyc, *.pyo, *.class',
       summary: 'Sentence-based, 1200 chars, 200 overlap',
@@ -172,14 +184,14 @@ function StrategyView() {
     {
       id: 'content-stats',
       name: 'ContentStatisticsExtractor',
-      priority: 100,
+      priority: 1,
       applyTo: 'All files (*)',
       summary: 'Include readability, vocabulary & structure analysis',
     },
     {
       id: 'entity',
       name: 'EntityExtractor',
-      priority: 90,
+      priority: 2,
       applyTo: 'All files (*)',
       summary:
         'Extract: PERSON, ORG, GPE, DATE, PRODUCT, MONEY, PERCENT | Min length: 2',
@@ -187,28 +199,28 @@ function StrategyView() {
     {
       id: 'keyword',
       name: 'KeywordExtractor',
-      priority: 80,
+      priority: 3,
       applyTo: 'All files (*)',
       summary: 'YAKE algorithm, 10 max keywords, 3 min keyword length',
     },
     {
       id: 'table',
       name: 'TableExtractor',
-      priority: 100,
+      priority: 1,
       applyTo: '*.pdf, *.PDF only',
       summary: 'Dict format output, extract headers, merge cells',
     },
     {
       id: 'datetime',
       name: 'DateTimeExtractor',
-      priority: 100,
+      priority: 1,
       applyTo: '*.csv, *.xlsx, *.xls, *.tsv',
       summary: 'Formats: ISO8601, US, EU | Extract relative dates & times',
     },
     {
       id: 'pattern',
       name: 'PatternExtractor',
-      priority: 100,
+      priority: 1,
       applyTo: '*.py, *.js, *.java, *.cpp, *.c, *.h',
       summary:
         'Email, URL, IP, version + custom function/class definition patterns',
@@ -216,14 +228,14 @@ function StrategyView() {
     {
       id: 'heading',
       name: 'HeadingExtractor',
-      priority: 100,
+      priority: 1,
       applyTo: '*.md, *.markdown, README*',
       summary: 'Max level 6, include hierarchy & outline extraction',
     },
     {
       id: 'link',
       name: 'LinkExtractor',
-      priority: 90,
+      priority: 2,
       applyTo: '*.md, *.markdown, *.html, *.htm',
       summary: 'Extract URLs, emails, and domains',
     },
@@ -259,12 +271,22 @@ function StrategyView() {
               if (!p || typeof p !== 'object') return p
               const hasSchema =
                 typeof p.name === 'string' && PARSER_SCHEMAS[p.name]
-              if (hasSchema && !p.config) {
-                return { ...p, config: getDefaultConfigForParser(p.name) }
+              const withConfig =
+                hasSchema && !p.config
+                  ? { ...p, config: getDefaultConfigForParser(p.name) }
+                  : p
+              return {
+                ...withConfig,
+                priority: migratePriority(withConfig.priority),
               }
-              return p
             })
             setParserRows(migrated)
+            try {
+              localStorage.setItem(
+                storageKeys.parsers,
+                JSON.stringify(migrated)
+              )
+            } catch {}
           }
         } catch {}
       } else {
@@ -273,7 +295,19 @@ function StrategyView() {
       if (eRaw) {
         try {
           const arr = JSON.parse(eRaw)
-          if (Array.isArray(arr)) setExtractorRows(arr)
+          if (Array.isArray(arr)) {
+            const migrated = arr.map((e: ExtractorRow) => {
+              if (!e || typeof e !== 'object') return e
+              return { ...e, priority: migratePriority(e.priority) }
+            })
+            setExtractorRows(migrated)
+            try {
+              localStorage.setItem(
+                storageKeys.extractors,
+                JSON.stringify(migrated)
+              )
+            } catch {}
+          }
         } catch {}
       } else {
         setExtractorRows(defaultExtractors)
@@ -338,8 +372,8 @@ function StrategyView() {
   const getPriorityVariant = (
     p: number
   ): 'default' | 'secondary' | 'outline' => {
-    if (p >= 100) return 'default'
-    if (p >= 50) return 'secondary'
+    if (p <= 1) return 'default'
+    if (p <= 4) return 'secondary'
     return 'outline'
   }
 
@@ -349,7 +383,7 @@ function StrategyView() {
   const [newParserConfig, setNewParserConfig] = useState<
     Record<string, unknown>
   >({})
-  const [newParserPriority, setNewParserPriority] = useState<string>('100')
+  const [newParserPriority, setNewParserPriority] = useState<string>('1')
 
   const slugify = (str: string) =>
     str
@@ -389,7 +423,7 @@ function StrategyView() {
     setIsAddParserOpen(false)
     setNewParserType('')
     setNewParserConfig({})
-    setNewParserPriority('100')
+    setNewParserPriority('1')
   }
 
   // Edit/Delete Parser modals -------------------------------------------------
@@ -398,7 +432,7 @@ function StrategyView() {
   const [editParserConfig, setEditParserConfig] = useState<
     Record<string, unknown>
   >({})
-  const [editParserPriority, setEditParserPriority] = useState<string>('100')
+  const [editParserPriority, setEditParserPriority] = useState<string>('1')
 
   const openEditParser = (id: string) => {
     const found = parserRows.find(p => p.id === id)
@@ -459,8 +493,7 @@ function StrategyView() {
   // Add/Edit/Delete Extractor modals -----------------------------------------
   const [isAddExtractorOpen, setIsAddExtractorOpen] = useState(false)
   const [newExtractorType, setNewExtractorType] = useState<string>('')
-  const [newExtractorPriority, setNewExtractorPriority] =
-    useState<string>('100')
+  const [newExtractorPriority, setNewExtractorPriority] = useState<string>('1')
   const [newExtractorConfig, setNewExtractorConfig] = useState<
     Record<string, unknown>
   >({})
@@ -493,14 +526,14 @@ function StrategyView() {
     setOpenRows(prev => new Set(prev).add(id))
     setIsAddExtractorOpen(false)
     setNewExtractorType('')
-    setNewExtractorPriority('100')
+    setNewExtractorPriority('1')
     setNewExtractorConfig({})
   }
 
   const [isEditExtractorOpen, setIsEditExtractorOpen] = useState(false)
   const [editExtractorId, setEditExtractorId] = useState<string>('')
   const [editExtractorPriority, setEditExtractorPriority] =
-    useState<string>('100')
+    useState<string>('1')
   const [editExtractorConfig, setEditExtractorConfig] = useState<
     Record<string, unknown>
   >({})
