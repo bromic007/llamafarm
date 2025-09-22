@@ -108,6 +108,7 @@ function Header() {
   }
 
   const isHomePage = location.pathname === '/'
+  const isHomeLike = isHomePage || location.pathname.startsWith('/samples')
 
   return (
     <header className="fixed top-0 left-0 z-50 w-full border-b transition-colors bg-background border-border">
@@ -118,7 +119,7 @@ function Header() {
 
       <div className="w-full flex items-center h-12">
         <div className="w-1/4 pl-4 flex items-center gap-2">
-          {isHomePage ? (
+          {isHomeLike ? (
             <button
               className="font-serif text-base text-foreground"
               onClick={() => navigate('/')}

@@ -217,8 +217,11 @@ function Home() {
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-xl text-primary text-left">Your projects</h3>
           <div className="hidden md:flex items-center gap-2 shrink-0">
-            <button className="px-3 py-2 rounded-lg border border-input text-primary hover:bg-accent/20">
-              Explore public projects
+            <button
+              className="px-3 py-2 rounded-lg border border-input text-primary hover:bg-accent/20"
+              onClick={() => navigate('/samples')}
+            >
+              Explore sample projects
             </button>
             <button
               className="px-3 py-2 rounded-lg bg-primary text-primary-foreground hover:opacity-90"
@@ -230,8 +233,11 @@ function Home() {
         </div>
         {/* Controls for small screens */}
         <div className="md:hidden mb-4 flex items-center justify-between gap-3">
-          <button className="flex-1 px-3 py-2 rounded-lg border border-input text-primary hover:bg-accent/20">
-            Explore public projects
+          <button
+            className="flex-1 px-3 py-2 rounded-lg border border-input text-primary hover:bg-accent/20"
+            onClick={() => navigate('/samples')}
+          >
+            Explore sample projects
           </button>
           <button
             className="px-3 py-2 rounded-lg bg-primary text-primary-foreground hover:opacity-90"
