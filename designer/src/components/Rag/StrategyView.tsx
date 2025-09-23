@@ -470,6 +470,7 @@ function StrategyView() {
     Record<string, unknown>
   >({})
   const [newParserPriority, setNewParserPriority] = useState<string>('1')
+  const [newParserPriorityError, setNewParserPriorityError] = useState(false)
 
   const slugify = (str: string) =>
     str
@@ -482,6 +483,14 @@ function StrategyView() {
     if (!name) return
     const prio = Number(newParserPriority)
     if (!Number.isFinite(prio)) return
+    if (prio < 0) {
+      setNewParserPriorityError(true)
+      toast({
+        message: 'Priority cannot be less than 0',
+        variant: 'destructive',
+      })
+      return
+    }
     const idBase = slugify(name) || 'parser'
     const id = `${idBase}-${Date.now()}`
     const next: ParserRow = {
@@ -519,6 +528,7 @@ function StrategyView() {
     Record<string, unknown>
   >({})
   const [editParserPriority, setEditParserPriority] = useState<string>('1')
+  const [editParserPriorityError, setEditParserPriorityError] = useState(false)
 
   const openEditParser = (id: string) => {
     const found = parserRows.find(p => p.id === id)
@@ -533,6 +543,14 @@ function StrategyView() {
     if (!editParserId) return
     const prio = Number(editParserPriority)
     if (!Number.isFinite(prio)) return
+    if (prio < 0) {
+      setEditParserPriorityError(true)
+      toast({
+        message: 'Priority cannot be less than 0',
+        variant: 'destructive',
+      })
+      return
+    }
     const next = parserRows.map(p =>
       p.id === editParserId
         ? { ...p, config: editParserConfig, priority: prio }
@@ -590,6 +608,14 @@ function StrategyView() {
     const name = newExtractorType.trim()
     const prio = Number(newExtractorPriority)
     if (!name || !Number.isFinite(prio)) return
+    if (prio < 0) {
+      setNewExtractorPriorityError(true)
+      toast({
+        message: 'Priority cannot be less than 0',
+        variant: 'destructive',
+      })
+      return
+    }
     const idBase = slugify(name) || 'extractor'
     const id = `${idBase}-${Date.now()}`
     const next: ExtractorRow = {
@@ -642,6 +668,14 @@ function StrategyView() {
   const handleUpdateExtractor = () => {
     const prio = Number(editExtractorPriority)
     if (!editExtractorId || !Number.isFinite(prio)) return
+    if (prio < 0) {
+      setEditExtractorPriorityError(true)
+      toast({
+        message: 'Priority cannot be less than 0',
+        variant: 'destructive',
+      })
+      return
+    }
     const next = extractorRows.map(e =>
       e.id === editExtractorId
         ? {
@@ -1115,8 +1149,18 @@ function StrategyView() {
                       className="mt-1 bg-background w-40"
                       value={newParserPriority}
                       min={0}
-                      onChange={e => setNewParserPriority(e.target.value)}
+                      onChange={e => {
+                        const raw = e.target.value
+                        setNewParserPriority(raw)
+                        const n = Number(raw)
+                        setNewParserPriorityError(Number.isFinite(n) && n < 0)
+                      }}
                     />
+                    {newParserPriorityError ? (
+                      <div className="text-xs text-destructive mt-1">
+                        Priority cannot be less than 0
+                      </div>
+                    ) : null}
                   </div>
                   <div className="rounded-lg border border-border bg-accent/10 p-3">
                     <div className="text-sm font-medium mb-2">
@@ -1141,12 +1185,14 @@ function StrategyView() {
               </button>
               <button
                 className={`px-3 py-2 rounded-md text-sm ${
-                  newParserType.trim().length > 0
+                  newParserType.trim().length > 0 && !newParserPriorityError
                     ? 'bg-primary text-primary-foreground hover:opacity-90'
                     : 'opacity-50 cursor-not-allowed bg-primary text-primary-foreground'
                 }`}
                 onClick={handleCreateParser}
-                disabled={newParserType.trim().length === 0}
+                disabled={
+                  newParserType.trim().length === 0 || newParserPriorityError
+                }
                 type="button"
               >
                 Add parser
@@ -1197,8 +1243,20 @@ function StrategyView() {
                         className="mt-1 bg-background w-40"
                         value={editParserPriority}
                         min={0}
-                        onChange={e => setEditParserPriority(e.target.value)}
+                        onChange={e => {
+                          const raw = e.target.value
+                          setEditParserPriority(raw)
+                          const n = Number(raw)
+                          setEditParserPriorityError(
+                            Number.isFinite(n) && n < 0
+                          )
+                        }}
                       />
+                      {editParserPriorityError ? (
+                        <div className="text-xs text-destructive mt-1">
+                          Priority cannot be less than 0
+                        </div>
+                      ) : null}
                     </div>
                     <div className="rounded-lg border border-border bg-accent/10 p-3">
                       <div className="text-sm font-medium mb-2">
@@ -1235,9 +1293,12 @@ function StrategyView() {
                 Cancel
               </button>
               <button
-                className={`px-3 py-2 rounded-md text-sm bg-primary text-primary-foreground hover:opacity-90`}
+                className={`px-3 py-2 rounded-md text-sm bg-primary text-primary-foreground hover:opacity-90 ${
+                  editParserPriorityError ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
                 onClick={handleUpdateParser}
                 type="button"
+                disabled={editParserPriorityError}
               >
                 Save changes
               </button>
@@ -1361,8 +1422,20 @@ function StrategyView() {
                       className="mt-1 bg-background w-40"
                       value={newExtractorPriority}
                       min={0}
-                      onChange={e => setNewExtractorPriority(e.target.value)}
+                      onChange={e => {
+                        const raw = e.target.value
+                        setNewExtractorPriority(raw)
+                        const n = Number(raw)
+                        setNewExtractorPriorityError(
+                          Number.isFinite(n) && n < 0
+                        )
+                      }}
                     />
+                    {newExtractorPriorityError ? (
+                      <div className="text-xs text-destructive mt-1">
+                        Priority cannot be less than 0
+                      </div>
+                    ) : null}
                   </div>
                   <div className="rounded-lg border border-border bg-accent/10 p-3">
                     <div className="text-sm font-medium mb-2">
@@ -1386,9 +1459,17 @@ function StrategyView() {
                 Cancel
               </button>
               <button
-                className={`px-3 py-2 rounded-md text-sm ${newExtractorType.trim().length > 0 ? 'bg-primary text-primary-foreground hover:opacity-90' : 'opacity-50 cursor-not-allowed bg-primary text-primary-foreground'}`}
+                className={`px-3 py-2 rounded-md text-sm ${
+                  newExtractorType.trim().length > 0 &&
+                  !newExtractorPriorityError
+                    ? 'bg-primary text-primary-foreground hover:opacity-90'
+                    : 'opacity-50 cursor-not-allowed bg-primary text-primary-foreground'
+                }`}
                 onClick={handleCreateExtractor}
-                disabled={newExtractorType.trim().length === 0}
+                disabled={
+                  newExtractorType.trim().length === 0 ||
+                  newExtractorPriorityError
+                }
                 type="button"
               >
                 Add extractor
@@ -1439,8 +1520,20 @@ function StrategyView() {
                         className="mt-1 bg-background w-40"
                         value={editExtractorPriority}
                         min={0}
-                        onChange={e => setEditExtractorPriority(e.target.value)}
+                        onChange={e => {
+                          const raw = e.target.value
+                          setEditExtractorPriority(raw)
+                          const n = Number(raw)
+                          setEditExtractorPriorityError(
+                            Number.isFinite(n) && n < 0
+                          )
+                        }}
                       />
+                      {editExtractorPriorityError ? (
+                        <div className="text-xs text-destructive mt-1">
+                          Priority cannot be less than 0
+                        </div>
+                      ) : null}
                     </div>
                     <div className="rounded-lg border border-border bg-accent/10 p-3">
                       <div className="text-sm font-medium mb-2">
@@ -1478,9 +1571,14 @@ function StrategyView() {
                 Cancel
               </button>
               <button
-                className={`px-3 py-2 rounded-md text-sm bg-primary text-primary-foreground hover:opacity-90`}
+                className={`px-3 py-2 rounded-md text-sm bg-primary text-primary-foreground hover:opacity-90 ${
+                  editExtractorPriorityError
+                    ? 'opacity-50 cursor-not-allowed'
+                    : ''
+                }`}
                 onClick={handleUpdateExtractor}
                 type="button"
+                disabled={editExtractorPriorityError}
               >
                 Save changes
               </button>
