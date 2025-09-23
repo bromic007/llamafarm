@@ -113,20 +113,20 @@ export default function ExtractorSettingsForm({
     if (field.type === 'boolean') {
       const checked = Boolean(current ?? field.default ?? false)
       return (
-        <div key={key} className="flex items-center justify-between py-2">
-          <div className="flex flex-col">
-            <Label className="text-xs text-foreground">{label}</Label>
-            {field.description ? (
-              <div className="text-xs text-muted-foreground">
-                {field.description}
-              </div>
-            ) : null}
-          </div>
+        <div key={key} className="flex items-center gap-4 py-1">
           <Switch
             checked={checked}
             onCheckedChange={v => setField(key, v)}
             disabled={disabled}
           />
+          <div className="flex flex-col">
+            <Label className="text-xs text-foreground">{label}</Label>
+            {field.description ? (
+              <div className="text-xs text-muted-foreground -mt-0.5">
+                {field.description}
+              </div>
+            ) : null}
+          </div>
         </div>
       )
     }
@@ -268,7 +268,31 @@ export default function ExtractorSettingsForm({
 
   return (
     <div className="flex flex-col gap-3">
-      {entries.map(([k, f]) => renderField(k, f))}
+      {(() => {
+        const bools = entries.filter(([, f]) => f.type === 'boolean')
+        const others = entries.filter(([, f]) => f.type !== 'boolean')
+        return (
+          <>
+            {bools.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {bools.map(([k, f]) => renderField(k, f))}
+              </div>
+            ) : null}
+            {others.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {others.map(([k, f]) => (
+                  <div
+                    key={k}
+                    className={f.type === 'array' ? 'md:col-span-2' : ''}
+                  >
+                    {renderField(k, f)}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </>
+        )
+      })()}
     </div>
   )
 }

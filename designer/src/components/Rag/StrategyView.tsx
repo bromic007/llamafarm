@@ -22,7 +22,13 @@ import {
   ORDERED_EXTRACTOR_TYPES,
   getDefaultConfigForExtractor,
 } from './extractorSchemas'
-import { ChevronDown, Plus, Settings, Trash2 } from 'lucide-react'
+import {
+  ChevronDown,
+  Plus,
+  Settings,
+  Trash2,
+  AlertTriangle,
+} from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -370,6 +376,54 @@ function StrategyView() {
     return shown
   }
 
+  // Patterns editors helpers --------------------------------------------------
+  const getDefaultIncludePatternsForParser = (parserName: string): string[] => {
+    switch (parserName) {
+      case 'PDFParser_LlamaIndex':
+      case 'PDFParser_PyPDF2':
+        return ['*.pdf']
+      case 'DocxParser_LlamaIndex':
+      case 'DocxParser_PythonDocx':
+        return ['*.docx', '*.doc']
+      case 'MarkdownParser_Python':
+      case 'MarkdownParser_LlamaIndex':
+        return ['*.md', '*.markdown']
+      case 'CSVParser_Pandas':
+      case 'CSVParser_LlamaIndex':
+        return ['*.csv']
+      case 'ExcelParser_OpenPyXL':
+      case 'ExcelParser_Pandas':
+      case 'ExcelParser_LlamaIndex':
+        return ['*.xlsx', '*.xls']
+      case 'TextParser_Python':
+      case 'TextParser_LlamaIndex':
+        return ['*.txt', '*.text']
+      default:
+        return []
+    }
+  }
+
+  // const getDefaultApplyPatternsForExtractor = (): string[] => ['*']
+
+  const parsePatternsString = (s: string | undefined): string[] => {
+    if (!s) return []
+    const parts = s
+      .split(',')
+      .map(t => t.trim())
+      .filter(Boolean)
+    const uniq = Array.from(new Set(parts))
+    return uniq
+  }
+
+  const patternsToString = (arr: string[]): string => arr.join(', ')
+
+  const isSuspiciousPattern = (p: string): boolean => {
+    const trimmed = p.trim()
+    if (trimmed === '*' || trimmed === '') return false
+    if (!/[.*]/.test(trimmed) && !/\.[a-z0-9]+$/i.test(trimmed)) return true
+    return false
+  }
+
   const getFriendlyParserName = (parserName: string): string => {
     switch (parserName) {
       case 'PDFParser_LlamaIndex':
@@ -471,6 +525,8 @@ function StrategyView() {
   >({})
   const [newParserPriority, setNewParserPriority] = useState<string>('1')
   const [newParserPriorityError, setNewParserPriorityError] = useState(false)
+  const [newParserIncludes, setNewParserIncludes] = useState<string[]>([])
+  const [newIncludeInput, setNewIncludeInput] = useState('')
 
   const slugify = (str: string) =>
     str
@@ -497,7 +553,7 @@ function StrategyView() {
       id,
       name,
       priority: prio,
-      include: '',
+      include: patternsToString(newParserIncludes),
       exclude: '',
       summary: '',
       config: newParserConfig,
@@ -519,6 +575,7 @@ function StrategyView() {
     setNewParserType('')
     setNewParserConfig({})
     setNewParserPriority('1')
+    setNewParserIncludes([])
   }
 
   // Edit/Delete Parser modals -------------------------------------------------
@@ -529,6 +586,8 @@ function StrategyView() {
   >({})
   const [editParserPriority, setEditParserPriority] = useState<string>('1')
   const [editParserPriorityError, setEditParserPriorityError] = useState(false)
+  const [editParserIncludes, setEditParserIncludes] = useState<string[]>([])
+  const [editIncludeInput, setEditIncludeInput] = useState('')
 
   const openEditParser = (id: string) => {
     const found = parserRows.find(p => p.id === id)
@@ -536,6 +595,7 @@ function StrategyView() {
     setEditParserId(found.id)
     setEditParserConfig(found.config || getDefaultConfigForParser(found.name))
     setEditParserPriority(String(found.priority))
+    setEditParserIncludes(parsePatternsString(found.include))
     setIsEditParserOpen(true)
   }
 
@@ -553,7 +613,12 @@ function StrategyView() {
     }
     const next = parserRows.map(p =>
       p.id === editParserId
-        ? { ...p, config: editParserConfig, priority: prio }
+        ? {
+            ...p,
+            config: editParserConfig,
+            priority: prio,
+            include: patternsToString(editParserIncludes),
+          }
         : p
     )
     setParserRows(next)
@@ -600,6 +665,10 @@ function StrategyView() {
   const [newExtractorPriority, setNewExtractorPriority] = useState<string>('1')
   const [newExtractorPriorityError, setNewExtractorPriorityError] =
     useState(false)
+  const [newExtractorApplies, setNewExtractorApplies] = useState<string[]>([
+    '*',
+  ])
+  const [newAppliesInput, setNewAppliesInput] = useState('')
   const [newExtractorConfig, setNewExtractorConfig] = useState<
     Record<string, unknown>
   >({})
@@ -622,7 +691,7 @@ function StrategyView() {
       id,
       name,
       priority: prio,
-      applyTo: 'All files (*)',
+      applyTo: patternsToString(newExtractorApplies),
       summary: '',
       config: newExtractorConfig,
     }
@@ -643,6 +712,7 @@ function StrategyView() {
     setNewExtractorType('')
     setNewExtractorPriority('1')
     setNewExtractorConfig({})
+    setNewExtractorApplies(['*'])
   }
 
   const [isEditExtractorOpen, setIsEditExtractorOpen] = useState(false)
@@ -654,6 +724,8 @@ function StrategyView() {
   const [editExtractorConfig, setEditExtractorConfig] = useState<
     Record<string, unknown>
   >({})
+  const [editExtractorApplies, setEditExtractorApplies] = useState<string[]>([])
+  const [editAppliesInput, setEditAppliesInput] = useState('')
 
   const openEditExtractor = (id: string) => {
     const found = extractorRows.find(e => e.id === id)
@@ -663,6 +735,7 @@ function StrategyView() {
     setEditExtractorConfig(
       found.config || getDefaultConfigForExtractor(found.name)
     )
+    setEditExtractorApplies(parsePatternsString(found.applyTo))
     setIsEditExtractorOpen(true)
   }
   const handleUpdateExtractor = () => {
@@ -682,6 +755,7 @@ function StrategyView() {
             ...e,
             priority: prio,
             config: editExtractorConfig,
+            applyTo: patternsToString(editExtractorApplies),
           }
         : e
     )
@@ -1069,7 +1143,7 @@ function StrategyView() {
 
       {/* Add Parser Modal */}
       <Dialog open={isAddParserOpen} onOpenChange={setIsAddParserOpen}>
-        <DialogContent className="sm:max-w-xl p-0">
+        <DialogContent className="sm:max-w-3xl lg:max-w-4xl p-0">
           <div className="flex flex-col max-h-[80vh]">
             <DialogHeader className="bg-background p-4 border-b">
               <DialogTitle className="text-lg text-foreground">
@@ -1078,75 +1152,83 @@ function StrategyView() {
             </DialogHeader>
             <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-3">
               <div>
-                <Label className="text-xs text-muted-foreground">
-                  Parser type
-                </Label>
-                <div className="mt-1">
-                  {(() => {
-                    const existing = new Set(parserRows.map(p => p.name))
-                    const available = ORDERED_PARSER_TYPES.filter(
-                      t => !existing.has(t) && PARSER_SCHEMAS[t]
-                    )
-                    if (!newParserType && available.length > 0) {
-                      const first = available[0]
-                      setTimeout(() => {
-                        setNewParserType(first)
-                        setNewParserConfig(getDefaultConfigForParser(first))
-                      }, 0)
-                    }
-                    return (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className="w-full justify-between"
-                          >
-                            {newParserType
-                              ? getFriendlyParserName(newParserType)
-                              : available[0]
-                                ? getFriendlyParserName(available[0])
-                                : 'No parsers available'}
-                            <ChevronDown className="w-4 h-4 ml-2 opacity-70" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent>
-                          {available.length === 0 ? (
-                            <DropdownMenuItem disabled>
-                              No parsers available
-                            </DropdownMenuItem>
-                          ) : (
-                            available.map(t => (
-                              <DropdownMenuItem
-                                key={t}
-                                onClick={() => {
-                                  setNewParserType(t)
-                                  setNewParserConfig(
-                                    getDefaultConfigForParser(t)
-                                  )
-                                }}
-                              >
-                                {getFriendlyParserName(t)}
-                              </DropdownMenuItem>
-                            ))
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )
-                  })()}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <Label className="text-xs text-muted-foreground">
+                    Parser type
+                  </Label>
+                  <Label className="text-xs text-muted-foreground">
+                    Priority
+                  </Label>
                 </div>
-              </div>
-              {newParserType && PARSER_SCHEMAS[newParserType] ? (
-                <>
-                  <div className="text-xs text-muted-foreground">
-                    {PARSER_SCHEMAS[newParserType].description}
+                <div className="mt-1 grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
+                  <div>
+                    {(() => {
+                      const existing = new Set(parserRows.map(p => p.name))
+                      const available = ORDERED_PARSER_TYPES.filter(
+                        t => !existing.has(t) && PARSER_SCHEMAS[t]
+                      )
+                      if (!newParserType && available.length > 0) {
+                        const first = available[0]
+                        setTimeout(() => {
+                          setNewParserType(first)
+                          setNewParserConfig(getDefaultConfigForParser(first))
+                          setNewParserIncludes(
+                            getDefaultIncludePatternsForParser(first)
+                          )
+                        }, 0)
+                      }
+                      return (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className="w-full justify-between"
+                            >
+                              {newParserType
+                                ? getFriendlyParserName(newParserType)
+                                : available[0]
+                                  ? getFriendlyParserName(available[0])
+                                  : 'No parsers available'}
+                              <ChevronDown className="w-4 h-4 ml-2 opacity-70" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent>
+                            {available.length === 0 ? (
+                              <DropdownMenuItem disabled>
+                                No parsers available
+                              </DropdownMenuItem>
+                            ) : (
+                              available.map(t => (
+                                <DropdownMenuItem
+                                  key={t}
+                                  onClick={() => {
+                                    setNewParserType(t)
+                                    setNewParserConfig(
+                                      getDefaultConfigForParser(t)
+                                    )
+                                    setNewParserIncludes(
+                                      getDefaultIncludePatternsForParser(t)
+                                    )
+                                  }}
+                                >
+                                  {getFriendlyParserName(t)}
+                                </DropdownMenuItem>
+                              ))
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )
+                    })()}
+                    {newParserType && PARSER_SCHEMAS[newParserType] ? (
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {PARSER_SCHEMAS[newParserType].description}
+                      </div>
+                    ) : null}
                   </div>
                   <div>
-                    <Label className="text-xs text-muted-foreground">
-                      Priority
-                    </Label>
                     <Input
                       type="number"
-                      className="mt-1 bg-background w-40"
+                      className="bg-background w-40"
                       value={newParserPriority}
                       min={0}
                       onChange={e => {
@@ -1162,6 +1244,10 @@ function StrategyView() {
                       </div>
                     ) : null}
                   </div>
+                </div>
+              </div>
+              {newParserType && PARSER_SCHEMAS[newParserType] ? (
+                <>
                   <div className="rounded-lg border border-border bg-accent/10 p-3">
                     <div className="text-sm font-medium mb-2">
                       {PARSER_SCHEMAS[newParserType].title}
@@ -1171,6 +1257,88 @@ function StrategyView() {
                       value={newParserConfig}
                       onChange={setNewParserConfig}
                     />
+                  </div>
+                  {/* Included files / file types editor */}
+                  <div>
+                    <Label className="text-xs text-muted-foreground">
+                      Included files / file types
+                    </Label>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Specify which files this parser should process - file
+                      patterns, extensions, or specific filenames
+                    </div>
+                    <div className="mt-2 rounded-md border border-border">
+                      <div className="p-2 border-b border-border flex items-center gap-2">
+                        <div className="relative flex-1">
+                          <Input
+                            className="bg-background w-full pr-2"
+                            placeholder="*.pdf, data_*, report.docx"
+                            value={newIncludeInput}
+                            onChange={e => setNewIncludeInput(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault()
+                                const v = newIncludeInput.trim()
+                                if (!v) return
+                                setNewParserIncludes(prev =>
+                                  Array.from(new Set([...prev, v]))
+                                )
+                                setNewIncludeInput('')
+                              }
+                            }}
+                          />
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const v = newIncludeInput.trim()
+                            if (!v) return
+                            setNewParserIncludes(prev =>
+                              Array.from(new Set([...prev, v]))
+                            )
+                            setNewIncludeInput('')
+                          }}
+                        >
+                          Add entry
+                        </Button>
+                      </div>
+                      <div className="p-2 flex flex-col gap-1">
+                        {newParserIncludes.length === 0 ? (
+                          <div className="text-xs text-muted-foreground">
+                            No entries yet
+                          </div>
+                        ) : (
+                          newParserIncludes.map((pat, idx) => (
+                            <div
+                              key={`${pat}-${idx}`}
+                              className="flex items-center justify-between gap-2 rounded-sm bg-accent/10 px-2 py-1"
+                            >
+                              <div className="flex items-center gap-1 text-sm">
+                                {isSuspiciousPattern(pat) ? (
+                                  <AlertTriangle className="w-3.5 h-3.5 text-yellow-500" />
+                                ) : null}
+                                <span className="truncate max-w-[60vw]">
+                                  {pat}
+                                </span>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() =>
+                                  setNewParserIncludes(prev =>
+                                    prev.filter((_, i) => i !== idx)
+                                  )
+                                }
+                                aria-label={`Delete ${pat}`}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </>
               ) : null}
@@ -1205,7 +1373,7 @@ function StrategyView() {
       {/* Edit Parser Modal (config only) */}
       <Dialog open={isEditParserOpen} onOpenChange={setIsEditParserOpen}>
         <DialogContent
-          className="sm:max-w-xl p-0"
+          className="sm:max-w-3xl lg:max-w-4xl p-0"
           onOpenAutoFocus={e => e.preventDefault()}
         >
           <div className="flex flex-col max-h-[80vh]">
@@ -1228,35 +1396,40 @@ function StrategyView() {
                 }
                 return (
                   <>
-                    <div className="text-sm font-medium text-foreground">
-                      {getFriendlyParserName(found.name)}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {schema.description}
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">
-                        Priority
-                      </Label>
-                      <Input
-                        type="number"
-                        className="mt-1 bg-background w-40"
-                        value={editParserPriority}
-                        min={0}
-                        onChange={e => {
-                          const raw = e.target.value
-                          setEditParserPriority(raw)
-                          const n = Number(raw)
-                          setEditParserPriorityError(
-                            Number.isFinite(n) && n < 0
-                          )
-                        }}
-                      />
-                      {editParserPriorityError ? (
-                        <div className="text-xs text-destructive mt-1">
-                          Priority cannot be less than 0
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
+                      <div>
+                        <div className="text-sm font-medium text-foreground">
+                          {getFriendlyParserName(found.name)}
                         </div>
-                      ) : null}
+                        <div className="text-xs text-muted-foreground">
+                          {schema.description}
+                        </div>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-0.5">
+                          Priority
+                        </Label>
+                        <Input
+                          type="number"
+                          className="bg-background w-40"
+                          aria-label="Priority"
+                          value={editParserPriority}
+                          min={0}
+                          onChange={e => {
+                            const raw = e.target.value
+                            setEditParserPriority(raw)
+                            const n = Number(raw)
+                            setEditParserPriorityError(
+                              Number.isFinite(n) && n < 0
+                            )
+                          }}
+                        />
+                        {editParserPriorityError ? (
+                          <div className="text-xs text-destructive mt-1">
+                            Priority cannot be less than 0
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
                     <div className="rounded-lg border border-border bg-accent/10 p-3">
                       <div className="text-sm font-medium mb-2">
@@ -1267,6 +1440,90 @@ function StrategyView() {
                         value={editParserConfig}
                         onChange={setEditParserConfig}
                       />
+                    </div>
+                    {/* Included files / file types editor (edit) */}
+                    <div>
+                      <Label className="text-xs text-muted-foreground">
+                        Included files / file types
+                      </Label>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        Specify which files this parser should process - file
+                        patterns, extensions, or specific filenames
+                      </div>
+                      <div className="mt-2 rounded-md border border-border">
+                        <div className="p-2 border-b border-border flex items-center gap-2">
+                          <div className="relative flex-1">
+                            <Input
+                              className="bg-background w-full pr-2"
+                              placeholder="*.pdf, data_*, report.docx"
+                              value={editIncludeInput}
+                              onChange={e =>
+                                setEditIncludeInput(e.target.value)
+                              }
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault()
+                                  const v = editIncludeInput.trim()
+                                  if (!v) return
+                                  setEditParserIncludes(prev =>
+                                    Array.from(new Set([...prev, v]))
+                                  )
+                                  setEditIncludeInput('')
+                                }
+                              }}
+                            />
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const v = editIncludeInput.trim()
+                              if (!v) return
+                              setEditParserIncludes(prev =>
+                                Array.from(new Set([...prev, v]))
+                              )
+                              setEditIncludeInput('')
+                            }}
+                          >
+                            Add entry
+                          </Button>
+                        </div>
+                        <div className="p-2 flex flex-col gap-1">
+                          {editParserIncludes.length === 0 ? (
+                            <div className="text-xs text-muted-foreground">
+                              No entries yet
+                            </div>
+                          ) : (
+                            editParserIncludes.map((pat, idx) => (
+                              <div
+                                key={`${pat}-${idx}`}
+                                className="flex items-center justify-between gap-2 rounded-sm bg-accent/10 px-2 py-1"
+                              >
+                                <div className="flex items-center gap-1 text-sm">
+                                  {isSuspiciousPattern(pat) ? (
+                                    <AlertTriangle className="w-3.5 h-3.5 text-yellow-500" />
+                                  ) : null}
+                                  <span className="truncate max-w-[60vw]">
+                                    {pat}
+                                  </span>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() =>
+                                    setEditParserIncludes(prev =>
+                                      prev.filter((_, i) => i !== idx)
+                                    )
+                                  }
+                                  aria-label={`Delete ${pat}`}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </>
                 )
@@ -1340,7 +1597,7 @@ function StrategyView() {
 
       {/* Add Extractor Modal (schema-driven) */}
       <Dialog open={isAddExtractorOpen} onOpenChange={setIsAddExtractorOpen}>
-        <DialogContent className="sm:max-w-xl p-0">
+        <DialogContent className="sm:max-w-3xl lg:max-w-4xl p-0">
           <div className="flex flex-col max-h-[80vh]">
             <DialogHeader className="bg-background p-4 border-b">
               <DialogTitle className="text-lg text-foreground">
@@ -1349,63 +1606,91 @@ function StrategyView() {
             </DialogHeader>
             <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-3">
               <div>
-                <Label className="text-xs text-muted-foreground">
-                  Extractor type
-                </Label>
-                <div className="mt-1">
-                  {(() => {
-                    const existing = new Set(extractorRows.map(e => e.name))
-                    const available = ORDERED_EXTRACTOR_TYPES.filter(
-                      t => !existing.has(t) && EXTRACTOR_SCHEMAS[t]
-                    )
-                    if (!newExtractorType && available.length > 0) {
-                      const first = available[0]
-                      setTimeout(() => {
-                        setNewExtractorType(first)
-                        setNewExtractorConfig(
-                          getDefaultConfigForExtractor(first)
-                        )
-                      }, 0)
-                    }
-                    return (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className="w-full justify-between"
-                          >
-                            {newExtractorType
-                              ? getFriendlyExtractorName(newExtractorType)
-                              : available[0]
-                                ? getFriendlyExtractorName(available[0])
-                                : 'No extractors available'}
-                            <ChevronDown className="w-4 h-4 ml-2 opacity-70" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent>
-                          {available.length === 0 ? (
-                            <DropdownMenuItem disabled>
-                              No extractors available
-                            </DropdownMenuItem>
-                          ) : (
-                            available.map(t => (
-                              <DropdownMenuItem
-                                key={t}
-                                onClick={() => {
-                                  setNewExtractorType(t)
-                                  setNewExtractorConfig(
-                                    getDefaultConfigForExtractor(t)
-                                  )
-                                }}
-                              >
-                                {getFriendlyExtractorName(t)}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <Label className="text-xs text-muted-foreground">
+                    Extractor type
+                  </Label>
+                  <Label className="text-xs text-muted-foreground">
+                    Priority
+                  </Label>
+                </div>
+                <div className="mt-1 grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
+                  <div>
+                    {(() => {
+                      const existing = new Set(extractorRows.map(e => e.name))
+                      const available = ORDERED_EXTRACTOR_TYPES.filter(
+                        t => !existing.has(t) && EXTRACTOR_SCHEMAS[t]
+                      )
+                      if (!newExtractorType && available.length > 0) {
+                        const first = available[0]
+                        setTimeout(() => {
+                          setNewExtractorType(first)
+                          setNewExtractorConfig(
+                            getDefaultConfigForExtractor(first)
+                          )
+                        }, 0)
+                      }
+                      return (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className="w-full justify-between"
+                            >
+                              {newExtractorType
+                                ? getFriendlyExtractorName(newExtractorType)
+                                : available[0]
+                                  ? getFriendlyExtractorName(available[0])
+                                  : 'No extractors available'}
+                              <ChevronDown className="w-4 h-4 ml-2 opacity-70" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent>
+                            {available.length === 0 ? (
+                              <DropdownMenuItem disabled>
+                                No extractors available
                               </DropdownMenuItem>
-                            ))
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )
-                  })()}
+                            ) : (
+                              available.map(t => (
+                                <DropdownMenuItem
+                                  key={t}
+                                  onClick={() => {
+                                    setNewExtractorType(t)
+                                    setNewExtractorConfig(
+                                      getDefaultConfigForExtractor(t)
+                                    )
+                                  }}
+                                >
+                                  {getFriendlyExtractorName(t)}
+                                </DropdownMenuItem>
+                              ))
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )
+                    })()}
+                  </div>
+                  <div>
+                    <Input
+                      type="number"
+                      className="bg-background w-40"
+                      value={newExtractorPriority}
+                      min={0}
+                      onChange={e => {
+                        const raw = e.target.value
+                        setNewExtractorPriority(raw)
+                        const n = Number(raw)
+                        setNewExtractorPriorityError(
+                          Number.isFinite(n) && n < 0
+                        )
+                      }}
+                    />
+                    {newExtractorPriorityError ? (
+                      <div className="text-xs text-destructive mt-1">
+                        Priority cannot be less than 0
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               </div>
               {newExtractorType && EXTRACTOR_SCHEMAS[newExtractorType] ? (
@@ -1419,7 +1704,7 @@ function StrategyView() {
                     </Label>
                     <Input
                       type="number"
-                      className="mt-1 bg-background w-40"
+                      className="bg-background w-40"
                       value={newExtractorPriority}
                       min={0}
                       onChange={e => {
@@ -1446,6 +1731,88 @@ function StrategyView() {
                       value={newExtractorConfig}
                       onChange={setNewExtractorConfig}
                     />
+                  </div>
+                  {/* Applies to files / file types editor */}
+                  <div>
+                    <Label className="text-xs text-muted-foreground">
+                      Applies to files / file types
+                    </Label>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Specify which files this extractor should run on - use '*'
+                      for all parsed content, or limit by patterns
+                    </div>
+                    <div className="mt-2 rounded-md border border-border">
+                      <div className="p-2 border-b border-border flex items-center gap-2">
+                        <div className="relative flex-1">
+                          <Input
+                            className="bg-background w-full pr-2"
+                            placeholder="*, *.pdf, *.txt, data_*"
+                            value={newAppliesInput}
+                            onChange={e => setNewAppliesInput(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault()
+                                const v = newAppliesInput.trim()
+                                if (!v) return
+                                setNewExtractorApplies(prev =>
+                                  Array.from(new Set([...prev, v]))
+                                )
+                                setNewAppliesInput('')
+                              }
+                            }}
+                          />
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const v = newAppliesInput.trim()
+                            if (!v) return
+                            setNewExtractorApplies(prev =>
+                              Array.from(new Set([...prev, v]))
+                            )
+                            setNewAppliesInput('')
+                          }}
+                        >
+                          Add entry
+                        </Button>
+                      </div>
+                      <div className="p-2 flex flex-col gap-1">
+                        {newExtractorApplies.length === 0 ? (
+                          <div className="text-xs text-muted-foreground">
+                            No entries yet
+                          </div>
+                        ) : (
+                          newExtractorApplies.map((pat, idx) => (
+                            <div
+                              key={`${pat}-${idx}`}
+                              className="flex items-center justify-between gap-2 rounded-sm bg-accent/10 px-2 py-1"
+                            >
+                              <div className="flex items-center gap-1 text-sm">
+                                {isSuspiciousPattern(pat) ? (
+                                  <AlertTriangle className="w-3.5 h-3.5 text-yellow-500" />
+                                ) : null}
+                                <span className="truncate max-w-[60vw]">
+                                  {pat}
+                                </span>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() =>
+                                  setNewExtractorApplies(prev =>
+                                    prev.filter((_, i) => i !== idx)
+                                  )
+                                }
+                                aria-label={`Delete ${pat}`}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </>
               ) : null}
@@ -1482,7 +1849,7 @@ function StrategyView() {
       {/* Edit Extractor Modal (schema-driven) */}
       <Dialog open={isEditExtractorOpen} onOpenChange={setIsEditExtractorOpen}>
         <DialogContent
-          className="sm:max-w-xl p-0"
+          className="sm:max-w-3xl lg:max-w-4xl p-0"
           onOpenAutoFocus={e => e.preventDefault()}
         >
           <div className="flex flex-col max-h-[80vh]">
@@ -1505,35 +1872,39 @@ function StrategyView() {
                 }
                 return (
                   <>
-                    <div className="text-sm font-medium text-foreground">
-                      {getFriendlyExtractorName(found.name)}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {schema.description}
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">
-                        Priority
-                      </Label>
-                      <Input
-                        type="number"
-                        className="mt-1 bg-background w-40"
-                        value={editExtractorPriority}
-                        min={0}
-                        onChange={e => {
-                          const raw = e.target.value
-                          setEditExtractorPriority(raw)
-                          const n = Number(raw)
-                          setEditExtractorPriorityError(
-                            Number.isFinite(n) && n < 0
-                          )
-                        }}
-                      />
-                      {editExtractorPriorityError ? (
-                        <div className="text-xs text-destructive mt-1">
-                          Priority cannot be less than 0
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
+                      <div>
+                        <div className="text-sm font-medium text-foreground">
+                          {getFriendlyExtractorName(found.name)}
                         </div>
-                      ) : null}
+                        <div className="text-xs text-muted-foreground">
+                          {schema.description}
+                        </div>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-0.5">
+                          Priority
+                        </Label>
+                        <Input
+                          type="number"
+                          className="bg-background w-40"
+                          value={editExtractorPriority}
+                          min={0}
+                          onChange={e => {
+                            const raw = e.target.value
+                            setEditExtractorPriority(raw)
+                            const n = Number(raw)
+                            setEditExtractorPriorityError(
+                              Number.isFinite(n) && n < 0
+                            )
+                          }}
+                        />
+                        {editExtractorPriorityError ? (
+                          <div className="text-xs text-destructive mt-1">
+                            Priority cannot be less than 0
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
                     <div className="rounded-lg border border-border bg-accent/10 p-3">
                       <div className="text-sm font-medium mb-2">
@@ -1544,6 +1915,90 @@ function StrategyView() {
                         value={editExtractorConfig}
                         onChange={setEditExtractorConfig}
                       />
+                    </div>
+                    {/* Applies to files / file types editor (edit) */}
+                    <div>
+                      <Label className="text-xs text-muted-foreground">
+                        Applies to files / file types
+                      </Label>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        Specify which files this extractor should run on - use
+                        '*' for all parsed content, or limit by patterns
+                      </div>
+                      <div className="mt-2 rounded-md border border-border">
+                        <div className="p-2 border-b border-border flex items-center gap-2">
+                          <div className="relative flex-1">
+                            <Input
+                              className="bg-background w-full pr-2"
+                              placeholder="*, *.pdf, *.txt, data_*"
+                              value={editAppliesInput}
+                              onChange={e =>
+                                setEditAppliesInput(e.target.value)
+                              }
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault()
+                                  const v = editAppliesInput.trim()
+                                  if (!v) return
+                                  setEditExtractorApplies(prev =>
+                                    Array.from(new Set([...prev, v]))
+                                  )
+                                  setEditAppliesInput('')
+                                }
+                              }}
+                            />
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const v = editAppliesInput.trim()
+                              if (!v) return
+                              setEditExtractorApplies(prev =>
+                                Array.from(new Set([...prev, v]))
+                              )
+                              setEditAppliesInput('')
+                            }}
+                          >
+                            Add entry
+                          </Button>
+                        </div>
+                        <div className="p-2 flex flex-col gap-1">
+                          {editExtractorApplies.length === 0 ? (
+                            <div className="text-xs text-muted-foreground">
+                              No entries yet
+                            </div>
+                          ) : (
+                            editExtractorApplies.map((pat, idx) => (
+                              <div
+                                key={`${pat}-${idx}`}
+                                className="flex items-center justify-between gap-2 rounded-sm bg-accent/10 px-2 py-1"
+                              >
+                                <div className="flex items-center gap-1 text-sm">
+                                  {isSuspiciousPattern(pat) ? (
+                                    <AlertTriangle className="w-3.5 h-3.5 text-yellow-500" />
+                                  ) : null}
+                                  <span className="truncate max-w-[60vw]">
+                                    {pat}
+                                  </span>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() =>
+                                    setEditExtractorApplies(prev =>
+                                      prev.filter((_, i) => i !== idx)
+                                    )
+                                  }
+                                  aria-label={`Delete ${pat}`}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </>
                 )

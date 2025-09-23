@@ -47,20 +47,20 @@ export default function ParserSettingsForm({
     if (field.type === 'boolean') {
       const checked = Boolean(current ?? field.default ?? false)
       return (
-        <div key={key} className="flex items-center justify-between py-2">
-          <div className="flex flex-col">
-            <Label className="text-xs text-foreground">{label}</Label>
-            {field.description ? (
-              <div className="text-xs text-muted-foreground">
-                {field.description}
-              </div>
-            ) : null}
-          </div>
+        <div key={key} className="flex items-center gap-4 py-1">
           <Switch
             checked={checked}
             onCheckedChange={v => setField(key, v)}
             disabled={disabled}
           />
+          <div className="flex flex-col">
+            <Label className="text-xs text-foreground">{label}</Label>
+            {field.description ? (
+              <div className="text-xs text-muted-foreground -mt-0.5">
+                {field.description}
+              </div>
+            ) : null}
+          </div>
         </div>
       )
     }
@@ -207,7 +207,41 @@ export default function ParserSettingsForm({
 
   return (
     <div className="flex flex-col gap-3">
-      {entries.map(([k, f]) => renderField(k, f))}
+      {(() => {
+        const preferredOrder = ['chunk_size', 'chunk_overlap', 'chunk_strategy']
+        const present = preferredOrder.filter(k => schema.properties[k])
+        if (present.length < 2) return null
+        const gridColsClass =
+          present.length === 3 ? 'grid-cols-3' : 'grid-cols-2'
+        return (
+          <div className={`grid ${gridColsClass} gap-3`}>
+            {present.map(key => renderField(key, schema.properties[key]))}
+          </div>
+        )
+      })()}
+      {(() => {
+        const excluded = new Set([
+          'chunk_size',
+          'chunk_overlap',
+          'chunk_strategy',
+        ])
+        const bools = entries.filter(
+          ([k, f]) => !excluded.has(k) && f.type === 'boolean'
+        )
+        const others = entries.filter(
+          ([k, f]) => !excluded.has(k) && f.type !== 'boolean'
+        )
+        return (
+          <>
+            {bools.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {bools.map(([k, f]) => renderField(k, f))}
+              </div>
+            ) : null}
+            {others.map(([k, f]) => renderField(k, f))}
+          </>
+        )
+      })()}
     </div>
   )
 }
