@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 import FontIcon from '../../common/FontIcon'
 import { Button } from '../ui/button'
@@ -42,12 +43,73 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu'
+import { Checkbox } from '../ui/checkbox'
+import { useActiveProject } from '../../hooks/useActiveProject'
+import {
+  useListDatasets,
+  datasetKeys,
+  useReIngestDataset,
+} from '../../hooks/useDatasets'
+import { useProject, useUpdateProject } from '../../hooks/useProjects'
 
 function StrategyView() {
   const navigate = useNavigate()
   const { strategyId } = useParams()
   const { toast } = useToast()
   const [mode, setMode] = useState<Mode>('designer')
+  const queryClient = useQueryClient()
+  const activeProject = useActiveProject()
+  const reIngestMutation = useReIngestDataset()
+  const { data: projectResp } = useProject(
+    activeProject?.namespace || '',
+    activeProject?.project || '',
+    !!activeProject
+  )
+  const updateProjectMutation = useUpdateProject()
+  const { data: datasetsResp } = useListDatasets(
+    activeProject?.namespace || '',
+    activeProject?.project || '',
+    { enabled: !!activeProject }
+  )
+
+  // Combine server datasets with local fallback (if user has local-only datasets)
+  const allDatasets = useMemo(() => {
+    if (datasetsResp?.datasets && datasetsResp.datasets.length > 0) {
+      return datasetsResp.datasets.map(d => {
+        const name = d.name
+        let ragStrategy = (d as any).rag_strategy as string | undefined
+        // Overlay local per-dataset override if present
+        try {
+          const storedName = localStorage.getItem(
+            `lf_dataset_strategy_name_${name}`
+          )
+          if (storedName && storedName.trim().length > 0) {
+            ragStrategy = storedName
+          }
+        } catch {}
+        return { name, rag_strategy: ragStrategy }
+      })
+    }
+    // Local fallback: minimal name + strategy from localStorage, if present
+    try {
+      const raw = localStorage.getItem('lf_datasets')
+      if (!raw) return [] as { name: string; rag_strategy?: string }[]
+      const arr = JSON.parse(raw)
+      if (!Array.isArray(arr)) return []
+      return arr
+        .map((d: any) => {
+          const name = typeof d?.name === 'string' ? d.name : d?.id
+          if (!name) return null
+          const storedName = localStorage.getItem(
+            `lf_dataset_strategy_name_${name}`
+          )
+          return { name, rag_strategy: storedName || 'auto' }
+        })
+        .filter(Boolean) as { name: string; rag_strategy?: string }[]
+    } catch {
+      return [] as { name: string; rag_strategy?: string }[]
+    }
+  }, [datasetsResp])
 
   const [strategyMetaTick, setStrategyMetaTick] = useState(0)
 
@@ -79,7 +141,113 @@ function StrategyView() {
     return found?.description || ''
   }, [strategyId, strategyMetaTick])
 
-  const usedBy = ['aircraft-maintenance-guides', 'another dataset']
+  // Datasets using this strategy (from API) -----------------------------------
+  const assignedDatasets = useMemo(() => {
+    if (!allDatasets || !strategyName) return [] as string[]
+    return allDatasets
+      .filter(d => d.rag_strategy === strategyName)
+      .map(d => d.name)
+  }, [allDatasets, strategyName])
+
+  // Manage datasets modal state
+  const [isManageOpen, setIsManageOpen] = useState(false)
+  const [selectedDatasets, setSelectedDatasets] = useState<Set<string>>(
+    new Set()
+  )
+
+  useEffect(() => {
+    if (!isManageOpen) return
+    // Initialize selection from currently assigned
+    setSelectedDatasets(new Set(assignedDatasets))
+  }, [isManageOpen, assignedDatasets])
+
+  const toggleDataset = (name: string) => {
+    const current = allDatasets.find(d => d.name === name)?.rag_strategy
+    // Do not allow unassigning from this strategy
+    if (current === strategyName) return
+    setSelectedDatasets(prev => {
+      const next = new Set(prev)
+      if (next.has(name)) next.delete(name)
+      else next.add(name)
+      return next
+    })
+  }
+
+  // Reprocess confirmation modal
+  const [isReprocessOpen, setIsReprocessOpen] = useState(false)
+  const [pendingAdded, setPendingAdded] = useState<string[]>([])
+
+  const saveAssignments = async () => {
+    if (!strategyId || !strategyName) return
+    const prev = new Set(assignedDatasets)
+    const next = new Set(selectedDatasets)
+    const added: string[] = []
+    // Add only new selections; no unassign/removal allowed
+    for (const n of next) if (!prev.has(n)) added.push(n)
+
+    // Attempt backend update by rewriting project.config.datasets[].data_processing_strategy
+    const ns = activeProject?.namespace
+    const proj = activeProject?.project
+    const currentConfig = projectResp?.project?.config
+    const currentDatasets: any[] = currentConfig?.datasets || []
+
+    const performLocalFallback = () => {
+      try {
+        const key = `lf_strategy_datasets_${strategyId}`
+        const prevRaw = localStorage.getItem(key)
+        const prevList: string[] = prevRaw ? JSON.parse(prevRaw) : []
+        const working = new Set(prevList)
+        for (const n of added) working.add(n)
+        localStorage.setItem(key, JSON.stringify(Array.from(working)))
+        // Also set per-dataset overrides so UI reflects immediately
+        for (const n of added) {
+          localStorage.setItem(`lf_dataset_strategy_name_${n}`, strategyName)
+        }
+        toast({ message: 'Assignments saved locally', variant: 'default' })
+      } catch {}
+    }
+
+    try {
+      if (!ns || !proj || !currentConfig) {
+        performLocalFallback()
+      } else {
+        const updatedDatasets = (currentDatasets || []).map(ds =>
+          added.includes(ds.name)
+            ? { ...ds, data_processing_strategy: strategyName }
+            : ds
+        )
+        const nextConfig = { ...currentConfig, datasets: updatedDatasets }
+        await updateProjectMutation.mutateAsync({
+          namespace: ns,
+          projectId: proj,
+          request: { config: nextConfig },
+        })
+        // Mirror per-dataset overrides locally for instant UI feedback
+        try {
+          for (const n of added) {
+            localStorage.setItem(`lf_dataset_strategy_name_${n}`, strategyName)
+          }
+        } catch {}
+        // Refresh datasets list
+        queryClient.invalidateQueries({ queryKey: datasetKeys.list(ns, proj) })
+        toast({ message: 'Assignments saved', variant: 'default' })
+      }
+    } catch (e) {
+      console.error(
+        'Failed to save assignments, falling back to localStorage',
+        e
+      )
+      performLocalFallback()
+    }
+
+    // Reprocess newly added datasets?
+    if (added.length > 0) {
+      setPendingAdded(added)
+      setIsReprocessOpen(true)
+    }
+
+    setIsManageOpen(false)
+  }
 
   // Removed embedding model save flow; processing edits persist immediately
 
@@ -904,11 +1072,40 @@ function StrategyView() {
       <div className="flex items-center justify-between gap-2 flex-wrap mb-3">
         <div className="flex items-center gap-2 flex-wrap">
           <div className="text-xs text-muted-foreground">Used by</div>
-          {usedBy.map(u => (
-            <Badge key={u} variant="secondary" size="sm" className="rounded-xl">
-              {u}
-            </Badge>
-          ))}
+          {assignedDatasets.length === 0 ? (
+            <>
+              <div className="text-xs text-muted-foreground">
+                No datasets yet
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsManageOpen(true)}
+              >
+                Assign to dataset(s)
+              </Button>
+            </>
+          ) : (
+            <>
+              {assignedDatasets.map(u => (
+                <Badge
+                  key={u}
+                  variant="default"
+                  size="sm"
+                  className="rounded-xl bg-teal-600 text-white dark:bg-teal-500 dark:text-slate-900"
+                >
+                  {u}
+                </Badge>
+              ))}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsManageOpen(true)}
+              >
+                Manage datasets
+              </Button>
+            </>
+          )}
         </div>
         <div className="flex items-center gap-2 ml-auto">
           <Button
@@ -932,6 +1129,154 @@ function StrategyView() {
           ) : null}
         </div>
       </div>
+
+      {/* Manage Datasets Modal */}
+      <Dialog open={isManageOpen} onOpenChange={setIsManageOpen}>
+        <DialogContent className="sm:max-w-2xl p-0">
+          <div className="flex flex-col max-h-[70vh]">
+            <DialogHeader className="bg-background p-4 border-b">
+              <DialogTitle className="text-lg text-foreground">
+                Assign to dataset(s)
+              </DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-2">
+              {!allDatasets || allDatasets.length === 0 ? (
+                <div className="text-sm text-muted-foreground">
+                  No datasets found in this project.
+                </div>
+              ) : (
+                <ul className="rounded-md border border-border divide-y divide-border">
+                  {allDatasets.map(ds => {
+                    const name = ds.name
+                    const current = (ds as any).rag_strategy
+                    const selected =
+                      selectedDatasets.has(name) || current === strategyName
+                    const assignedElsewhere =
+                      current && current !== 'auto' && current !== strategyName
+                    return (
+                      <li
+                        key={name}
+                        className="flex items-center gap-3 px-3 py-3 cursor-pointer hover:bg-muted/30"
+                        onClick={() => toggleDataset(name)}
+                      >
+                        <Checkbox
+                          checked={selected}
+                          onCheckedChange={() => toggleDataset(name)}
+                          onClick={e => e.stopPropagation()}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-foreground truncate">
+                            {name}
+                          </div>
+                          <div className="text-xs text-muted-foreground truncate">
+                            {assignedElsewhere
+                              ? `Currently: ${current}`
+                              : current
+                                ? `Currently: ${current}`
+                                : ''}
+                          </div>
+                        </div>
+                        {selected ? (
+                          <Badge
+                            variant="default"
+                            size="sm"
+                            className="rounded-xl"
+                          >
+                            Selected
+                          </Badge>
+                        ) : null}
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </div>
+            <DialogFooter className="bg-background p-4 border-t flex items-center gap-2">
+              <button
+                className="px-3 py-2 rounded-md text-sm text-primary hover:underline"
+                onClick={() => setIsManageOpen(false)}
+                type="button"
+              >
+                Cancel
+              </button>
+              <button
+                className="px-3 py-2 rounded-md text-sm bg-primary text-primary-foreground hover:opacity-90"
+                onClick={saveAssignments}
+                type="button"
+              >
+                Save assignments
+              </button>
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reprocess Confirmation Modal */}
+      <Dialog open={isReprocessOpen} onOpenChange={setIsReprocessOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg text-foreground">
+              Reprocess now?
+            </DialogTitle>
+          </DialogHeader>
+          <div className="text-sm text-muted-foreground">
+            Reprocess these dataset(s) with “{strategyName}” now?
+          </div>
+          {pendingAdded.length > 0 ? (
+            <div className="mt-2 rounded-md border border-border bg-accent/10 p-2 text-sm">
+              {pendingAdded.map(n => (
+                <div key={n} className="py-0.5">
+                  {n}
+                </div>
+              ))}
+            </div>
+          ) : null}
+          <DialogFooter className="flex items-center gap-2">
+            <button
+              className="px-3 py-2 rounded-md text-sm text-primary hover:underline"
+              onClick={() => setIsReprocessOpen(false)}
+              type="button"
+            >
+              Skip for now
+            </button>
+            <button
+              className="px-3 py-2 rounded-md text-sm bg-primary text-primary-foreground hover:opacity-90"
+              onClick={async () => {
+                if (!activeProject?.namespace || !activeProject?.project) {
+                  setIsReprocessOpen(false)
+                  return
+                }
+                try {
+                  await Promise.all(
+                    pendingAdded.map(n =>
+                      reIngestMutation.mutateAsync({
+                        namespace: activeProject.namespace!,
+                        project: activeProject.project!,
+                        dataset: n,
+                      })
+                    )
+                  )
+                  toast({
+                    message: 'Reprocessing started…',
+                    variant: 'default',
+                  })
+                } catch (e) {
+                  console.error('Failed to start reprocessing', e)
+                  toast({
+                    message: 'Failed to start reprocessing',
+                    variant: 'destructive',
+                  })
+                } finally {
+                  setIsReprocessOpen(false)
+                }
+              }}
+              type="button"
+            >
+              Reprocess now
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Processing editors */}
       {/* Tabs header outside card */}
