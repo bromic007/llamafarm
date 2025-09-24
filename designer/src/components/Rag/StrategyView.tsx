@@ -72,6 +72,30 @@ function StrategyView() {
     { enabled: !!activeProject }
   )
 
+  // Track whether this strategy has changes that require reprocessing
+  const [needsReprocess, setNeedsReprocess] = useState(false)
+  useEffect(() => {
+    if (!strategyId) return
+    try {
+      const raw = localStorage.getItem(
+        `lf_strategy_needs_reprocess_${strategyId}`
+      )
+      setNeedsReprocess(raw === '1' || raw === 'true')
+    } catch {}
+  }, [strategyId])
+  const markNeedsReprocess = () => {
+    try {
+      localStorage.setItem(`lf_strategy_needs_reprocess_${strategyId}`, '1')
+    } catch {}
+    setNeedsReprocess(true)
+  }
+  const clearNeedsReprocess = () => {
+    try {
+      localStorage.setItem(`lf_strategy_needs_reprocess_${strategyId}`, '0')
+    } catch {}
+    setNeedsReprocess(false)
+  }
+
   // Combine server datasets with local fallback (if user has local-only datasets)
   const allDatasets = useMemo(() => {
     if (datasetsResp?.datasets && datasetsResp.datasets.length > 0) {
@@ -148,6 +172,9 @@ function StrategyView() {
       .filter(d => d.rag_strategy === strategyName)
       .map(d => d.name)
   }, [allDatasets, strategyName])
+
+  const canReprocess =
+    assignedDatasets.length > 0 && needsReprocess && !reIngestMutation.isPending
 
   // Manage datasets modal state
   const [isManageOpen, setIsManageOpen] = useState(false)
@@ -240,8 +267,10 @@ function StrategyView() {
       performLocalFallback()
     }
 
-    // Reprocess newly added datasets?
+    // Mark that reprocess is needed when datasets are added
     if (added.length > 0) {
+      markNeedsReprocess()
+      // Reprocess newly added datasets?
       setPendingAdded(added)
       setIsReprocessOpen(true)
     }
@@ -744,6 +773,7 @@ function StrategyView() {
     setNewParserConfig({})
     setNewParserPriority('1')
     setNewParserIncludes([])
+    markNeedsReprocess()
   }
 
   // Edit/Delete Parser modals -------------------------------------------------
@@ -801,6 +831,7 @@ function StrategyView() {
       }
     } catch {}
     setIsEditParserOpen(false)
+    markNeedsReprocess()
   }
 
   const [isDeleteParserOpen, setIsDeleteParserOpen] = useState(false)
@@ -825,6 +856,7 @@ function StrategyView() {
     } catch {}
     setIsDeleteParserOpen(false)
     setDeleteParserId('')
+    markNeedsReprocess()
   }
 
   // Add/Edit/Delete Extractor modals -----------------------------------------
@@ -881,6 +913,7 @@ function StrategyView() {
     setNewExtractorPriority('1')
     setNewExtractorConfig({})
     setNewExtractorApplies(['*'])
+    markNeedsReprocess()
   }
 
   const [isEditExtractorOpen, setIsEditExtractorOpen] = useState(false)
@@ -943,6 +976,7 @@ function StrategyView() {
       }
     } catch {}
     setIsEditExtractorOpen(false)
+    markNeedsReprocess()
   }
 
   const [isDeleteExtractorOpen, setIsDeleteExtractorOpen] = useState(false)
@@ -971,6 +1005,7 @@ function StrategyView() {
     } catch {}
     setIsDeleteExtractorOpen(false)
     setDeleteExtractorId('')
+    markNeedsReprocess()
   }
 
   // Reset to defaults (for universal strategy) --------------------------------
@@ -1000,6 +1035,7 @@ function StrategyView() {
         )
       }
     } catch {}
+    markNeedsReprocess()
   }
 
   useEffect(() => {
@@ -1122,6 +1158,42 @@ function StrategyView() {
           >
             <Plus className="w-4 h-4" /> Add Extractor
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className={`${
+              canReprocess
+                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent'
+                : ''
+            }`}
+            onClick={async () => {
+              if (!activeProject?.namespace || !activeProject?.project) return
+              for (const n of assignedDatasets) {
+                try {
+                  await reIngestMutation.mutateAsync({
+                    namespace: activeProject.namespace!,
+                    project: activeProject.project!,
+                    dataset: n,
+                  })
+                  toast({ message: `Reprocessing ${n}…`, variant: 'default' })
+                } catch (e) {
+                  console.error('Failed to start reprocessing', n, e)
+                  toast({
+                    message: `Failed to start reprocessing ${n}`,
+                    variant: 'destructive',
+                  })
+                }
+              }
+              clearNeedsReprocess()
+            }}
+            disabled={
+              assignedDatasets.length === 0 ||
+              !needsReprocess ||
+              reIngestMutation.isPending
+            }
+          >
+            Reprocess datasets
+          </Button>
           {isUniversal ? (
             <Button variant="outline" size="sm" onClick={handleResetDefaults}>
               Reset to defaults
@@ -1140,6 +1212,12 @@ function StrategyView() {
               </DialogTitle>
             </DialogHeader>
             <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-2">
+              <div className="text-xs text-muted-foreground">
+                Datasets always have a processing strategy. You can't unassign
+                here. Select additional datasets to assign to this strategy. You
+                can also assign datasets to other strategies from those strategy
+                pages.
+              </div>
               {!allDatasets || allDatasets.length === 0 ? (
                 <div className="text-sm text-muted-foreground">
                   No datasets found in this project.
@@ -1156,13 +1234,22 @@ function StrategyView() {
                     return (
                       <li
                         key={name}
-                        className="flex items-center gap-3 px-3 py-3 cursor-pointer hover:bg-muted/30"
-                        onClick={() => toggleDataset(name)}
+                        className={`flex items-center gap-3 px-3 py-3 hover:bg-muted/30 ${
+                          current === strategyName
+                            ? 'opacity-70 cursor-not-allowed'
+                            : 'cursor-pointer'
+                        }`}
+                        aria-disabled={current === strategyName}
+                        onClick={() => {
+                          if (current === strategyName) return
+                          toggleDataset(name)
+                        }}
                       >
                         <Checkbox
                           checked={selected}
                           onCheckedChange={() => toggleDataset(name)}
                           onClick={e => e.stopPropagation()}
+                          disabled={current === strategyName}
                         />
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-medium text-foreground truncate">
