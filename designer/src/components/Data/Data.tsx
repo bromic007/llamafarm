@@ -139,7 +139,6 @@ const Data = () => {
     return demo
   }, [apiDatasets])
 
-  // Removed unused getDatasetStrategyTitle helper to satisfy TS6133
 
   // Map of fileKey -> array of dataset ids
   const [fileAssignments] = useState<Record<string, string[]>>(() => {
