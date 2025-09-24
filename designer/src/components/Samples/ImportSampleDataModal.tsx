@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { SampleProject } from '../../data/sampleProjects'
+import type { SampleProject } from '../../data/sampleProjects'
 import {
   Dialog,
   DialogContent,
@@ -155,17 +155,24 @@ function ImportSampleDataModal({
               <label className="text-xs text-muted-foreground">
                 Choose project
               </label>
-              <select
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={existingName}
-                onChange={e => setExistingName(e.target.value)}
-              >
-                {projects.map(name => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </select>
+              {projects.length === 0 ? (
+                <div className="text-sm text-muted-foreground">
+                  No existing projects available.
+                </div>
+              ) : (
+                <select
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={existingName}
+                  onChange={e => setExistingName(e.target.value)}
+                  disabled={projects.length === 0}
+                >
+                  {projects.map(name => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
           )}
         </div>

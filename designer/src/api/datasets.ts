@@ -57,14 +57,27 @@ export async function createDataset(
 
     if (strategies.length > 0) {
       if (!strategies.includes(data_processing_strategy)) {
-        data_processing_strategy = strategies[0]
+        throw new Error(
+          `Invalid data_processing_strategy: ${data_processing_strategy}. Allowed: ${strategies.join(', ')}`
+        )
       }
     }
     if (databases.length > 0) {
-      database = databases[0]
+      if (!databases.includes(database)) {
+        throw new Error(
+          `Invalid database: ${database}. Allowed: ${databases.join(', ')}`
+        )
+      }
     }
-  } catch {
-    // Fallback to defaults above if strategies endpoint is unavailable
+  } catch (err) {
+    // If the strategies endpoint is unavailable, proceed with provided defaults.
+    // But if it was available and we threw due to invalid strategy, rethrow.
+    if (
+      err instanceof Error &&
+      err.message.startsWith('Invalid data_processing_strategy')
+    ) {
+      throw err
+    }
   }
 
   const serverPayload = {

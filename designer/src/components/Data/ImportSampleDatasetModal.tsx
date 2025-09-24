@@ -86,10 +86,10 @@ function ImportSampleDatasetModal({ open, onOpenChange, onImport }: Props) {
     const term = search.trim().toLowerCase()
     return allDatasets.filter(ds => {
       const byKind = kind === 'all' || ds.kind === kind
-      const byTerm = !term
-        ? true
-        : ds.name.toLowerCase().includes(term) ||
+      const byTerm = term
+        ? ds.name.toLowerCase().includes(term) ||
           ds.projectTitle.toLowerCase().includes(term)
+        : true
       return byKind && byTerm
     })
   }, [allDatasets, kind, search])

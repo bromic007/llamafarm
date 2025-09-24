@@ -1,4 +1,3 @@
-import FontIcon from '../../common/FontIcon'
 import { SampleProject } from '../../data/sampleProjects'
 
 type Props = {
@@ -9,6 +8,7 @@ type Props = {
 function SampleCard({ sample, onPreview }: Props) {
   return (
     <button
+      type="button"
       className="group w-full text-left rounded-lg p-4 bg-card border border-border hover:bg-accent/20"
       onClick={() => onPreview(sample)}
     >
@@ -25,9 +25,9 @@ function SampleCard({ sample, onPreview }: Props) {
             ) : null}
             {sample.tags && sample.tags.length > 0 ? (
               <div className="flex items-center gap-1.5 text-muted-foreground">
-                {sample.tags.slice(0, 2).map(t => (
+                {sample.tags.slice(0, 2).map((t, i) => (
                   <span
-                    key={t}
+                    key={`${sample.id}-tag-${t}-${i}`}
                     className="px-3 py-0.5 rounded-2xl border border-input text-xs"
                   >
                     {t}

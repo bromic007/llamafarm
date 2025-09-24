@@ -25,7 +25,7 @@ import { Input } from '../ui/input'
 import { Textarea } from '../ui/textarea'
 import { Badge } from '../ui/badge'
 import { useToast } from '../ui/toast'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useActiveProject } from '../../hooks/useActiveProject'
 import {
   useListDatasets,
@@ -51,6 +51,7 @@ const Data = () => {
   const [mode, setMode] = useState<Mode>('designer')
 
   const navigate = useNavigate()
+  const location = useLocation()
   const { toast } = useToast()
 
   // Get current active project for API calls
@@ -161,6 +162,20 @@ const Data = () => {
     } catch {}
     return demo
   }, [apiDatasets, localDatasetsVersion])
+
+  // If navigated with ?dataset= query, auto-redirect to that dataset's detail if it exists
+  const hasRedirectedFromQuery = useRef(false)
+  useEffect(() => {
+    if (hasRedirectedFromQuery.current) return
+    const params = new URLSearchParams(location.search)
+    const datasetParam = params.get('dataset')
+    if (!datasetParam) return
+    const found = datasets.find(d => d.id === datasetParam)
+    if (found) {
+      hasRedirectedFromQuery.current = true
+      navigate(`/chat/data/${found.id}`, { replace: true })
+    }
+  }, [location.search, datasets, navigate])
 
   // Map of fileKey -> array of dataset ids
   const [fileAssignments] = useState<Record<string, string[]>>(() => {
@@ -593,12 +608,13 @@ const Data = () => {
                 Array.isArray(arr) && arr.some((d: any) => d.id === name)
               const updated = exists ? arr : [...arr, newEntry]
               localStorage.setItem('lf_demo_datasets', JSON.stringify(updated))
+              setLocalDatasetsVersion(v => v + 1)
               setIsImportOpen(false)
               toast({
                 message: `Dataset "${name}" imported (local)`,
                 variant: 'default',
               })
-              navigate('/chat/data')
+              navigate(`/chat/data?dataset=${encodeURIComponent(name)}`)
             } catch {
               toast({
                 message: 'Failed to import dataset',
@@ -629,7 +645,31 @@ const Data = () => {
                 const id = confirmDeleteId
                 setIsConfirmDeleteOpen(false)
                 if (!id) return
-                if (!activeProject?.namespace || !activeProject?.project) return
+                if (!activeProject?.namespace || !activeProject?.project) {
+                  // No active project: perform local deletion fallback
+                  try {
+                    const raw = localStorage.getItem('lf_demo_datasets')
+                    const arr = raw ? JSON.parse(raw) : []
+                    const updated = Array.isArray(arr)
+                      ? arr.filter((d: any) => d.id !== id)
+                      : []
+                    localStorage.setItem(
+                      'lf_demo_datasets',
+                      JSON.stringify(updated)
+                    )
+                    setLocalDatasetsVersion(v => v + 1)
+                    toast({
+                      message: 'Dataset deleted (local)',
+                      variant: 'default',
+                    })
+                  } catch {
+                    toast({
+                      message: 'Failed to delete dataset',
+                      variant: 'destructive',
+                    })
+                  }
+                  return
+                }
                 try {
                   await deleteDatasetMutation.mutateAsync({
                     namespace: activeProject.namespace,

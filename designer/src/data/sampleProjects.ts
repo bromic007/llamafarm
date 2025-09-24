@@ -34,14 +34,14 @@ export const sampleProjects: SampleProject[] = [
     updatedAt: '2025-08-15T00:00:00.000Z',
     downloadSize: '2.2GB',
     dataSize: '130MB',
-    primaryModel: 'TinyLama',
-    models: ['TinyLama'],
+    primaryModel: 'TinyLlama',
+    models: ['TinyLlama'],
     tags: ['maintenance', 'fleet', 'ops'],
     samplePrompt:
       'You are an experienced aircraft maintenance technician with 15+ years of experience working on military and commercial aircraft.',
     embeddingStrategy: 'PDF Simple',
     retrievalStrategy: 'Hybrid BM25 + embedding',
-    datasetCount: 3,
+    datasetCount: 5,
     suggestedDatasets: [
       {
         id: 'flight-logs',
@@ -92,14 +92,14 @@ export const sampleProjects: SampleProject[] = [
     updatedAt: '2025-08-15T00:00:00.000Z',
     downloadSize: '1.1GB',
     dataSize: '420MB',
-    primaryModel: 'TinyLama',
-    models: ['TinyLama'],
+    primaryModel: 'TinyLlama',
+    models: ['TinyLlama'],
     tags: ['healthcare', 'EHR', 'PHI'],
     samplePrompt:
       'Summarize the patient record, list active problems, and suggest next steps. Use clinical tone and avoid speculation.',
     embeddingStrategy: 'Section-aware clinical note splitter',
     retrievalStrategy: 'Hybrid BM25 + embedding with medical synonyms',
-    datasetCount: 4,
+    datasetCount: 5,
     suggestedDatasets: [
       {
         id: 'clinical-notes',
@@ -147,8 +147,8 @@ export const sampleProjects: SampleProject[] = [
     updatedAt: '2025-08-15T00:00:00.000Z',
     downloadSize: '2.8GB',
     dataSize: '600MB',
-    primaryModel: 'TinyLama',
-    models: ['TinyLama'],
+    primaryModel: 'TinyLlama',
+    models: ['TinyLlama'],
     tags: ['legal', 'research'],
     samplePrompt:
       'Given an issue, gather relevant cases, summarize holdings, and provide a short argument outline with citations.',

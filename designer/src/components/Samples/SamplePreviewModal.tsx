@@ -98,9 +98,9 @@ function SamplePreviewModal({
               </div>
               {sample.tags && sample.tags.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
-                  {sample.tags.map(t => (
+                  {sample.tags.map((t, i) => (
                     <span
-                      key={t}
+                      key={`${sample?.id}-tag-${t}-${i}`}
                       className="px-2 py-0.5 rounded-2xl border border-input text-[11px]"
                     >
                       {t}
@@ -116,6 +116,7 @@ function SamplePreviewModal({
             type="button"
             className="px-3 py-2 rounded-md text-sm border border-input hover:bg-accent/30"
             onClick={() => sample && onImportData(sample)}
+            disabled={!sample}
           >
             Import data only
           </button>
@@ -123,6 +124,7 @@ function SamplePreviewModal({
             type="button"
             className="px-3 py-2 rounded-md text-sm bg-primary text-primary-foreground hover:opacity-90"
             onClick={() => sample && onImportProject(sample)}
+            disabled={!sample}
           >
             Import project
           </button>

@@ -30,6 +30,7 @@ function SampleProjects() {
   const [sortKey, setSortKey] = useState<'' | 'projectSize' | 'dataSize'>('')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [modelFilter, setModelFilter] = useState<'all' | string>('all')
+  const [itemsToShow, setItemsToShow] = useState(12)
 
   // Cycle sort: first click desc, second asc, third off
   const cycleSort = (key: 'projectSize' | 'dataSize') => {
@@ -47,12 +48,35 @@ function SampleProjects() {
   }
 
   const sizeToBytes = (v?: string): number => {
-    if (!v) return 0
+    if (!v) {
+      console.warn('sizeToBytes: input is empty or undefined')
+      return 0
+    }
     const match = v.trim().match(/([0-9]+(?:\.[0-9]+)?)\s*(KB|MB|GB|TB)/i)
-    if (!match) return 0
+    if (!match) {
+      console.warn(`sizeToBytes: malformed input "${v}"`)
+      return 0
+    }
     const value = parseFloat(match[1])
     const unit = match[2].toUpperCase()
-    const pow = unit === 'KB' ? 1 : unit === 'MB' ? 2 : unit === 'GB' ? 3 : 4
+    let pow: number
+    switch (unit) {
+      case 'KB':
+        pow = 1
+        break
+      case 'MB':
+        pow = 2
+        break
+      case 'GB':
+        pow = 3
+        break
+      case 'TB':
+        pow = 4
+        break
+      default:
+        console.warn(`sizeToBytes: unsupported unit "${unit}" in input "${v}"`)
+        return 0
+    }
     return value * Math.pow(1024, pow)
   }
 
@@ -94,8 +118,8 @@ function SampleProjects() {
       })
     }
 
-    return base.slice(0, 12)
-  }, [search, modelFilter, sortKey, sortDir])
+    return base.slice(0, itemsToShow)
+  }, [search, modelFilter, sortKey, sortDir, itemsToShow])
 
   const existingProjects = useMemo(
     () => getProjectsList(projectsResponse),
@@ -234,6 +258,19 @@ function SampleProjects() {
         )}
       </div>
 
+      {/* Load more for simple pagination */}
+      {filtered.length >= itemsToShow && (
+        <div className="mt-2">
+          <button
+            type="button"
+            className="px-3 py-2 rounded-md border border-input hover:bg-accent/30"
+            onClick={() => setItemsToShow(prev => prev + 12)}
+          >
+            Load more
+          </button>
+        </div>
+      )}
+
       {/* Preview modal */}
       <SamplePreviewModal
         open={open}
@@ -273,7 +310,12 @@ function SampleProjects() {
                   JSON.stringify([...arr, name])
                 )
               }
-            } catch {}
+            } catch (storageErr) {
+              console.warn(
+                'Failed to persist custom project to localStorage',
+                storageErr
+              )
+            }
             setImportOpen(false)
             toast({ message: `Project "${name}" created` })
             navigate('/chat/dashboard')
@@ -288,7 +330,12 @@ function SampleProjects() {
                   JSON.stringify([...arr, name])
                 )
               }
-            } catch {}
+            } catch (storageErr) {
+              console.warn(
+                'Failed to persist custom project to localStorage (offline)',
+                storageErr
+              )
+            }
             setActiveProject(name)
             setImportOpen(false)
             toast({ message: `Project "${name}" created (local)` })
@@ -324,7 +371,12 @@ function SampleProjects() {
                     JSON.stringify([...arr, payload.name])
                   )
                 }
-              } catch {}
+              } catch (storageErr) {
+                console.warn(
+                  'Failed to persist custom project to localStorage for data import',
+                  storageErr
+                )
+              }
               setActiveProject(payload.name)
               toast({ message: `Project "${payload.name}" created` })
             } else {
@@ -348,7 +400,12 @@ function SampleProjects() {
                   JSON.stringify([...arr, payload.name])
                 )
               }
-            } catch {}
+            } catch (storageErr) {
+              console.warn(
+                'Failed to persist custom project to localStorage for local fallback',
+                storageErr
+              )
+            }
             setActiveProject(payload.name)
             setDataOpen(false)
             toast({
