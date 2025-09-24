@@ -140,36 +140,7 @@ const Data = () => {
     return demo
   }, [apiDatasets])
 
-  const getDatasetStrategyTitle = (datasetId: string) => {
-    try {
-      // Most recent per-dataset display name override set by StrategyView
-      const override = localStorage.getItem(
-        `lf_dataset_strategy_name_${datasetId}`
-      )
-      if (override && override.trim().length > 0) return override
-
-      // If we know the strategy id, try resolving to the display name
-      const sid = localStorage.getItem(`lf_dataset_strategy_id_${datasetId}`)
-      if (sid && sid.trim().length > 0) {
-        const nameOverride = localStorage.getItem(
-          `lf_strategy_name_override_${sid}`
-        )
-        if (nameOverride && nameOverride.trim().length > 0) return nameOverride
-        let all = [...defaultStrategies]
-        try {
-          const raw = localStorage.getItem('lf_custom_strategies')
-          if (raw) {
-            const arr = JSON.parse(raw)
-            if (Array.isArray(arr)) all = [...all, ...arr]
-          }
-        } catch {}
-        const found = all.find((s: any) => s && s.id === sid)
-        if (found && typeof found.name === 'string' && found.name.trim().length)
-          return found.name
-      }
-    } catch {}
-    return 'Universal document processor'
-  }
+  // Removed unused getDatasetStrategyTitle helper to satisfy TS6133
 
   // Map of fileKey -> array of dataset ids
   const [fileAssignments] = useState<Record<string, string[]>>(() => {

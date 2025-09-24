@@ -8,6 +8,7 @@ import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { defaultStrategies } from './strategies'
 import ParserSettingsForm from './ParserSettingsForm'
+import PatternEditor from './PatternEditor'
 import {
   PARSER_SCHEMAS,
   ORDERED_PARSER_TYPES,
@@ -23,13 +24,7 @@ import {
   ORDERED_EXTRACTOR_TYPES,
   getDefaultConfigForExtractor,
 } from './extractorSchemas'
-import {
-  ChevronDown,
-  Plus,
-  Settings,
-  Trash2,
-  AlertTriangle,
-} from 'lucide-react'
+import { ChevronDown, Plus, Settings, Trash2 } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -100,7 +95,7 @@ function StrategyView() {
   const allDatasets = useMemo(() => {
     if (datasetsResp?.datasets && datasetsResp.datasets.length > 0) {
       return datasetsResp.datasets.map(d => {
-        const name = d.name
+        const { name } = d
         let ragStrategy = (d as any).rag_strategy as string | undefined
         // Overlay local per-dataset override if present
         try {
@@ -189,9 +184,8 @@ function StrategyView() {
   }, [isManageOpen, assignedDatasets])
 
   const toggleDataset = (name: string) => {
-    const current = allDatasets.find(d => d.name === name)?.rag_strategy
     // Do not allow unassigning from this strategy
-    if (current === strategyName) return
+    if (isDatasetLocked(name)) return
     setSelectedDatasets(prev => {
       const next = new Set(prev)
       if (next.has(name)) next.delete(name)
@@ -200,9 +194,23 @@ function StrategyView() {
     })
   }
 
+  // Helper to check if dataset is locked to this strategy
+  const isDatasetLocked = (name: string) => {
+    const current = allDatasets.find(d => d.name === name)?.rag_strategy
+    return current === strategyName
+  }
+
   // Reprocess confirmation modal
   const [isReprocessOpen, setIsReprocessOpen] = useState(false)
   const [pendingAdded, setPendingAdded] = useState<string[]>([])
+  const [reprocessErrors, setReprocessErrors] = useState<{
+    [datasetId: string]: unknown
+  }>({})
+
+  const getDatasetNameById = (id: string) => {
+    const f = allDatasets.find(d => d.name === id)
+    return f ? f.name : id
+  }
 
   const saveAssignments = async () => {
     if (!strategyId || !strategyName) return
@@ -239,9 +247,7 @@ function StrategyView() {
         performLocalFallback()
       } else {
         const updatedDatasets = (currentDatasets || []).map(ds =>
-          added.includes(ds.name)
-            ? { ...ds, data_processing_strategy: strategyName }
-            : ds
+          added.includes(ds.name) ? { ...ds, rag_strategy: strategyName } : ds
         )
         const nextConfig = { ...currentConfig, datasets: updatedDatasets }
         await updateProjectMutation.mutateAsync({
@@ -604,21 +610,43 @@ function StrategyView() {
 
   const parsePatternsString = (s: string | undefined): string[] => {
     if (!s) return []
-    const parts = s
-      .split(',')
-      .map(t => t.trim())
-      .filter(Boolean)
-    const uniq = Array.from(new Set(parts))
-    return uniq
+    try {
+      const arr = JSON.parse(s)
+      if (Array.isArray(arr)) {
+        return Array.from(new Set(arr.filter(x => typeof x === 'string')))
+      }
+    } catch {
+      const parts = s
+        .split(',')
+        .map(t => t.trim())
+        .filter(Boolean)
+      return Array.from(new Set(parts))
+    }
+    return []
   }
 
-  const patternsToString = (arr: string[]): string => arr.join(', ')
+  const patternsToString = (arr: string[]): string => JSON.stringify(arr)
+
+  const SAFE_PATTERNS = [
+    'README',
+    'LICENSE',
+    'Makefile',
+    'Dockerfile',
+    'requirements.txt',
+    'package.json',
+    'yarn.lock',
+    'Pipfile',
+    'setup.py',
+    'config',
+    'env',
+  ]
 
   const isSuspiciousPattern = (p: string): boolean => {
     const trimmed = p.trim()
     if (trimmed === '*' || trimmed === '') return false
-    if (!/[.*]/.test(trimmed) && !/\.[a-z0-9]+$/i.test(trimmed)) return true
-    return false
+    if (SAFE_PATTERNS.includes(trimmed)) return false
+    if (/[.*]/.test(trimmed) || /\.[a-z0-9]+$/i.test(trimmed)) return false
+    return true
   }
 
   const getFriendlyParserName = (parserName: string): string => {
@@ -723,7 +751,6 @@ function StrategyView() {
   const [newParserPriority, setNewParserPriority] = useState<string>('1')
   const [newParserPriorityError, setNewParserPriorityError] = useState(false)
   const [newParserIncludes, setNewParserIncludes] = useState<string[]>([])
-  const [newIncludeInput, setNewIncludeInput] = useState('')
 
   const slugify = (str: string) =>
     str
@@ -731,15 +758,24 @@ function StrategyView() {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '')
 
+  const MAX_PRIORITY = 1000
+
   const handleCreateParser = () => {
     const name = newParserType.trim()
     if (!name) return
     const prio = Number(newParserPriority)
-    if (!Number.isFinite(prio)) return
-    if (prio < 0) {
+    if (!Number.isInteger(prio)) {
       setNewParserPriorityError(true)
       toast({
-        message: 'Priority cannot be less than 0',
+        message: `Priority must be an integer between 0 and ${MAX_PRIORITY}`,
+        variant: 'destructive',
+      })
+      return
+    }
+    if (prio < 0 || prio > MAX_PRIORITY) {
+      setNewParserPriorityError(true)
+      toast({
+        message: `Priority must be between 0 and ${MAX_PRIORITY}`,
         variant: 'destructive',
       })
       return
@@ -785,7 +821,6 @@ function StrategyView() {
   const [editParserPriority, setEditParserPriority] = useState<string>('1')
   const [editParserPriorityError, setEditParserPriorityError] = useState(false)
   const [editParserIncludes, setEditParserIncludes] = useState<string[]>([])
-  const [editIncludeInput, setEditIncludeInput] = useState('')
 
   const openEditParser = (id: string) => {
     const found = parserRows.find(p => p.id === id)
@@ -800,11 +835,18 @@ function StrategyView() {
   const handleUpdateParser = () => {
     if (!editParserId) return
     const prio = Number(editParserPriority)
-    if (!Number.isFinite(prio)) return
-    if (prio < 0) {
+    if (!Number.isInteger(prio)) {
       setEditParserPriorityError(true)
       toast({
-        message: 'Priority cannot be less than 0',
+        message: `Priority must be an integer between 0 and ${MAX_PRIORITY}`,
+        variant: 'destructive',
+      })
+      return
+    }
+    if (prio < 0 || prio > MAX_PRIORITY) {
+      setEditParserPriorityError(true)
+      toast({
+        message: `Priority must be between 0 and ${MAX_PRIORITY}`,
         variant: 'destructive',
       })
       return
@@ -865,10 +907,7 @@ function StrategyView() {
   const [newExtractorPriority, setNewExtractorPriority] = useState<string>('1')
   const [newExtractorPriorityError, setNewExtractorPriorityError] =
     useState(false)
-  const [newExtractorApplies, setNewExtractorApplies] = useState<string[]>([
-    '*',
-  ])
-  const [newAppliesInput, setNewAppliesInput] = useState('')
+  const [newExtractorApplies, setNewExtractorApplies] = useState<string[]>([])
   const [newExtractorConfig, setNewExtractorConfig] = useState<
     Record<string, unknown>
   >({})
@@ -877,11 +916,18 @@ function StrategyView() {
     const name = newExtractorType.trim()
     const prio = Number(newExtractorPriority)
     if (!name || !Number.isFinite(prio)) return
-    if (prio < 0) {
+    if (!Number.isInteger(prio) || prio < 0 || prio > MAX_PRIORITY) {
       setNewExtractorPriorityError(true)
       toast({
-        message: 'Priority cannot be less than 0',
+        message: `Priority must be an integer between 0 and ${MAX_PRIORITY}`,
         variant: 'destructive',
+      })
+      return
+    }
+    if (newExtractorApplies.length === 0) {
+      toast({
+        message: 'Please enter or select an applies pattern for the extractor.',
+        variant: 'default',
       })
       return
     }
@@ -912,7 +958,7 @@ function StrategyView() {
     setNewExtractorType('')
     setNewExtractorPriority('1')
     setNewExtractorConfig({})
-    setNewExtractorApplies(['*'])
+    setNewExtractorApplies([])
     markNeedsReprocess()
   }
 
@@ -926,7 +972,6 @@ function StrategyView() {
     Record<string, unknown>
   >({})
   const [editExtractorApplies, setEditExtractorApplies] = useState<string[]>([])
-  const [editAppliesInput, setEditAppliesInput] = useState('')
 
   const openEditExtractor = (id: string) => {
     const found = extractorRows.find(e => e.id === id)
@@ -942,10 +987,10 @@ function StrategyView() {
   const handleUpdateExtractor = () => {
     const prio = Number(editExtractorPriority)
     if (!editExtractorId || !Number.isFinite(prio)) return
-    if (prio < 0) {
+    if (!Number.isInteger(prio) || prio < 0 || prio > MAX_PRIORITY) {
       setEditExtractorPriorityError(true)
       toast({
-        message: 'Priority cannot be less than 0',
+        message: `Priority must be an integer between 0 and ${MAX_PRIORITY}`,
         variant: 'destructive',
       })
       return
@@ -1168,6 +1213,7 @@ function StrategyView() {
             }`}
             onClick={async () => {
               if (!activeProject?.namespace || !activeProject?.project) return
+              const failures: string[] = []
               for (const n of assignedDatasets) {
                 try {
                   await reIngestMutation.mutateAsync({
@@ -1182,9 +1228,12 @@ function StrategyView() {
                     message: `Failed to start reprocessing ${n}`,
                     variant: 'destructive',
                   })
+                  failures.push(n)
                 }
               }
-              clearNeedsReprocess()
+              if (failures.length === 0) {
+                clearNeedsReprocess()
+              }
             }}
             disabled={
               assignedDatasets.length === 0 ||
@@ -1250,6 +1299,13 @@ function StrategyView() {
                           onCheckedChange={() => toggleDataset(name)}
                           onClick={e => e.stopPropagation()}
                           disabled={current === strategyName}
+                          title={
+                            current === strategyName
+                              ? 'This dataset cannot be unassigned from this strategy.'
+                              : assignedElsewhere
+                                ? 'This dataset is already assigned to another strategy and cannot be assigned here.'
+                                : undefined
+                          }
                         />
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-medium text-foreground truncate">
@@ -1307,8 +1363,28 @@ function StrategyView() {
             </DialogTitle>
           </DialogHeader>
           <div className="text-sm text-muted-foreground">
-            Reprocess these dataset(s) with “{strategyName}” now?
+            Reprocess these dataset(s) with "{strategyName}" now?
           </div>
+          {/* Show per-dataset errors if any */}
+          {reprocessErrors && Object.keys(reprocessErrors).length > 0 ? (
+            <div className="mt-2 rounded-md border border-destructive bg-destructive/10 p-2 text-sm">
+              <div className="font-semibold text-destructive mb-1">
+                Some datasets failed to reprocess:
+              </div>
+              <ul className="list-disc ml-4">
+                {Object.entries(reprocessErrors).map(
+                  ([datasetId, errorMsg]) => (
+                    <li key={datasetId}>
+                      <span className="font-medium">
+                        {getDatasetNameById(datasetId)}:
+                      </span>{' '}
+                      {String(errorMsg)}
+                    </li>
+                  )
+                )}
+              </ul>
+            </div>
+          ) : null}
           {pendingAdded.length > 0 ? (
             <div className="mt-2 rounded-md border border-border bg-accent/10 p-2 text-sm">
               {pendingAdded.map(n => (
@@ -1333,27 +1409,27 @@ function StrategyView() {
                   setIsReprocessOpen(false)
                   return
                 }
-                try {
-                  await Promise.all(
-                    pendingAdded.map(n =>
-                      reIngestMutation.mutateAsync({
+                const errors: { [datasetId: string]: unknown } = {}
+                await Promise.all(
+                  pendingAdded.map(async n => {
+                    try {
+                      await reIngestMutation.mutateAsync({
                         namespace: activeProject.namespace!,
                         project: activeProject.project!,
                         dataset: n,
                       })
-                    )
-                  )
+                    } catch (err) {
+                      errors[n] = (err as any)?.message || 'Unknown error'
+                    }
+                  })
+                )
+                if (Object.keys(errors).length > 0) {
+                  setReprocessErrors(errors)
+                } else {
                   toast({
                     message: 'Reprocessing started…',
                     variant: 'default',
                   })
-                } catch (e) {
-                  console.error('Failed to start reprocessing', e)
-                  toast({
-                    message: 'Failed to start reprocessing',
-                    variant: 'destructive',
-                  })
-                } finally {
                   setIsReprocessOpen(false)
                 }
               }}
@@ -1667,12 +1743,14 @@ function StrategyView() {
                         const raw = e.target.value
                         setNewParserPriority(raw)
                         const n = Number(raw)
-                        setNewParserPriorityError(Number.isFinite(n) && n < 0)
+                        setNewParserPriorityError(
+                          !Number.isInteger(n) || n < 0 || n > MAX_PRIORITY
+                        )
                       }}
                     />
                     {newParserPriorityError ? (
                       <div className="text-xs text-destructive mt-1">
-                        Priority cannot be less than 0
+                        Priority must be an integer between 0 and {MAX_PRIORITY}
                       </div>
                     ) : null}
                   </div>
@@ -1690,88 +1768,14 @@ function StrategyView() {
                       onChange={setNewParserConfig}
                     />
                   </div>
-                  {/* Included files / file types editor */}
-                  <div>
-                    <Label className="text-xs text-muted-foreground">
-                      Included files / file types
-                    </Label>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      Specify which files this parser should process - file
-                      patterns, extensions, or specific filenames
-                    </div>
-                    <div className="mt-2 rounded-md border border-border">
-                      <div className="p-2 border-b border-border flex items-center gap-2">
-                        <div className="relative flex-1">
-                          <Input
-                            className="bg-background w-full pr-2"
-                            placeholder="*.pdf, data_*, report.docx"
-                            value={newIncludeInput}
-                            onChange={e => setNewIncludeInput(e.target.value)}
-                            onKeyDown={e => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault()
-                                const v = newIncludeInput.trim()
-                                if (!v) return
-                                setNewParserIncludes(prev =>
-                                  Array.from(new Set([...prev, v]))
-                                )
-                                setNewIncludeInput('')
-                              }
-                            }}
-                          />
-                        </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            const v = newIncludeInput.trim()
-                            if (!v) return
-                            setNewParserIncludes(prev =>
-                              Array.from(new Set([...prev, v]))
-                            )
-                            setNewIncludeInput('')
-                          }}
-                        >
-                          Add entry
-                        </Button>
-                      </div>
-                      <div className="p-2 flex flex-col gap-1">
-                        {newParserIncludes.length === 0 ? (
-                          <div className="text-xs text-muted-foreground">
-                            No entries yet
-                          </div>
-                        ) : (
-                          newParserIncludes.map((pat, idx) => (
-                            <div
-                              key={`${pat}-${idx}`}
-                              className="flex items-center justify-between gap-2 rounded-sm bg-accent/10 px-2 py-1"
-                            >
-                              <div className="flex items-center gap-1 text-sm">
-                                {isSuspiciousPattern(pat) ? (
-                                  <AlertTriangle className="w-3.5 h-3.5 text-yellow-500" />
-                                ) : null}
-                                <span className="truncate max-w-[60vw]">
-                                  {pat}
-                                </span>
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() =>
-                                  setNewParserIncludes(prev =>
-                                    prev.filter((_, i) => i !== idx)
-                                  )
-                                }
-                                aria-label={`Delete ${pat}`}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </div>
-                  </div>
+                  <PatternEditor
+                    label="Included files / file types"
+                    description="Specify which files this parser should process - file patterns, extensions, or specific filenames"
+                    placeholder="*.pdf, data_*, report.docx"
+                    value={newParserIncludes}
+                    onChange={setNewParserIncludes}
+                    isSuspicious={isSuspiciousPattern}
+                  />
                 </>
               ) : null}
             </div>
@@ -1852,13 +1856,14 @@ function StrategyView() {
                             setEditParserPriority(raw)
                             const n = Number(raw)
                             setEditParserPriorityError(
-                              Number.isFinite(n) && n < 0
+                              !Number.isInteger(n) || n < 0 || n > MAX_PRIORITY
                             )
                           }}
                         />
                         {editParserPriorityError ? (
                           <div className="text-xs text-destructive mt-1">
-                            Priority cannot be less than 0
+                            Priority must be an integer between 0 and{' '}
+                            {MAX_PRIORITY}
                           </div>
                         ) : null}
                       </div>
@@ -1873,90 +1878,14 @@ function StrategyView() {
                         onChange={setEditParserConfig}
                       />
                     </div>
-                    {/* Included files / file types editor (edit) */}
-                    <div>
-                      <Label className="text-xs text-muted-foreground">
-                        Included files / file types
-                      </Label>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        Specify which files this parser should process - file
-                        patterns, extensions, or specific filenames
-                      </div>
-                      <div className="mt-2 rounded-md border border-border">
-                        <div className="p-2 border-b border-border flex items-center gap-2">
-                          <div className="relative flex-1">
-                            <Input
-                              className="bg-background w-full pr-2"
-                              placeholder="*.pdf, data_*, report.docx"
-                              value={editIncludeInput}
-                              onChange={e =>
-                                setEditIncludeInput(e.target.value)
-                              }
-                              onKeyDown={e => {
-                                if (e.key === 'Enter') {
-                                  e.preventDefault()
-                                  const v = editIncludeInput.trim()
-                                  if (!v) return
-                                  setEditParserIncludes(prev =>
-                                    Array.from(new Set([...prev, v]))
-                                  )
-                                  setEditIncludeInput('')
-                                }
-                              }}
-                            />
-                          </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              const v = editIncludeInput.trim()
-                              if (!v) return
-                              setEditParserIncludes(prev =>
-                                Array.from(new Set([...prev, v]))
-                              )
-                              setEditIncludeInput('')
-                            }}
-                          >
-                            Add entry
-                          </Button>
-                        </div>
-                        <div className="p-2 flex flex-col gap-1">
-                          {editParserIncludes.length === 0 ? (
-                            <div className="text-xs text-muted-foreground">
-                              No entries yet
-                            </div>
-                          ) : (
-                            editParserIncludes.map((pat, idx) => (
-                              <div
-                                key={`${pat}-${idx}`}
-                                className="flex items-center justify-between gap-2 rounded-sm bg-accent/10 px-2 py-1"
-                              >
-                                <div className="flex items-center gap-1 text-sm">
-                                  {isSuspiciousPattern(pat) ? (
-                                    <AlertTriangle className="w-3.5 h-3.5 text-yellow-500" />
-                                  ) : null}
-                                  <span className="truncate max-w-[60vw]">
-                                    {pat}
-                                  </span>
-                                </div>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() =>
-                                    setEditParserIncludes(prev =>
-                                      prev.filter((_, i) => i !== idx)
-                                    )
-                                  }
-                                  aria-label={`Delete ${pat}`}
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      </div>
-                    </div>
+                    <PatternEditor
+                      label="Included files / file types"
+                      description="Specify which files this parser should process - file patterns, extensions, or specific filenames"
+                      placeholder="*.pdf, data_*, report.docx"
+                      value={editParserIncludes}
+                      onChange={setEditParserIncludes}
+                      isSuspicious={isSuspiciousPattern}
+                    />
                   </>
                 )
               })()}
@@ -2113,13 +2042,13 @@ function StrategyView() {
                         setNewExtractorPriority(raw)
                         const n = Number(raw)
                         setNewExtractorPriorityError(
-                          Number.isFinite(n) && n < 0
+                          !Number.isInteger(n) || n < 0 || n > MAX_PRIORITY
                         )
                       }}
                     />
                     {newExtractorPriorityError ? (
                       <div className="text-xs text-destructive mt-1">
-                        Priority cannot be less than 0
+                        Priority must be an integer between 0 and {MAX_PRIORITY}
                       </div>
                     ) : null}
                   </div>
@@ -2144,13 +2073,13 @@ function StrategyView() {
                         setNewExtractorPriority(raw)
                         const n = Number(raw)
                         setNewExtractorPriorityError(
-                          Number.isFinite(n) && n < 0
+                          !Number.isInteger(n) || n < 0 || n > MAX_PRIORITY
                         )
                       }}
                     />
                     {newExtractorPriorityError ? (
                       <div className="text-xs text-destructive mt-1">
-                        Priority cannot be less than 0
+                        Priority must be an integer between 0 and {MAX_PRIORITY}
                       </div>
                     ) : null}
                   </div>
@@ -2164,88 +2093,14 @@ function StrategyView() {
                       onChange={setNewExtractorConfig}
                     />
                   </div>
-                  {/* Applies to files / file types editor */}
-                  <div>
-                    <Label className="text-xs text-muted-foreground">
-                      Applies to files / file types
-                    </Label>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      Specify which files this extractor should run on - use '*'
-                      for all parsed content, or limit by patterns
-                    </div>
-                    <div className="mt-2 rounded-md border border-border">
-                      <div className="p-2 border-b border-border flex items-center gap-2">
-                        <div className="relative flex-1">
-                          <Input
-                            className="bg-background w-full pr-2"
-                            placeholder="*, *.pdf, *.txt, data_*"
-                            value={newAppliesInput}
-                            onChange={e => setNewAppliesInput(e.target.value)}
-                            onKeyDown={e => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault()
-                                const v = newAppliesInput.trim()
-                                if (!v) return
-                                setNewExtractorApplies(prev =>
-                                  Array.from(new Set([...prev, v]))
-                                )
-                                setNewAppliesInput('')
-                              }
-                            }}
-                          />
-                        </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            const v = newAppliesInput.trim()
-                            if (!v) return
-                            setNewExtractorApplies(prev =>
-                              Array.from(new Set([...prev, v]))
-                            )
-                            setNewAppliesInput('')
-                          }}
-                        >
-                          Add entry
-                        </Button>
-                      </div>
-                      <div className="p-2 flex flex-col gap-1">
-                        {newExtractorApplies.length === 0 ? (
-                          <div className="text-xs text-muted-foreground">
-                            No entries yet
-                          </div>
-                        ) : (
-                          newExtractorApplies.map((pat, idx) => (
-                            <div
-                              key={`${pat}-${idx}`}
-                              className="flex items-center justify-between gap-2 rounded-sm bg-accent/10 px-2 py-1"
-                            >
-                              <div className="flex items-center gap-1 text-sm">
-                                {isSuspiciousPattern(pat) ? (
-                                  <AlertTriangle className="w-3.5 h-3.5 text-yellow-500" />
-                                ) : null}
-                                <span className="truncate max-w-[60vw]">
-                                  {pat}
-                                </span>
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() =>
-                                  setNewExtractorApplies(prev =>
-                                    prev.filter((_, i) => i !== idx)
-                                  )
-                                }
-                                aria-label={`Delete ${pat}`}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </div>
-                  </div>
+                  <PatternEditor
+                    label="Applies to files / file types"
+                    description="Specify which files this extractor should run on - use '*' for all parsed content, or limit by patterns"
+                    placeholder="*, *.pdf, *.txt, data_*"
+                    value={newExtractorApplies}
+                    onChange={setNewExtractorApplies}
+                    isSuspicious={isSuspiciousPattern}
+                  />
                 </>
               ) : null}
             </div>
@@ -2348,90 +2203,14 @@ function StrategyView() {
                         onChange={setEditExtractorConfig}
                       />
                     </div>
-                    {/* Applies to files / file types editor (edit) */}
-                    <div>
-                      <Label className="text-xs text-muted-foreground">
-                        Applies to files / file types
-                      </Label>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        Specify which files this extractor should run on - use
-                        '*' for all parsed content, or limit by patterns
-                      </div>
-                      <div className="mt-2 rounded-md border border-border">
-                        <div className="p-2 border-b border-border flex items-center gap-2">
-                          <div className="relative flex-1">
-                            <Input
-                              className="bg-background w-full pr-2"
-                              placeholder="*, *.pdf, *.txt, data_*"
-                              value={editAppliesInput}
-                              onChange={e =>
-                                setEditAppliesInput(e.target.value)
-                              }
-                              onKeyDown={e => {
-                                if (e.key === 'Enter') {
-                                  e.preventDefault()
-                                  const v = editAppliesInput.trim()
-                                  if (!v) return
-                                  setEditExtractorApplies(prev =>
-                                    Array.from(new Set([...prev, v]))
-                                  )
-                                  setEditAppliesInput('')
-                                }
-                              }}
-                            />
-                          </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              const v = editAppliesInput.trim()
-                              if (!v) return
-                              setEditExtractorApplies(prev =>
-                                Array.from(new Set([...prev, v]))
-                              )
-                              setEditAppliesInput('')
-                            }}
-                          >
-                            Add entry
-                          </Button>
-                        </div>
-                        <div className="p-2 flex flex-col gap-1">
-                          {editExtractorApplies.length === 0 ? (
-                            <div className="text-xs text-muted-foreground">
-                              No entries yet
-                            </div>
-                          ) : (
-                            editExtractorApplies.map((pat, idx) => (
-                              <div
-                                key={`${pat}-${idx}`}
-                                className="flex items-center justify-between gap-2 rounded-sm bg-accent/10 px-2 py-1"
-                              >
-                                <div className="flex items-center gap-1 text-sm">
-                                  {isSuspiciousPattern(pat) ? (
-                                    <AlertTriangle className="w-3.5 h-3.5 text-yellow-500" />
-                                  ) : null}
-                                  <span className="truncate max-w-[60vw]">
-                                    {pat}
-                                  </span>
-                                </div>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() =>
-                                    setEditExtractorApplies(prev =>
-                                      prev.filter((_, i) => i !== idx)
-                                    )
-                                  }
-                                  aria-label={`Delete ${pat}`}
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      </div>
-                    </div>
+                    <PatternEditor
+                      label="Applies to files / file types"
+                      description="Specify which files this extractor should run on - use '*' for all parsed content, or limit by patterns"
+                      placeholder="*, *.pdf, *.txt, data_*"
+                      value={editExtractorApplies}
+                      onChange={setEditExtractorApplies}
+                      isSuspicious={isSuspiciousPattern}
+                    />
                   </>
                 )
               })()}

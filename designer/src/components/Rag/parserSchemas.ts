@@ -32,7 +32,7 @@ export const PARSER_SCHEMAS: Record<string, ParserSchema> = {
   // Excel (LlamaIndex)
   ExcelParser_LlamaIndex: {
     title: 'Excel Parser (LlamaIndex) Configuration',
-    description: 'Alternative Excel parser optimized for large spreadsheets',
+    description: 'Parses Excel spreadsheets into text and chunks',
     properties: {
       chunk_size: {
         type: 'integer',
@@ -604,8 +604,7 @@ export const PARSER_SCHEMAS: Record<string, ParserSchema> = {
   // Markdown (Python)
   MarkdownParser_Python: {
     title: 'Markdown Parser (Python) Configuration',
-    description:
-      'Converts markdown files (.md) to structured text with formatting preserved',
+    description: 'Converts markdown files (.md) to structured text',
     properties: {
       chunk_size: {
         type: 'integer',

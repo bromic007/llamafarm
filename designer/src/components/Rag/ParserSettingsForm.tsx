@@ -210,7 +210,7 @@ export default function ParserSettingsForm({
       {(() => {
         const preferredOrder = ['chunk_size', 'chunk_overlap', 'chunk_strategy']
         const present = preferredOrder.filter(k => schema.properties[k])
-        if (present.length < 2) return null
+        if (present.length === 0) return null
         const gridColsClass =
           present.length === 3 ? 'grid-cols-3' : 'grid-cols-2'
         return (
