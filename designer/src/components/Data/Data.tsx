@@ -79,8 +79,10 @@ const Data = () => {
       const apiList = apiDatasets.datasets.map(dataset => ({
         id: dataset.name,
         name: dataset.name,
-        rag_strategy: dataset.rag_strategy,
+        data_processing_strategy: dataset.data_processing_strategy,
+        database: dataset.database,
         files: dataset.files,
+        details: dataset.details,
         lastRun: new Date(),
         embedModel: 'text-embedding-3-large',
         // Estimate chunk count numerically for display
@@ -135,8 +137,12 @@ const Data = () => {
       {
         id: 'demo-arxiv',
         name: 'arxiv-papers',
-        rag_strategy: 'PDF Simple',
+        data_processing_strategy: 'PDF Simple',
+        database: 'default_db',
         files: [],
+        details: {
+          files_metadata: [],
+        },
         lastRun: new Date(),
         embedModel: 'text-embedding-3-large',
         numChunks: 12800,
@@ -147,8 +153,12 @@ const Data = () => {
       {
         id: 'demo-handbook',
         name: 'company-handbook',
-        rag_strategy: 'Markdown',
+        data_processing_strategy: 'Markdown',
+        database: 'default_db',
         files: [],
+        details: {
+          files_metadata: [],
+        },
         lastRun: new Date(),
         embedModel: 'text-embedding-3-large',
         numChunks: 4200,
@@ -176,6 +186,7 @@ const Data = () => {
       navigate(`/chat/data/${found.id}`, { replace: true })
     }
   }, [location.search, datasets, navigate])
+
 
   // Map of fileKey -> array of dataset ids
   const [fileAssignments] = useState<Record<string, string[]>>(() => {
@@ -212,6 +223,11 @@ const Data = () => {
   const [isImportOpen, setIsImportOpen] = useState(false)
   const [newDatasetName, setNewDatasetName] = useState('')
   const [newDatasetDescription, setNewDatasetDescription] = useState('')
+  const [newDatasetDatabase, setNewDatasetDatabase] = useState('')
+  const [
+    newDatasetDataProcessingStrategy,
+    setNewDatasetDataProcessingStrategy,
+  ] = useState('')
 
   // Simple edit modal state
   const [isEditOpen, setIsEditOpen] = useState(false)
@@ -239,12 +255,15 @@ const Data = () => {
         namespace: activeProject.namespace,
         project: activeProject.project,
         name,
-        rag_strategy: 'default', // Default strategy
+        data_processing_strategy: newDatasetDataProcessingStrategy,
+        database: newDatasetDatabase,
       })
       toast({ message: 'Dataset created successfully', variant: 'default' })
       setIsCreateOpen(false)
       setNewDatasetName('')
       setNewDatasetDescription('')
+      setNewDatasetDatabase('')
+      setNewDatasetDataProcessingStrategy('')
     } catch (error) {
       console.error('Failed to create dataset:', error)
       toast({
@@ -400,6 +419,28 @@ const Data = () => {
                         rows={3}
                       />
                     </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs text-muted-foreground">
+                        Data Processing Strategy
+                      </label>
+                      <Input
+                        value={newDatasetDataProcessingStrategy}
+                        onChange={e =>
+                          setNewDatasetDataProcessingStrategy(e.target.value)
+                        }
+                        placeholder="e.g., PDF Simple, Markdown"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs text-muted-foreground">
+                        Database
+                      </label>
+                      <Input
+                        value={newDatasetDatabase}
+                        onChange={e => setNewDatasetDatabase(e.target.value)}
+                        placeholder="e.g., default_db"
+                      />
+                    </div>
                   </div>
                   <DialogFooter>
                     <DialogClose
@@ -412,6 +453,8 @@ const Data = () => {
                       onClick={handleCreateDataset}
                       disabled={
                         !newDatasetName.trim() ||
+                        !newDatasetDataProcessingStrategy.trim() ||
+                        !newDatasetDatabase.trim() ||
                         createDatasetMutation.isPending
                       }
                     >
@@ -522,11 +565,30 @@ const Data = () => {
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   className="text-destructive focus:text-destructive"
-                                  onClick={e => {
+                                  onClick={async e => {
                                     e.stopPropagation()
-                                    setConfirmDeleteId(ds.id)
-                                    setConfirmDeleteName(ds.name)
-                                    setIsConfirmDeleteOpen(true)
+                                    if (
+                                      !activeProject?.namespace ||
+                                      !activeProject?.project
+                                    )
+                                      return
+                                    try {
+                                      await deleteDatasetMutation.mutateAsync({
+                                        namespace: activeProject.namespace,
+                                        project: activeProject.project,
+                                        dataset: ds.id,
+                                      })
+                                      toast({
+                                        message: 'Dataset deleted',
+                                        variant: 'default',
+                                      })
+                                    } catch (err) {
+                                      console.error('Delete failed', err)
+                                      toast({
+                                        message: 'Failed to delete dataset',
+                                        variant: 'destructive',
+                                      })
+                                    }
                                   }}
                                 >
                                   Delete
