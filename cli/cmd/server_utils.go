@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"strings"
 	"time"
 )
@@ -52,33 +51,46 @@ func ensureServerAvailable(serverURL string, printStatus bool) *HealthPayload {
 	}
 
 	if hr, err := checkServerHealth(serverURL); err == nil {
+		// Server is healthy, use it
 		return hr
-	} else {
-		// If we already got a health payload, render a clean, readable error
-		url := strings.TrimRight(serverURL, "/") + "/health/liveness"
-		if perr := pingURL(url); perr == nil {
-			// The server is reachable, but not healthy
-			if herr, ok := err.(*HealthError); ok {
-				if printStatus || herr.Status == "unhealthy" {
-					prettyPrintHealth(os.Stderr, herr.HealthResp)
-				}
-				if herr.Status == "unhealthy" {
-					os.Exit(1)
-				} else {
+	} else if herr, ok := err.(*HealthError); ok {
+		// Server responded but is not healthy (degraded, unhealthy, etc.)
+		// This means the server is running, so we should use it rather than start a new one
+		if printStatus || herr.Status == "unhealthy" {
+			prettyPrintHealth(os.Stderr, herr.HealthResp)
+		}
+		if herr.Status == "unhealthy" {
+			// Check if unhealthy is only due to RAG being down
+			if isUnhealthyOnlyDueToRAG(&herr.HealthResp) {
+				OutputWarning("Server is unhealthy due to RAG component, attempting to start RAG service...")
+				// Try to start RAG service
+				if isLocalhost(serverURL) {
+					orchestrator := NewContainerOrchestrator()
+					go orchestrator.startRAGContainerAsync(serverURL)
+					// Return the current health status - RAG will be started in background
 					return &herr.HealthResp
+				} else {
+					OutputError("Server is unhealthy due to RAG component, but cannot start RAG on remote server")
+					os.Exit(1)
 				}
+			} else {
+				// Server is unhealthy for other reasons
+				os.Exit(1)
 			}
+		} else {
+			// Server is degraded but running - use it
+			return &herr.HealthResp
 		}
 	}
 
 	// Only attempt auto-start when pointing to localhost
 	if !isLocalhost(serverURL) {
-		fmt.Fprintf(os.Stderr, "❌ Could not contact server %s\n", serverURL)
+		OutputError("Could not contact server %s", serverURL)
 		os.Exit(1)
 	}
 
 	if err := startLocalServerViaDocker(serverURL); err != nil {
-		fmt.Fprintf(os.Stderr, "❌ Could not start local server: %v\n", err)
+		OutputError("Could not start local server: %v", err)
 		os.Exit(1)
 	}
 
@@ -90,7 +102,7 @@ func ensureServerAvailable(serverURL string, printStatus bool) *HealthPayload {
 	deadline := time.Now().Add(timeout)
 	var lastError error = nil
 
-	fmt.Fprintf(os.Stderr, "Waiting for server to become ready...\n")
+	OutputProgress("Waiting for server to become ready...\n")
 	for {
 		if hr, err := checkServerHealth(serverURL); err == nil {
 			return hr
@@ -103,7 +115,7 @@ func ensureServerAvailable(serverURL string, printStatus bool) *HealthPayload {
 			time.Sleep(duration)
 		}
 	}
-	fmt.Fprintf(os.Stderr, "Server did not become ready at %s within timeout\n", serverURL)
+	OutputError("Server did not become ready at %s within timeout", serverURL)
 	if herr, ok := lastError.(*HealthError); ok {
 		// Render once on each failed poll tick to aid diagnosis
 		if printStatus || herr.Status == "unhealthy" {
@@ -113,7 +125,7 @@ func ensureServerAvailable(serverURL string, printStatus bool) *HealthPayload {
 			os.Exit(1)
 		}
 	} else {
-		fmt.Fprintf(os.Stderr, "%v\n", lastError)
+		OutputError("%v", lastError)
 		os.Exit(1)
 	}
 	return nil
@@ -124,14 +136,14 @@ func checkServerHealth(serverURL string) (*HealthPayload, error) {
 	base := strings.TrimRight(serverURL, "/")
 	healthURL := base + "/health"
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, healthURL, nil)
 	if err != nil {
 		return nil, err
 	}
-	resp, err := (&http.Client{Timeout: 2 * time.Second}).Do(req)
+	resp, err := (&http.Client{Timeout: 3 * time.Second}).Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -176,63 +188,65 @@ func startLocalServerViaDocker(serverURL string) error {
 	}
 
 	// If a container with this name exists and is running, nothing to do
-	if isContainerRunning(containerName) {
+	if IsContainerRunning(containerName) {
 		return nil
 	}
 
-	fmt.Fprintln(os.Stderr, "Starting local LlamaFarm server via Docker...")
+	OutputProgress("Starting local LlamaFarm server via Docker...")
 
-	// If a container with this name exists, remove it to ensure we always use the latest image
-	if containerExists(containerName) {
-		fmt.Fprintln(os.Stderr, "Removing existing LlamaFarm server container to ensure latest image and arguments...")
-		rmCmd := exec.Command("docker", "rm", "-f", containerName)
-		rmCmd.Stdout = os.Stdout
-		rmCmd.Stderr = os.Stderr
-		if err := rmCmd.Run(); err != nil {
-			return fmt.Errorf("failed to remove existing container %s: %v", containerName, err)
-		}
+	// Get Ollama host for container configuration
+	ollamaHostVar := os.Getenv("OLLAMA_HOST")
+	if ollamaHostVar == "" {
+		ollamaHostVar = ollamaHost
+	}
+	if ollamaHostVar == "" {
+		ollamaHostVar = "http://localhost:11434"
 	}
 
-	// Pull latest image (best effort)
-	_ = pullImage(image)
-
-	// Run new container
-	runArgs := []string{
-		"run",
-		"-d",
-		"--name", containerName,
-		"-p", fmt.Sprintf("%d:8000", port),
-		"-v", fmt.Sprintf("%s:%s", os.ExpandEnv("$HOME/.llamafarm"), "/var/lib/llamafarm"),
+	// Prepare container specification
+	spec := ContainerRunSpec{
+		Name:  containerName,
+		Image: image,
+		StaticPorts: []PortMapping{
+			{Host: port, Container: 8000, Protocol: "tcp"},
+		},
+		Env: make(map[string]string),
+		Volumes: []string{
+			fmt.Sprintf("%s:%s", os.ExpandEnv("$HOME/.llamafarm"), "/var/lib/llamafarm"),
+		},
+		Labels: map[string]string{
+			"llamafarm.component": "server",
+			"llamafarm.managed":   "true",
+		},
 	}
 
 	// Mount effective working directory into the container at the same path
 	if cwd := getEffectiveCWD(); strings.TrimSpace(cwd) != "" {
-		runArgs = append(runArgs, "-v", fmt.Sprintf("%s:%s", cwd, cwd))
+		spec.Volumes = append(spec.Volumes, fmt.Sprintf("%s:%s", cwd, cwd))
 	} else {
 		fmt.Fprintln(os.Stderr, "Warning: could not determine current directory; continuing without volume mount")
 	}
 
 	// Pass through or configure Ollama access inside the container
-	if isLocalhost(ollamaHost) {
-		port := resolvePort(ollamaHost, 11434)
-		runArgs = append(runArgs, "--add-host", "host.docker.internal:host-gateway")
-		runArgs = append(runArgs, "-e", fmt.Sprintf("OLLAMA_HOST=http://host.docker.internal:%d", port))
+	if isLocalhost(ollamaHostVar) {
+		ollamaPort := resolvePort(ollamaHostVar, 11434)
+		spec.AddHosts = []string{"host.docker.internal:host-gateway"}
+		spec.Env["OLLAMA_HOST"] = fmt.Sprintf("http://host.docker.internal:%d", ollamaPort)
 	} else {
-		runArgs = append(runArgs, "-e", fmt.Sprintf("OLLAMA_HOST=%s", ollamaHost))
+		spec.Env["OLLAMA_HOST"] = ollamaHostVar
 	}
 
 	if v, ok := os.LookupEnv("OLLAMA_PORT"); ok && strings.TrimSpace(v) != "" {
-		runArgs = append(runArgs, "-e", fmt.Sprintf("OLLAMA_PORT=%s", v))
+		spec.Env["OLLAMA_PORT"] = v
 	}
 
-	// Image last
-	runArgs = append(runArgs, image)
-	runCmd := exec.Command("docker", runArgs...)
-	runOut, err := runCmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to start docker container: %v\n%s", err, string(runOut))
-	}
-	return nil
+	// Use the Docker SDK-based container starter
+	_, err = StartContainerDetachedWithPolicy(spec, &PortResolutionPolicy{
+		PreferredHostPort: port,
+		Forced:            true,
+	})
+
+	return err
 }
 
 func resolvePort(serverURL string, defaultPort int) int {
@@ -270,8 +284,11 @@ func prettyPrintHealth(w io.Writer, hr HealthPayload) {
 		fmt.Fprintf(w, "Summary: %s\n", hr.Summary)
 	}
 	if len(hr.Components) > 0 {
-		fmt.Fprintln(w, "Components:")
 		for _, c := range hr.Components {
+			if c.Status == "healthy" {
+				continue
+			}
+
 			icon := iconForStatus(c.Status)
 			fmt.Fprintf(w, "  %s %-20s %-10s %s (latency: %dms)\n", icon, c.Name, c.Status, c.Message, c.LatencyMs)
 			for k, v := range c.Details {
@@ -280,14 +297,22 @@ func prettyPrintHealth(w io.Writer, hr HealthPayload) {
 		}
 	}
 	if len(hr.Seeds) > 0 {
-		fmt.Fprintln(w, "Seeds:")
+		var builder strings.Builder
 		for _, s := range hr.Seeds {
+			if s.Status == "healthy" {
+				continue
+			}
+
 			icon := iconForStatus(s.Status)
-			fmt.Fprintf(w, "  %s %-20s %-10s %s (latency: %dms)\n", icon, s.Name, s.Status, s.Message, s.LatencyMs)
+			builder.WriteString(fmt.Sprintf("  %s %-20s %-10s %s (latency: %dms)\n", icon, s.Name, s.Status, s.Message, s.LatencyMs))
 			for k, v := range s.Runtime {
-				fmt.Fprintf(w, "      %s: %v\n", k, v)
+				builder.WriteString(fmt.Sprintf("      %s: %v\n", k, v))
 			}
 		}
+		if builder.Len() > 0 {
+			fmt.Fprintln(w, "Seeds:")
+		}
+		fmt.Fprintln(w, builder.String())
 	}
 }
 
@@ -348,4 +373,44 @@ func pingURL(base string) error {
 		return nil
 	}
 	return fmt.Errorf("status %d", resp.StatusCode)
+}
+
+// isUnhealthyOnlyDueToRAG checks if the server is unhealthy solely because of RAG components
+// Returns true if all non-RAG components are healthy and only RAG components are unhealthy
+func isUnhealthyOnlyDueToRAG(hr *HealthPayload) bool {
+	if hr == nil {
+		return false
+	}
+
+	hasUnhealthyRAG := false
+	hasUnhealthyNonRAG := false
+
+	// Check components
+	for _, component := range hr.Components {
+		isRAGComponent := strings.Contains(strings.ToLower(component.Name), "rag")
+		isHealthy := strings.EqualFold(component.Status, "healthy")
+
+		if isRAGComponent && !isHealthy {
+			hasUnhealthyRAG = true
+		} else if !isRAGComponent && !isHealthy {
+			hasUnhealthyNonRAG = true
+		}
+	}
+
+	// Check seeds as well
+	for _, seed := range hr.Seeds {
+		isRAGComponent := strings.Contains(strings.ToLower(seed.Name), "rag")
+		isHealthy := strings.EqualFold(seed.Status, "healthy")
+
+		if isRAGComponent && !isHealthy {
+			hasUnhealthyRAG = true
+		} else if !isRAGComponent && !isHealthy {
+			hasUnhealthyNonRAG = true
+		}
+	}
+
+	// Server is unhealthy only due to RAG if:
+	// 1. There are unhealthy RAG components, AND
+	// 2. There are NO unhealthy non-RAG components
+	return hasUnhealthyRAG && !hasUnhealthyNonRAG
 }

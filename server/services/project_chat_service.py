@@ -17,7 +17,7 @@ from context_providers.project_chat_context_provider import (
     ProjectChatContextProvider,
 )
 from core.logging import FastAPIStructLogger
-from services.rag_subprocess import search_with_rag
+from services.rag_service import search_with_rag
 
 repo_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(repo_root))

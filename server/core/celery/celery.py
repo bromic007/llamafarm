@@ -17,18 +17,49 @@ _folders = [
 for folder in _folders:
     os.makedirs(folder, exist_ok=True)
 
-app.conf.update(
-    {
-        "broker_url": "filesystem://",
-        "broker_transport_options": {
-            "data_folder_in": f"{settings.lf_data_dir}/broker/in",
-            "data_folder_out": f"{settings.lf_data_dir}/broker/in",  # has to be the same as 'data_folder_in'  # noqa: E501
-            "data_folder_processed": f"{settings.lf_data_dir}/broker/processed",
-        },
-        "result_backend": f"file://{settings.lf_data_dir}/broker/results",
-        "result_persistent": True,
-    }
-)
+# Configure broker based on settings
+if settings.celery_broker_url and settings.celery_result_backend:
+    # Use external broker (Redis, RabbitMQ, etc.)
+    app.conf.update(
+        {
+            "broker_url": settings.celery_broker_url,
+            "result_backend": settings.celery_result_backend,
+            "result_persistent": True,
+            "task_serializer": "json",
+            "accept_content": ["json"],
+            "result_serializer": "json",
+            "timezone": "UTC",
+            "enable_utc": True,
+            # Task routing - only handle server tasks, ignore rag.* tasks
+            "task_routes": {
+                "rag.*": {"queue": "rag"},
+                "core.celery.tasks.*": {"queue": "server"},
+            },
+            # Import server task modules
+            "imports": ("core.celery.tasks.task_process_dataset",),
+        }
+    )
+else:
+    # Use default filesystem broker
+    app.conf.update(
+        {
+            "broker_url": "filesystem://",
+            "broker_transport_options": {
+                "data_folder_in": f"{settings.lf_data_dir}/broker/in",
+                "data_folder_out": f"{settings.lf_data_dir}/broker/in",  # has to be the same as 'data_folder_in'  # noqa: E501
+                "data_folder_processed": f"{settings.lf_data_dir}/broker/processed",
+            },
+            "result_backend": f"file://{settings.lf_data_dir}/broker/results",
+            "result_persistent": True,
+            # Task routing - only handle server tasks, ignore rag.* tasks
+            "task_routes": {
+                "rag.*": {"queue": "rag"},
+                "core.celery.tasks.*": {"queue": "server"},
+            },
+            # Import server task modules
+            "imports": ("core.celery.tasks.task_process_dataset",),
+        }
+    )
 
 
 # Intentionally empty function to prevent Celery from overriding root logger config
@@ -48,7 +79,8 @@ def setup_celery_logging(**kwargs):
 
 
 def run_worker():
-    app.worker_main(argv=["worker", "-P", "solo", "--uid", "0"])
+    # Only consume from the 'celery' queue, not the 'rag' queue
+    app.worker_main(argv=["worker", "-P", "solo", "--uid", "0", "-Q", "server"])
 
 
 t = threading.Thread(target=run_worker, daemon=True)

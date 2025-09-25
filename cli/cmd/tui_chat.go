@@ -53,8 +53,14 @@ func runChatSessionTUI(projectInfo *config.ProjectInfo, serverHealth *HealthPayl
 	m := newChatModel(projectInfo, serverHealth)
 	p := tea.NewProgram(m)
 	m.program = p
+
+	// Enable TUI mode for output routing
+	SetTUIMode(p)
+	defer ClearTUIMode()
+
 	if _, err := p.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error running TUI: %v\n", err)
+		// Use the output API instead of direct stderr write
+		OutputError("Error running TUI: %v\n", err)
 	}
 }
 
@@ -231,9 +237,22 @@ func (m chatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
+		// CRITICAL: Prevent negative viewport height that causes slice bounds panic
+		// Note: headerHeight is now predictable (1 line) due to compact status bar design
+		newHeight := msg.Height - footerHeight - headerHeight
+		if newHeight < 1 {
+			newHeight = 1 // Minimum viable height to prevent panic
+		}
+
 		m.viewport.Width = msg.Width
-		m.textarea.SetWidth(msg.Width - 2)
-		m.viewport.Height = msg.Height - footerHeight - headerHeight
+		m.viewport.Height = newHeight // Now guaranteed positive
+
+		// Also protect textarea width calculation
+		newWidth := msg.Width - 2
+		if newWidth < 10 {
+			newWidth = 10
+		}
+		m.textarea.SetWidth(newWidth)
 		m.width = msg.Width
 
 	case tea.KeyMsg:
@@ -273,7 +292,7 @@ func (m chatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cmd := fields[0]
 				switch cmd {
 				case "/help":
-					m.messages = append(m.messages, ChatMessage{Role: "client", Content: "Commands: /help, /launch designer, clear, exit"})
+					m.messages = append(m.messages, ChatMessage{Role: "client", Content: "Commands: /help, /launch designer, /clear, /exit"})
 					m.textarea.SetValue("")
 				case "/launch":
 					if len(fields) < 2 {
@@ -294,25 +313,20 @@ func (m chatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 					cmds = append(cmds, openURL(m.designerURL))
 					m.textarea.SetValue("")
+				case "/exit", "/quit":
+					m.status = "👋 You have left the pasture. Safe travels, little llama!"
+					return m, tea.Quit
+				case "/clear":
+					m.transcript = ""
+					m.messages = nil
+					m.textarea.SetValue("")
+					m.viewport.SetContent(lipgloss.NewStyle().Width(m.viewport.Width).Render(renderChatContent(m)))
+					m.thinking = false
+					m.printing = false
 				default:
-					m.messages = append(m.messages, ChatMessage{Role: "client", Content: fmt.Sprintf("Unknown command '%s'. Type '/help' for available commands.", cmd)})
+					m.messages = append(m.messages, ChatMessage{Role: "client", Content: fmt.Sprintf("Unknown command '%s'. All commands must start with '/'. Type '/help' for available commands.", cmd)})
 					m.textarea.SetValue("")
 				}
-				break
-			}
-
-			if lower == "exit" || lower == "quit" {
-				m.status = "👋 You have left the pasture. Safe travels, little llama!"
-				return m, tea.Quit
-			}
-
-			if lower == "clear" {
-				m.transcript = ""
-				m.messages = nil
-				m.textarea.SetValue("")
-				m.viewport.SetContent(lipgloss.NewStyle().Width(m.viewport.Width).Render(renderChatContent(m)))
-				m.thinking = false
-				m.printing = false
 				break
 			}
 
@@ -426,6 +440,11 @@ func (m chatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return updateServerHealthCmd(m)()
 			}))
 		}
+
+	case TUIMessageMsg:
+		// Handle output messages routed through the messaging API
+		formattedContent := FormatMessage(msg.Message)
+		m.messages = append(m.messages, ChatMessage{Role: "client", Content: formattedContent})
 	}
 
 	m.transcript = computeTranscript(m)
@@ -536,58 +555,65 @@ func renderChatInput(m chatModel) string {
 }
 
 func renderInfoBar(m chatModel) string {
-	headerW := m.width
-	headerStyle := lipgloss.NewStyle().
-		Width(headerW).
-		Background(lipgloss.Color("#027ffd")).
-		Foreground(lipgloss.AdaptiveColor{Light: "236", Dark: "248"}).
-		PaddingLeft(1)
+	// Compact single-line status bar: 📁 Project: default/llamafarm | Session: 7c727f84 | Status: ✓ | localhost:8000
 
-	// Left/middle parts (already rendered strings)
-	var left string
+	// Project info
+	var project string
 	if m.projectInfo != nil {
-		left = fmt.Sprintf("%s %s/%s", projectPrompt, m.projectInfo.Namespace, m.projectInfo.Project)
+		project = fmt.Sprintf("%s/%s", m.projectInfo.Namespace, m.projectInfo.Project)
 	} else {
-		left = fmt.Sprintf("%s unknown/unknown", projectPrompt)
+		project = "unknown/unknown"
 	}
-	mid := ""
-	if sessionID != "" {
-		mid = fmt.Sprintf(" (%s %s)", sessionPrompt, sessionID)
-	}
-	leftRendered := lipgloss.NewStyle().Render(left + mid)
 
-	// Right (server status)
-	right := fmt.Sprintf("%s %s", iconForStatus(func() string {
+	// Session info (truncate to 8 chars for compactness)
+	var session string
+	if sessionID != "" {
+		if len(sessionID) > 8 {
+			session = sessionID[:8]
+		} else {
+			session = sessionID
+		}
+	} else {
+		session = "none"
+	}
+
+	// Server status (just icon + simple host)
+	statusIcon := iconForStatus(func() string {
 		if m.serverHealth != nil {
 			return m.serverHealth.Status
 		}
 		return "degraded"
-	}()), serverURL)
+	}())
 
-	// If headerStyle has padding/borders, subtract them
-	frameW, _ := headerStyle.GetFrameSize()
-	contentW := headerW - frameW
-
-	// Give the right part the remaining width and align it
-	avail := contentW - lipgloss.Width(leftRendered)
-	if avail < 1 {
-		avail = 1
+	// Extract just the host from serverURL for compactness
+	serverHost := serverURL
+	if strings.HasPrefix(serverHost, "http://") {
+		serverHost = strings.TrimPrefix(serverHost, "http://")
+	} else if strings.HasPrefix(serverHost, "https://") {
+		serverHost = strings.TrimPrefix(serverHost, "https://")
 	}
 
-	rightWithStyle := lipgloss.NewStyle().
-		Background(lipgloss.Color("#141e47")).
+	// Build compact status line
+	statusLine := fmt.Sprintf("📁 Project: %s | Session: %s | Status: %s | %s",
+		project, session, statusIcon, serverHost)
+
+	// Apply single-line styling - simple blue background, no complex layouts
+	style := lipgloss.NewStyle().
+		Width(m.width).
+		Background(lipgloss.Color("#027ffd")).
 		Foreground(lipgloss.Color("#ffffff")).
-		Padding(0, 1).
-		Render(right)
+		PaddingLeft(1).
+		PaddingRight(1)
 
-	rightRendered := lipgloss.NewStyle().
-		Width(avail).
-		Align(lipgloss.Right).
-		Render(rightWithStyle)
+	// Truncate if too long for terminal width
+	if lipgloss.Width(statusLine) > m.width-2 { // -2 for padding
+		maxLen := m.width - 5 // -5 for padding and "..."
+		if maxLen > 0 {
+			statusLine = statusLine[:maxLen] + "..."
+		}
+	}
 
-	// Join and render the full header line
-	line := lipgloss.JoinHorizontal(lipgloss.Top, leftRendered, rightRendered)
-	return headerStyle.Render(line)
+	return style.Render(statusLine)
 }
 
 func (m chatModel) View() string {
