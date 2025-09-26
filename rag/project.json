@@ -3,7 +3,6 @@
   "targets": {
     "start": {
       "executor": "nx:run-commands",
-      "continuous": true,
       "options": {
         "cwd": "{workspaceRoot}/rag",
         "command": "uv run python main.py",
@@ -13,7 +12,7 @@
     "build": {
       "executor": "nx:run-commands",
       "options": {
-        "cwd": "..",
+        "cwd": "{workspaceRoot}",
         "command": "docker build -t llamafarm-rag -f rag/Dockerfile ."
       }
     },

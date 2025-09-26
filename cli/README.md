@@ -89,6 +89,96 @@ lf designer start
 - `help` - Show help information for any command
 - `version` - Print the version number
 - `designer start` - Start the AI designer
+- `datasets` - Manage datasets for RAG
+- `rag` - RAG operations (query, search)
+- `run` - Chat with LLM (with or without RAG)
+
+### Dataset Management Examples
+
+#### Creating and Populating Datasets
+
+```bash
+# Create a new dataset
+lf datasets add my-knowledge-base -s universal_processor -b main_database
+
+# Ingest documents - Directory upload (uploads all files in directory)
+lf datasets ingest my-knowledge-base /path/to/documents/
+
+# Ingest with glob patterns (only specific file types)
+lf datasets ingest my-knowledge-base /path/to/docs/*.pdf
+lf datasets ingest my-knowledge-base /path/to/docs/*.txt
+lf datasets ingest my-knowledge-base /path/to/docs/**/*.md  # All markdown files
+
+# Recursive directory upload using /**/* pattern (includes all subdirectories)
+lf datasets ingest my-knowledge-base "/path/to/project/**/*"
+
+# Mix different sources in one command
+lf datasets ingest my-knowledge-base \
+  ./docs/ \
+  ./research/*.pdf \
+  ./notes/important.txt \
+  "./archive/**/*"
+
+# Process documents into vector database
+lf datasets process my-knowledge-base
+
+# List all datasets
+lf datasets list
+
+# Remove a dataset
+lf datasets remove my-knowledge-base
+```
+
+#### Batch Upload Display
+
+When uploading multiple files, the CLI shows progress with batching:
+
+```
+📦 Uploading batch 1/3 (10 files)
+   ✅ Uploaded: document1.pdf
+   ✅ Uploaded: document2.txt
+   ...
+
+📦 Uploading batch 2/3 (10 files)
+   ✅ Uploaded: report1.md
+   ❌ Failed: corrupted.pdf (unsupported format)
+   ...
+
+📊 Final Summary:
+   Total files: 25
+   ✅ Successful: 24
+   ❌ Failed: 1
+```
+
+### RAG Query Examples
+
+```bash
+# Basic query
+lf rag query --database main_database "What is the main topic?"
+
+# Query with custom parameters
+lf rag query --database main_database --top-k 5 "Explain the process"
+lf rag query --database main_database --score-threshold 0.8 "Best practices"
+
+# Query with specific strategy
+lf rag query --database main_database --retrieval-strategy filtered_search "Recent updates"
+```
+
+### Chat Examples
+
+```bash
+# Chat with RAG augmentation (default)
+lf run --database main_database "What does our documentation say about X?"
+
+# Chat without RAG (LLM only)
+lf run --no-rag "Explain quantum computing"
+
+# Chat with debug information
+lf run --database main_database --debug "How does the system work?"
+
+# Use specific model
+lf run --model gpt-4 "Write a haiku about coding"
+```
 
 ### Command Structure
 

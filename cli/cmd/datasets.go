@@ -282,15 +282,28 @@ var datasetsRemoveCmd = &cobra.Command{
 	},
 }
 
+
 // datasetsIngestCmd represents the datasets ingest command
 var datasetsIngestCmd = &cobra.Command{
-	Use:   "ingest [dataset-name] [file1] [file2] ...",
-	Short: "Upload files to a dataset on the server",
-	Long: `Uploads one or more files to the specified dataset on the LlamaFarm server.
+	Use:   "ingest [dataset-name] [file1] [file2] [dir/] ...",
+	Short: "Upload files or directories to a dataset on the server",
+	Long: `Uploads one or more files or directories to the specified dataset on the LlamaFarm server.
+
+Supports:
+  - Single files: ./file.pdf
+  - Multiple files: file1.txt file2.md
+  - Glob patterns: *.pdf, docs/*.txt
+  - Directories: ./docs/ (files in directory only)
+  - Recursive patterns: ./docs/**/*.txt (includes subdirectories)
+  - Mixed: ./docs/ *.pdf specific.txt
 
 Examples:
   lf datasets ingest my-docs ./docs/file1.pdf ./docs/file2.txt
-  lf datasets ingest my-docs ./pdfs/*.pdf`,
+  lf datasets ingest my-docs ./pdfs/*.pdf
+  lf datasets ingest my-docs ./documents/              # All files in directory only
+  lf datasets ingest my-docs ./documents/**/*          # Include all files in subdirectories
+  lf datasets ingest my-docs ./docs/**/*.pdf           # All PDFs in docs and subdirectories
+  lf datasets ingest my-docs ./docs/ *.pdf README.md   # Mixed sources`,
 	Args: cobra.MinimumNArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
 		// Start config watcher for this command
@@ -304,33 +317,66 @@ Examples:
 
 		datasetName := args[0]
 		inPaths := args[1:]
-		var files []string
-		for _, p := range inPaths {
-			matches, err := filepath.Glob(p)
-			if err != nil || len(matches) == 0 {
-				files = append(files, p)
-				continue
-			}
-			files = append(files, matches...)
-		}
-		if len(files) == 0 {
-			fmt.Fprintf(os.Stderr, "No files to upload.\n")
+
+		// Expand all paths to get actual files
+		fmt.Println("Expanding paths to find files...")
+		files, err := expandPathsToFiles(inPaths)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error expanding paths: %v\n", err)
 			os.Exit(1)
 		}
 
+		if len(files) == 0 {
+			fmt.Fprintf(os.Stderr, "No files found to upload.\n")
+			os.Exit(1)
+		}
+
+		fmt.Printf("Found %d files to upload\n", len(files))
+
 		// Ensure server is up
 		ensureServerAvailable(serverCfg.URL, true)
-		fmt.Printf("Starting upload to dataset '%s' (%d file(s))...\n", datasetName, len(files))
+
+		// Upload in batches with progress display
+		const batchSize = 10
+		totalBatches := (len(files) + batchSize - 1) / batchSize
+
 		uploaded := 0
-		for _, f := range files {
-			if err := uploadFileToDataset(serverCfg.URL, serverCfg.Namespace, serverCfg.Project, datasetName, f); err != nil {
-				fmt.Fprintf(os.Stderr, "   ⚠️  Failed to upload '%s': %v\n", f, err)
-				continue
+		failed := 0
+
+		for batchNum := 0; batchNum < totalBatches; batchNum++ {
+			start := batchNum * batchSize
+			end := start + batchSize
+			if end > len(files) {
+				end = len(files)
 			}
-			fmt.Printf("   📤 Uploaded: %s\n", f)
-			uploaded++
+
+			batchFiles := files[start:end]
+			fmt.Printf("\n📦 Uploading batch %d/%d (%d files)\n", batchNum+1, totalBatches, len(batchFiles))
+
+			for _, f := range batchFiles {
+				relPath := f
+				// Try to show relative path for cleaner output
+				if cwd, err := os.Getwd(); err == nil {
+					if rel, err := filepath.Rel(cwd, f); err == nil && !strings.HasPrefix(rel, "..") {
+						relPath = rel
+					}
+				}
+
+				if err := uploadFileToDataset(serverCfg.URL, serverCfg.Namespace, serverCfg.Project, datasetName, f); err != nil {
+					fmt.Fprintf(os.Stderr, "   ❌ Failed: %s (%v)\n", relPath, err)
+					failed++
+					continue
+				}
+				fmt.Printf("   ✅ Uploaded: %s\n", relPath)
+				uploaded++
+			}
 		}
-		fmt.Printf("Done. Uploaded %d/%d file(s).\n", uploaded, len(files))
+
+		// Final summary
+		fmt.Printf("\n📊 Final Summary:\n")
+		fmt.Printf("   Total files: %d\n", len(files))
+		fmt.Printf("   ✅ Successful: %d\n", uploaded)
+		fmt.Printf("   ❌ Failed: %d\n", failed)
 	},
 }
 
@@ -561,6 +607,7 @@ func init() {
 	datasetsAddCmd.MarkFlagRequired("data-processing-strategy")
 	datasetsAddCmd.MarkFlagRequired("database")
 
+
 	// Add subcommands to datasets
 	datasetsCmd.AddCommand(datasetsListCmd)
 	datasetsCmd.AddCommand(datasetsAddCmd)
@@ -652,6 +699,161 @@ func validateStrategiesAndDatabases(serverURL, namespace, project, dataProcessin
 	}
 
 	return nil
+}
+
+// isGlobPattern checks if a path contains glob metacharacters
+func isGlobPattern(path string) bool {
+	// Check for standard glob metacharacters used by filepath.Glob
+	return strings.ContainsAny(path, "*?[")
+}
+
+// recursiveGlob expands patterns with '**' to match files recursively
+func recursiveGlob(pattern string) ([]string, error) {
+	var matches []string
+
+	// Check if pattern contains **
+	if !strings.Contains(pattern, "**") {
+		// No ** pattern, use standard glob
+		return filepath.Glob(pattern)
+	}
+
+	// Split pattern at first **
+	parts := strings.Split(pattern, "**")
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("invalid pattern: only one ** supported per pattern")
+	}
+
+	basePath := parts[0]
+	remainingPattern := parts[1]
+
+	// Remove trailing slash from base path if present
+	basePath = strings.TrimSuffix(basePath, "/")
+	if basePath == "" {
+		basePath = "."
+	}
+
+	// Remove leading slash from remaining pattern if present
+	remainingPattern = strings.TrimPrefix(remainingPattern, "/")
+
+	// Walk the directory tree starting from basePath
+	err := filepath.Walk(basePath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			// Skip directories we can't access
+			return nil
+		}
+
+		// Skip directories unless remaining pattern is empty (meaning we want all files)
+		if info.IsDir() && remainingPattern != "" {
+			return nil
+		}
+
+		// If remaining pattern is empty, match all files
+		if remainingPattern == "" || remainingPattern == "*" {
+			if !info.IsDir() {
+				matches = append(matches, path)
+			}
+			return nil
+		}
+
+		// For patterns like "*.txt", we need to match against the filename
+		// For patterns like "subdir/*.txt", we need to match against the relative path
+		var matchTarget string
+		if strings.Contains(remainingPattern, "/") {
+			// Pattern contains path separators, match against relative path
+			relPath, err := filepath.Rel(basePath, path)
+			if err != nil {
+				return nil
+			}
+			matchTarget = relPath
+		} else {
+			// Pattern is just a filename pattern, match against the filename only
+			matchTarget = filepath.Base(path)
+		}
+
+		// Match against the remaining pattern
+		matched, err := filepath.Match(remainingPattern, matchTarget)
+		if err != nil {
+			return nil
+		}
+
+		if matched && !info.IsDir() {
+			matches = append(matches, path)
+		}
+
+		return nil
+	})
+
+	return matches, err
+}
+
+// expandPathsToFiles expands paths (files, directories, globs) to a list of actual files
+// Use ** glob patterns for recursive directory traversal (e.g., "docs/**/*.txt")
+func expandPathsToFiles(paths []string) ([]string, error) {
+	var allFiles []string
+	seen := make(map[string]bool) // Track files to avoid duplicates
+
+	for _, p := range paths {
+		// First check if it's a glob pattern
+		if isGlobPattern(p) {
+			matches, err := recursiveGlob(p)
+			if err != nil {
+				return nil, fmt.Errorf("error processing glob pattern '%s': %v", p, err)
+			}
+			for _, match := range matches {
+				info, err := os.Stat(match)
+				if err != nil {
+					continue // Skip files we can't stat
+				}
+				if !info.IsDir() {
+					absPath, _ := filepath.Abs(match)
+					if !seen[absPath] {
+						seen[absPath] = true
+						allFiles = append(allFiles, match)
+					}
+				}
+			}
+			continue
+		}
+
+		// Check if path exists
+		info, err := os.Stat(p)
+		if err != nil {
+			if os.IsNotExist(err) {
+				fmt.Printf("⚠️  Warning: Path does not exist: %s\n", p)
+				continue
+			}
+			return nil, fmt.Errorf("error accessing path '%s': %v", p, err)
+		}
+
+		// If it's a file, add it
+		if !info.IsDir() {
+			absPath, _ := filepath.Abs(p)
+			if !seen[absPath] {
+				seen[absPath] = true
+				allFiles = append(allFiles, p)
+			}
+			continue
+		}
+
+		// It's a directory - read files in directory only (non-recursive)
+		// For recursive traversal, users should use ** glob patterns like "dir/**/*"
+		entries, err := os.ReadDir(p)
+		if err != nil {
+			return nil, fmt.Errorf("error reading directory '%s': %v", p, err)
+		}
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				fullPath := filepath.Join(p, entry.Name())
+				absPath, _ := filepath.Abs(fullPath)
+				if !seen[absPath] {
+					seen[absPath] = true
+					allFiles = append(allFiles, fullPath)
+				}
+			}
+		}
+	}
+
+	return allFiles, nil
 }
 
 func uploadFileToDataset(server string, namespace string, project string, dataset string, path string) error {
