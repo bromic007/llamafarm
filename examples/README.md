@@ -4,6 +4,31 @@ Clean, practical examples demonstrating LlamaFarm CLI capabilities.
 
 ## Available Examples
 
+### 🏛️ Raleigh UDO RAG (`gov_rag/`)
+A municipal-planning walkthrough using Raleigh's Unified Development Ordinance.
+
+**Quick Start:**
+```bash
+./examples/gov_rag/update_config.sh
+./examples/gov_rag/run_example.sh
+```
+
+Learn more in `examples/gov_rag/README.md`.
+
+### 🏥 FDA Correspondence RAG (`fda_rag/`)
+A focused workflow for ingesting FDA correspondence PDFs and chatting over them.
+
+**Quick Start:**
+```bash
+# Apply the example config (backs up your current llamafarm.yaml)
+./examples/fda_rag/update_config.sh
+
+# Run ingestion + sample questions
+./examples/fda_rag/run_example.sh
+```
+
+Learn more in `examples/fda_rag/README.md`.
+
 ### 📚 RAG Pipeline (`rag_pipeline/`)
 A complete example of the Retrieval-Augmented Generation pipeline showing:
 - Document ingestion using CLI commands
