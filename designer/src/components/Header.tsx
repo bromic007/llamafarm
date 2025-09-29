@@ -320,6 +320,15 @@ function Header() {
               <FontIcon type="moon-filled" className="w-4 h-4" />
             </button>
           </div>
+          {/* Version pill on Home only */}
+          {isHomeLike ? (
+            <span className="hidden sm:inline-flex items-center rounded-full border border-input text-foreground text-xs h-7 px-2.5">
+              {/* value injected in Home banner below header; fallback here via data-attr */}
+              <span id="lf-version-pill" className="font-mono">
+                v0.0.0
+              </span>
+            </span>
+          ) : null}
         </div>
       </div>
       {/* Modal is rendered by ProjectModalRoot in App */}
