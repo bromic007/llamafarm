@@ -18,6 +18,7 @@ import {
 import { getCurrentNamespace } from '../utils/namespaceUtils'
 import { getProjectsList } from '../utils/projectConstants'
 import { useQueryClient } from '@tanstack/react-query'
+import { VersionDetailsDialog } from './common/VersionDetailsDialog'
 import { projectKeys } from '../hooks/useProjects'
 
 function Header() {
@@ -294,6 +295,25 @@ function Header() {
         )}
 
         <div className="flex items-center gap-3 justify-end absolute right-4 top-1/2 -translate-y-1/2">
+          {/* Version pill on Home only - place to the left of the theme toggle */}
+          {isHomeLike ? (
+            <button
+              className="hidden sm:inline-flex items-center rounded-full border border-input text-foreground text-xs h-7 px-2.5"
+              onClick={() => {
+                try {
+                  // Toggle dialog via DOM event for simplicity
+                  window.dispatchEvent(
+                    new CustomEvent('lf_toggle_version_dialog')
+                  )
+                } catch {}
+              }}
+              title="Version details"
+            >
+              <span id="lf-version-pill" className="font-mono">
+                v0.0.0
+              </span>
+            </button>
+          ) : null}
           <div className="flex rounded-lg overflow-hidden border border-border">
             <button
               className={`w-8 h-7 flex items-center justify-center transition-colors ${
@@ -320,20 +340,30 @@ function Header() {
               <FontIcon type="moon-filled" className="w-4 h-4" />
             </button>
           </div>
-          {/* Version pill on Home only */}
-          {isHomeLike ? (
-            <span className="hidden sm:inline-flex items-center rounded-full border border-input text-foreground text-xs h-7 px-2.5">
-              {/* value injected in Home banner below header; fallback here via data-attr */}
-              <span id="lf-version-pill" className="font-mono">
-                v0.0.0
-              </span>
-            </span>
-          ) : null}
         </div>
       </div>
+      {/* Version dialog mounted at header scope */}
+      <VersionDetailsDialogMount />
       {/* Modal is rendered by ProjectModalRoot in App */}
     </header>
   )
+}
+
+function VersionDetailsDialogMount() {
+  const [open, setOpen] = useState(false)
+  useEffect(() => {
+    const handler = () => setOpen(prev => !prev)
+    window.addEventListener(
+      'lf_toggle_version_dialog',
+      handler as EventListener
+    )
+    return () =>
+      window.removeEventListener(
+        'lf_toggle_version_dialog',
+        handler as EventListener
+      )
+  }, [])
+  return <VersionDetailsDialog open={open} onOpenChange={setOpen} />
 }
 
 export default Header

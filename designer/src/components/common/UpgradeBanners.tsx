@@ -8,12 +8,13 @@ export function HomeUpgradeBanner() {
     isDismissedFor,
     dismiss,
     releasesUrl,
+    _dismissCounter,
   } = useUpgradeAvailability()
 
   const shouldShow = useMemo(() => {
     if (!upgradeAvailable) return false
     return !isDismissedFor('home')
-  }, [upgradeAvailable, isDismissedFor])
+  }, [upgradeAvailable, isDismissedFor, _dismissCounter])
 
   if (!shouldShow || !latestVersion) return null
 
@@ -64,12 +65,13 @@ export function ProjectUpgradeBanner() {
     isDismissedFor,
     dismiss,
     releasesUrl,
+    _dismissCounter,
   } = useUpgradeAvailability()
 
   const shouldShow = useMemo(() => {
     if (!upgradeAvailable) return false
     return !isDismissedFor('project')
-  }, [upgradeAvailable, isDismissedFor])
+  }, [upgradeAvailable, isDismissedFor, _dismissCounter])
 
   if (!shouldShow || !latestVersion) return null
 

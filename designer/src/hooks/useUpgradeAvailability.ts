@@ -22,6 +22,7 @@ export function useUpgradeAvailability() {
     getStoredLatestRelease()
   )
   const [isLoading, setIsLoading] = useState(false)
+  const [dismissCounter, setDismissCounter] = useState(0)
 
   useEffect(() => {
     const abort = new AbortController()
@@ -57,9 +58,26 @@ export function useUpgradeAvailability() {
   const dismiss = (ctx: DismissContext) => {
     if (!latestVersion) return
     setDismissed(latestVersion, ctx, true)
+    // trigger re-render for consumers so banners hide immediately
+    setDismissCounter(c => c + 1)
   }
 
   const releasesUrl = info?.htmlUrl || getGithubReleasesUrl()
+
+  const refreshLatest = async () => {
+    const abort = new AbortController()
+    try {
+      setIsLoading(true)
+      const latest = await fetchLatestReleaseFromGithub(abort.signal)
+      if (latest && latest.latestVersion) {
+        storeLatestRelease(latest)
+        setCache({ info: latest, checkedAt: Date.now() })
+      }
+    } finally {
+      setIsLoading(false)
+      abort.abort()
+    }
+  }
 
   return {
     isLoading,
@@ -69,5 +87,8 @@ export function useUpgradeAvailability() {
     releasesUrl,
     isDismissedFor,
     dismiss,
+    refreshLatest,
+    // expose to allow optional subscriptions; not used outside
+    _dismissCounter: dismissCounter,
   }
 }
