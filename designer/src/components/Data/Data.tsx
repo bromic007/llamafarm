@@ -80,47 +80,32 @@ const Data = () => {
         id: dataset.name,
         name: dataset.name,
         // No rag_strategy on datasets; server provides data_processing_strategy/database
-        files: (dataset as any).files,
+        files: Array.isArray((dataset as any).details?.files_metadata)
+          ? (dataset as any).details.files_metadata
+          : (dataset as any).files,
         lastRun: new Date(),
         embedModel: 'text-embedding-3-large',
         // Estimate chunk count numerically for display
-        numChunks: Array.isArray((dataset as any).files)
+        numChunks: Array.isArray((dataset as any).details?.files_metadata)
           ? Math.max(
               0,
-              (Array.isArray((dataset as any).files)
-                ? (dataset as any).files.length
-                : 0) * 100
+              ((dataset as any).details.files_metadata.length || 0) * 100
             )
-          : 0,
+          : Array.isArray((dataset as any).files)
+            ? Math.max(
+                0,
+                (Array.isArray((dataset as any).files)
+                  ? (dataset as any).files.length
+                  : 0) * 100
+              )
+            : 0,
         processedPercent: 100,
         version: 'v1',
         description: '',
       }))
 
-      // Merge any locally created demo datasets (e.g., offline imports) without duplicating API items
-      try {
-        const stored = localStorage.getItem('lf_demo_datasets')
-        const localArr: any[] = stored ? JSON.parse(stored) : []
-        const apiIds = new Set(apiList.map(d => d.id))
-        const localAsUi = Array.isArray(localArr)
-          ? localArr
-              .filter(d => !apiIds.has(d.id))
-              .map(d => ({
-                id: d.id,
-                name: d.name,
-                files: d.files || [],
-                lastRun: new Date(d.lastRun || Date.now()),
-                embedModel: d.embedModel || 'text-embedding-3-large',
-                numChunks: d.numChunks ?? 0,
-                processedPercent: d.processedPercent ?? 0,
-                version: d.version || 'v1',
-                description: d.description || 'Local dataset',
-              }))
-          : []
-        return [...apiList, ...localAsUi]
-      } catch {
-        return apiList
-      }
+      // Return only API datasets when available
+      return apiList
     }
 
     // Demo fallback datasets to populate the grid when API has none

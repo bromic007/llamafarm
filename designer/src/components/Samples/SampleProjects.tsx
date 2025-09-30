@@ -2,13 +2,18 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import FontIcon from '../../common/FontIcon'
 import { sampleProjects, SampleProject } from '../../data/sampleProjects'
+import {
+  useExamples,
+  useImportExampleProject,
+  useImportExampleData,
+} from '../../hooks/useExamples'
 import SampleCard from './SampleCard'
 import SamplePreviewModal from './SamplePreviewModal'
 import ImportSampleProjectModal from './ImportSampleProjectModal'
 import ImportSampleDataModal from './ImportSampleDataModal'
 import { useProjectModalContext } from '../../contexts/ProjectModalContext'
 import { useToast } from '../ui/toast'
-import { useCreateProject } from '../../hooks/useProjects'
+// import { useCreateProject } from '../../hooks/useProjects'
 import { getCurrentNamespace } from '../../utils/namespaceUtils'
 import { setActiveProject } from '../../utils/projectUtils'
 import { useProjects } from '../../hooks/useProjects'
@@ -18,9 +23,12 @@ function SampleProjects() {
   const navigate = useNavigate()
   const projectModal = useProjectModalContext()
   const { toast } = useToast()
-  const createProjectMutation = useCreateProject()
+  // Retained for offline fallback, but not used in server-backed import flows
+  // const createProjectMutation = useCreateProject()
   const namespace = getCurrentNamespace()
   const { data: projectsResponse } = useProjects(namespace)
+  const importProject = useImportExampleProject()
+  const importData = useImportExampleData()
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<SampleProject | null>(null)
   const [open, setOpen] = useState(false)
@@ -31,6 +39,7 @@ function SampleProjects() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [modelFilter, setModelFilter] = useState<'all' | string>('all')
   const [itemsToShow, setItemsToShow] = useState(12)
+  const { data: examplesData } = useExamples()
 
   // Cycle sort: first click desc, second asc, third off
   const cycleSort = (key: 'projectSize' | 'dataSize') => {
@@ -80,23 +89,45 @@ function SampleProjects() {
     return value * Math.pow(1024, pow)
   }
 
+  const exampleProjects: SampleProject[] = useMemo(() => {
+    const ex = examplesData?.examples || []
+    return ex.map(e => ({
+      id: e.id,
+      slug: e.slug || e.id,
+      title: e.title,
+      description: e.description || '',
+      updatedAt: new Date().toISOString(),
+      downloadSize: '-',
+      dataSize: '-',
+      primaryModel: e.primaryModel,
+      models: e.primaryModel ? [e.primaryModel] : [],
+      tags: e.tags,
+      datasetCount: (e as any).dataset_count ?? undefined,
+    }))
+  }, [examplesData])
+
+  const allProjects = useMemo(() => {
+    // Prefer dynamic examples first; fall back to local list if server empty
+    return exampleProjects.length > 0 ? exampleProjects : sampleProjects
+  }, [exampleProjects])
+
   const uniqueModels = useMemo(() => {
     const set = new Set<string>()
-    sampleProjects.forEach(p => p.primaryModel && set.add(p.primaryModel))
+    allProjects.forEach(p => p.primaryModel && set.add(p.primaryModel))
     return Array.from(set)
-  }, [])
+  }, [allProjects])
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase()
     let base = term
-      ? sampleProjects.filter(p => {
+      ? allProjects.filter(p => {
           const inTitle = p.title.toLowerCase().includes(term)
           const inTags = (p.tags || []).some(t =>
             t.toLowerCase().includes(term)
           )
           return inTitle || inTags
         })
-      : sampleProjects
+      : allProjects
 
     if (modelFilter !== 'all') {
       base = base.filter(
@@ -119,7 +150,7 @@ function SampleProjects() {
     }
 
     return base.slice(0, itemsToShow)
-  }, [search, modelFilter, sortKey, sortDir, itemsToShow])
+  }, [search, modelFilter, sortKey, sortDir, itemsToShow, allProjects])
 
   const existingProjects = useMemo(
     () => getProjectsList(projectsResponse),
@@ -276,13 +307,14 @@ function SampleProjects() {
         open={open}
         sample={selected}
         onOpenChange={setOpen}
-        onImportProject={() => {
+        onImportProject={sp => {
+          setSelected(sp)
           setOpen(false)
           setImportOpen(true)
         }}
         onImportData={sp => {
+          setSelected(sp)
           setOpen(false)
-          toast({ message: `Import data from: ${sp.title}` })
           setDataOpen(true)
         }}
       />
@@ -296,9 +328,13 @@ function SampleProjects() {
         onSubmit={async ({ name }) => {
           try {
             setImporting(true)
-            await createProjectMutation.mutateAsync({
+            if (!selected) throw new Error('No sample selected')
+            // Call server to import full project from manifest
+            await importProject.mutateAsync({
+              exampleId: selected.id,
               namespace,
-              request: { name, config_template: 'default' },
+              name,
+              process: true,
             })
             setActiveProject(name)
             try {
@@ -356,32 +392,29 @@ function SampleProjects() {
         onSubmit={async payload => {
           try {
             setImporting(true)
+            if (!selected) throw new Error('No sample selected')
+            const targetProjectName = payload.name
+
             if (payload.target === 'new') {
-              await createProjectMutation.mutateAsync({
+              // Create and import data in one go using server import
+              await importProject.mutateAsync({
+                exampleId: selected.id,
                 namespace,
-                request: { name: payload.name, config_template: 'default' },
+                name: targetProjectName,
+                process: true,
               })
-              // For now we just navigate; future: trigger data import task
-              try {
-                const raw = localStorage.getItem('lf_custom_projects')
-                const arr: string[] = raw ? JSON.parse(raw) : []
-                if (!arr.includes(payload.name)) {
-                  localStorage.setItem(
-                    'lf_custom_projects',
-                    JSON.stringify([...arr, payload.name])
-                  )
-                }
-              } catch (storageErr) {
-                console.warn(
-                  'Failed to persist custom project to localStorage for data import',
-                  storageErr
-                )
-              }
-              setActiveProject(payload.name)
-              toast({ message: `Project "${payload.name}" created` })
             } else {
-              setActiveProject(payload.name)
+              // Import data into existing project
+              await importData.mutateAsync({
+                exampleId: selected.id,
+                namespace,
+                project: targetProjectName,
+                include_strategies: payload.includeStrategies,
+                process: true,
+              })
             }
+
+            setActiveProject(targetProjectName)
             setDataOpen(false)
             toast({
               message: payload.includeStrategies
