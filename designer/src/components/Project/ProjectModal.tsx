@@ -40,6 +40,7 @@ const ProjectModal: React.FC<ProjectModalProps> = ({
     if (isOpen) {
       setName(initialName)
       setDesc(initialDescription)
+      setConfirmingDelete(false)
     }
   }, [isOpen, initialName, initialDescription])
 
@@ -79,6 +80,7 @@ const ProjectModal: React.FC<ProjectModalProps> = ({
 
   const handleOpenChange = (open: boolean) => {
     if (!open) {
+      setConfirmingDelete(false)
       onClose()
     }
   }

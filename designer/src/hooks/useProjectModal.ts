@@ -294,6 +294,22 @@ export const useProjectModal = ({
         queryClient.removeQueries({
           queryKey: projectKeys.detail(namespace, nameToDelete),
         })
+        // Optimistically remove from list cache
+        const prev = queryClient.getQueryData(projectKeys.list(namespace)) as
+          | { total?: number; projects?: Project[] }
+          | undefined
+        if (prev?.projects) {
+          const nextProjects = prev.projects.filter(
+            p => p.name !== nameToDelete
+          )
+          queryClient.setQueryData(projectKeys.list(namespace), {
+            total: Math.max(
+              prev.total ?? nextProjects.length,
+              nextProjects.length
+            ),
+            projects: nextProjects,
+          })
+        }
         queryClient.invalidateQueries({ queryKey: projectKeys.list(namespace) })
 
         // Update local fallback list
@@ -314,8 +330,18 @@ export const useProjectModal = ({
       } catch {}
 
       toast({ message: `Project "${nameToDelete}" deleted` })
+      try {
+        window.dispatchEvent(
+          new CustomEvent<string>('lf-project-deleted', {
+            detail: nameToDelete,
+          })
+        )
+      } catch {}
       closeModal()
       onSuccess?.('', 'edit') // Empty name indicates deletion
+      try {
+        navigate('/')
+      } catch {}
     } catch (error: any) {
       console.error('Failed to delete project:', error)
 

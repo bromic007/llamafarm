@@ -33,6 +33,8 @@ function Home() {
 
   const [search, setSearch] = useState('')
   const [isCreatingProject, setIsCreatingProject] = useState(false)
+  const [loadingMsgIndex, setLoadingMsgIndex] = useState(0)
+  const [fakeProgress, setFakeProgress] = useState(0)
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
@@ -64,6 +66,37 @@ function Home() {
   }, [projectsList, search])
 
   // No-op: pills removed
+
+  const loadingMessages = [
+    'Creating project…',
+    'Saddling up the llama…',
+    'Packing prompts in the saddlebag…',
+    'Fluffing the retrieval fleece…',
+    'Warming the stable for your model…',
+    'Trotting to the chat pasture…',
+  ]
+
+  useEffect(() => {
+    if (!isCreatingProject) {
+      setLoadingMsgIndex(0)
+      setFakeProgress(0)
+      return
+    }
+    const msgTimer = setInterval(() => {
+      setLoadingMsgIndex(i => (i + 1) % loadingMessages.length)
+    }, 2800)
+    const progTimer = setInterval(() => {
+      setFakeProgress(p => {
+        if (p >= 95) return 95
+        const inc = Math.floor(1 + Math.random() * 3)
+        return Math.min(p + inc, 95)
+      })
+    }, 180)
+    return () => {
+      clearInterval(msgTimer)
+      clearInterval(progTimer)
+    }
+  }, [isCreatingProject])
 
   const summarizeWhatToSlug = (text: string): string => {
     const stopwords = new Set([
@@ -161,6 +194,7 @@ function Home() {
     audience.trim().length > 0
 
   const handleCreateProject = async () => {
+    const MIN_LOADING_MS = 3000
     // Autogenerate project name from "what" or generic fallback
     const baseFromWhat = summarizeWhatToSlug(what || goals || audience || '')
     let desiredName = sanitizeProjectName(baseFromWhat).replace(/\s+/g, '-')
@@ -174,6 +208,7 @@ function Home() {
     }
 
     setIsCreatingProject(true)
+    const startedAt = performance.now()
     try {
       // 1) Create the project
       const created = await projectService.createProject(namespace, {
@@ -228,6 +263,14 @@ function Home() {
           )
         }
       } catch {}
+      // Ensure the fun loading overlay is visible for at least MIN_LOADING_MS
+      const elapsed = performance.now() - startedAt
+      if (elapsed < MIN_LOADING_MS) {
+        await new Promise(resolve =>
+          setTimeout(resolve, MIN_LOADING_MS - elapsed)
+        )
+      }
+
       const initialMessage = composeInitialMessage()
       const encoded = encodeMessageForUrl(initialMessage)
       navigate(`/chat/dashboard?initialMessage=${encoded}`)
@@ -282,6 +325,17 @@ function Home() {
     } catch {}
   }, [])
 
+  // React to project deletions fired from the modal to update UI immediately
+  useEffect(() => {
+    const onDeleted = () => {
+      // Invalidate local derived list by forcing a refilter
+      setSearch(s => s + '')
+    }
+    window.addEventListener('lf-project-deleted' as any, onDeleted as any)
+    return () =>
+      window.removeEventListener('lf-project-deleted' as any, onDeleted as any)
+  }, [])
+
   return (
     <div className="min-h-screen flex flex-col items-stretch px-4 sm:px-6 lg:px-8 pt-24 md:pt-28 pb-8 bg-background">
       <div className="max-w-4xl w-full mx-auto text-center space-y-8">
@@ -295,7 +349,7 @@ function Home() {
           </h1>
         </div>
         <div id="home-create-form" className="max-w-3xl mx-auto">
-          <div className="rounded-lg border p-4 sm:p-5 bg-card border-input shadow-sm">
+          <div className="rounded-lg border p-4 sm:p-5 bg-card border-input shadow-sm relative">
             <div className="grid gap-4 text-left">
               <div className="grid gap-2.5">
                 <Label htmlFor="what">What are you building?</Label>
@@ -388,6 +442,35 @@ function Home() {
                 </button>
               </div>
             </div>
+
+            {isCreatingProject && (
+              <div className="absolute inset-0 rounded-lg bg-background/70 backdrop-blur-[2px] flex flex-col items-center justify-center gap-4">
+                <div className="w-9 h-9 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                <div className="text-sm font-serif text-foreground text-center px-4">
+                  {loadingMessages[loadingMsgIndex]}
+                </div>
+                <div className="w-56 h-2 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full bg-primary/70 transition-all duration-200"
+                    style={{ width: `${fakeProgress}%` }}
+                  />
+                </div>
+                <div className="flex items-center gap-1 mt-1">
+                  <span
+                    className="w-2 h-2 rounded-full bg-primary animate-bounce"
+                    style={{ animationDelay: '0ms' }}
+                  />
+                  <span
+                    className="w-2 h-2 rounded-full bg-primary animate-bounce"
+                    style={{ animationDelay: '150ms' }}
+                  />
+                  <span
+                    className="w-2 h-2 rounded-full bg-primary animate-bounce"
+                    style={{ animationDelay: '300ms' }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
