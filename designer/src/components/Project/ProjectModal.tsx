@@ -34,6 +34,7 @@ const ProjectModal: React.FC<ProjectModalProps> = ({
 }) => {
   const [name, setName] = useState(initialName)
   const [desc, setDesc] = useState(initialDescription)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
 
   useEffect(() => {
     if (isOpen) {
@@ -62,8 +63,12 @@ const ProjectModal: React.FC<ProjectModalProps> = ({
 
   const handleDelete = () => {
     if (!onDelete) return
-    const ok = confirm('Are you sure you want to delete this project?')
-    if (ok) onDelete()
+    setConfirmingDelete(true)
+  }
+
+  const handleConfirmDelete = () => {
+    if (!onDelete) return
+    onDelete()
   }
 
   const handleCancel = (e: React.MouseEvent) => {
@@ -129,16 +134,38 @@ const ProjectModal: React.FC<ProjectModalProps> = ({
           </div>
         </div>
 
-        <DialogFooter className="flex items-center justify-between gap-2">
+        <DialogFooter className="flex items-center justify-between sm:justify-between gap-2">
           {mode === 'edit' ? (
-            <button
-              className="px-3 py-2 rounded-md bg-destructive text-destructive-foreground hover:opacity-90 text-sm disabled:opacity-50"
-              onClick={handleDelete}
-              disabled={isLoading}
-              type="button"
-            >
-              {isLoading ? 'Deleting...' : 'Delete'}
-            </button>
+            confirmingDelete ? (
+              <div className="flex items-center gap-2">
+                <span className="text-sm">Delete this project?</span>
+                <button
+                  className="px-3 py-2 rounded-md text-sm text-primary hover:underline disabled:opacity-50"
+                  onClick={() => setConfirmingDelete(false)}
+                  disabled={isLoading}
+                  type="button"
+                >
+                  Keep
+                </button>
+                <button
+                  className="px-3 py-2 rounded-md bg-destructive text-destructive-foreground hover:opacity-90 text-sm disabled:opacity-50"
+                  onClick={handleConfirmDelete}
+                  disabled={isLoading}
+                  type="button"
+                >
+                  Confirm delete
+                </button>
+              </div>
+            ) : (
+              <button
+                className="px-3 py-2 rounded-md bg-destructive text-destructive-foreground hover:opacity-90 text-sm disabled:opacity-50"
+                onClick={handleDelete}
+                disabled={isLoading}
+                type="button"
+              >
+                Delete
+              </button>
+            )
           ) : (
             <div />
           )}

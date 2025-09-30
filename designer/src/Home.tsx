@@ -3,32 +3,42 @@ import { useNavigate } from 'react-router-dom'
 // removed decorative llama image
 import FontIcon from './common/FontIcon'
 // Modal rendered globally in App
-import { useProjects } from './hooks/useProjects'
+import { useProjects, projectKeys } from './hooks/useProjects'
+import { useQueryClient } from '@tanstack/react-query'
 import { useProjectModalContext } from './contexts/ProjectModalContext'
 import {
   filterProjectsBySearch,
   getProjectsList,
 } from './utils/projectConstants'
 import { getCurrentNamespace } from './utils/namespaceUtils'
-import { 
-  createProjectFromChat, 
-  encodeMessageForUrl 
-} from './utils/homePageUtils'
+import { encodeMessageForUrl } from './utils/homePageUtils'
+import projectService from './api/projectService'
+import { mergeProjectConfig } from './utils/projectConfigUtils'
+import {
+  sanitizeProjectName,
+  checkForDuplicateName,
+} from './utils/projectValidation'
+import { Label } from './components/ui/label'
+import { Input } from './components/ui/input'
+import { Textarea } from './components/ui/textarea'
 
 function Home() {
-  const [inputValue, setInputValue] = useState('')
+  // Form state
+  const [what, setWhat] = useState('')
+  const [goals, setGoals] = useState('')
+  const [audience, setAudience] = useState('')
+  const [deployment, setDeployment] = useState<'local' | 'cloud' | 'unsure'>(
+    'local'
+  )
+
   const [search, setSearch] = useState('')
   const [isCreatingProject, setIsCreatingProject] = useState(false)
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
   // Enhanced chat functionality for project creation
 
-  const projectOptions = [
-    { id: 1, text: 'AI Agent for Enterprise Product' },
-    { id: 2, text: 'AI-Powered Chatbot for Customer Support' },
-    { id: 3, text: 'AI Model for Predicting Equipment Failures' },
-    { id: 4, text: 'Recommendation System for E-commerce' },
-  ]
+  // Removed quick-pick pills to keep the form minimal
 
   const namespace = getCurrentNamespace()
 
@@ -44,6 +54,8 @@ function Home() {
   // Shared modal hook
   const projectModal = useProjectModalContext()
 
+  // create-form scroll handler no longer used (buttons removed)
+
   const filteredProjectNames = useMemo(() => {
     return filterProjectsBySearch(
       projectsList.map(name => ({ name })),
@@ -51,42 +63,179 @@ function Home() {
     ).map(item => item.name)
   }, [projectsList, search])
 
-  const handleOptionClick = (option: { id: number; text: string }) => {
-    setInputValue(option.text)
+  // No-op: pills removed
+
+  const summarizeWhatToSlug = (text: string): string => {
+    const stopwords = new Set([
+      'the',
+      'a',
+      'an',
+      'and',
+      'or',
+      'for',
+      'to',
+      'with',
+      'of',
+      'on',
+      'in',
+      'into',
+      'by',
+      'from',
+      'about',
+      'this',
+      'that',
+      'these',
+      'those',
+      'is',
+      'am',
+      'are',
+      'be',
+      'being',
+      'been',
+      'it',
+      'its',
+      'my',
+      'our',
+      'your',
+      'their',
+      'his',
+      'her',
+      'as',
+      'at',
+      'we',
+      'i',
+      'you',
+      'they',
+      'what',
+      'which',
+      'who',
+      'whom',
+      'will',
+      'can',
+      'could',
+      'should',
+      'would',
+      'may',
+      'might',
+      'just',
+      'like',
+      'make',
+      'makes',
+      'made',
+      'build',
+      'building',
+      'create',
+      'creating',
+      'new',
+      'project',
+    ])
+    const tokens = text
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .filter(Boolean)
+      .filter(t => t.length > 2 && !stopwords.has(t))
+    const unique: string[] = []
+    for (const t of tokens) {
+      if (!unique.includes(t)) unique.push(t)
+    }
+    const picked = unique.slice(0, 3)
+    return picked.join('-') || 'project'
   }
 
-  const handleSendClick = async () => {
-    const messageContent = inputValue.trim()
+  const composeInitialMessage = (): string => {
+    const parts: string[] = []
+    if (what.trim()) parts.push(`What: ${what.trim()}`)
+    if (goals.trim()) parts.push(`Goals: ${goals.trim()}`)
+    if (audience.trim()) parts.push(`Users: ${audience.trim()}`)
+    if (deployment)
+      parts.push(
+        `Deployment: ${deployment === 'local' ? 'Local machine' : deployment === 'cloud' ? 'Cloud' : 'Not sure'}`
+      )
+    return parts.join('\n')
+  }
 
-    // Validate message for project creation
-    if (!messageContent || messageContent.length < 3) {
-      console.warn('Message too short for project creation:', messageContent)
-      return
+  const hasAnyInput =
+    what.trim().length > 0 ||
+    goals.trim().length > 0 ||
+    audience.trim().length > 0
+
+  const handleCreateProject = async () => {
+    // Autogenerate project name from "what" or generic fallback
+    const baseFromWhat = summarizeWhatToSlug(what || goals || audience || '')
+    let desiredName = sanitizeProjectName(baseFromWhat).replace(/\s+/g, '-')
+
+    // Ensure uniqueness optimistically against current list
+    let finalName = desiredName
+    const allNames = projectsList
+    if (checkForDuplicateName(finalName, allNames)) {
+      const suffix = Date.now().toString().slice(-3)
+      finalName = `${finalName}-${suffix}`
     }
 
     setIsCreatingProject(true)
-    
     try {
-      
-      // 1. Create the project using the existing API
-      const { projectName } = await createProjectFromChat(messageContent)
-      
-      
-      // 2. Set the active project (using existing localStorage mechanism)
-      localStorage.setItem('activeProject', projectName)
-      
-      // 3. Navigate to the new project with the message as a URL parameter
-      // This allows the project page to pick up the conversation
-      const encodedMessage = encodeMessageForUrl(messageContent)
-      navigate(`/chat/dashboard?initialMessage=${encodedMessage}`)
-      
-      // Clear input on successful creation
-      setInputValue('')
-      
+      // 1) Create the project
+      const created = await projectService.createProject(namespace, {
+        name: finalName,
+        config_template: 'default',
+      })
+
+      // 2) Save brief answers into config
+      const brief = {
+        what: what || undefined,
+        goals: goals || undefined,
+        audience: audience || undefined,
+        deployment,
+      }
+      const mergedConfig = mergeProjectConfig(created.project.config || {}, {
+        project_brief: brief,
+      })
+      try {
+        await projectService.updateProject(namespace, created.project.name, {
+          config: mergedConfig,
+        })
+      } catch (e) {
+        // Non-blocking if update fails; user can edit later
+        console.warn('Failed to persist project_brief; continuing', e)
+      }
+
+      // 3) Activate and navigate with initial message
+      localStorage.setItem('activeProject', created.project.name)
+      // Optimistically update caches so it appears in dropdowns/lists immediately
+      try {
+        queryClient.setQueryData(
+          projectKeys.detail(namespace, created.project.name),
+          {
+            project: {
+              namespace,
+              name: created.project.name,
+              config: mergedConfig,
+            },
+          }
+        )
+        queryClient.invalidateQueries({ queryKey: projectKeys.list(namespace) })
+      } catch {}
+
+      // Also persist in local fallback list used elsewhere
+      try {
+        const raw = localStorage.getItem('lf_custom_projects')
+        const arr: string[] = raw ? JSON.parse(raw) : []
+        if (!arr.includes(created.project.name)) {
+          localStorage.setItem(
+            'lf_custom_projects',
+            JSON.stringify([...arr, created.project.name])
+          )
+        }
+      } catch {}
+      const initialMessage = composeInitialMessage()
+      const encoded = encodeMessageForUrl(initialMessage)
+      navigate(`/chat/dashboard?initialMessage=${encoded}`)
     } catch (error) {
-      console.error('❌ Failed to create project from chat:', error)
-      // Show error to user - you might want to add a toast notification here
-      alert(`Failed to create project: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      console.error('❌ Failed to create project:', error)
+      alert(
+        `Failed to create project: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
     } finally {
       setIsCreatingProject(false)
     }
@@ -113,6 +262,11 @@ function Home() {
         el?.scrollIntoView({ behavior: 'smooth' })
         usedState = true
       }
+      if (state?.scrollTo === 'home-create-form') {
+        // Scroll to the top to ensure the header and title are visible
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+        usedState = true
+      }
       // Clear the one-time state so the modal doesn't immediately re-open after closing
       if (usedState) {
         navigate('.', { replace: true, state: undefined as any })
@@ -137,96 +291,111 @@ function Home() {
           </p>
 
           <h1 className="font-serif text-2xl sm:text-3xl lg:text-4xl font-normal leading-tight text-foreground">
-            What are you building?
+            Tell us about your new project
           </h1>
         </div>
-        <div className="max-w-3xl mx-auto">
-          <div className="backdrop-blur-sm rounded-lg border-2 p-1 relative bg-card/90 border-input shadow-lg focus-within:border-primary transition-colors">
-            <textarea
-              value={inputValue}
-              onChange={e => setInputValue(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  handleSendClick()
-                }
-              }}
-              className="w-full h-24 sm:h-28 bg-transparent border-none resize-none p-4 pr-12 placeholder-opacity-60 focus:outline-none focus:ring-0 font-sans text-sm sm:text-base leading-relaxed text-foreground placeholder-foreground/50"
-              placeholder={
-                isCreatingProject 
-                  ? "Creating your project..." 
-                  : "I'm building an agent that will work with my app..."
-              }
-              disabled={isCreatingProject}
-            />
-            <button
-              onClick={handleSendClick}
-              disabled={isCreatingProject || !inputValue.trim()}
-              className="absolute bottom-2 right-2 p-0 bg-transparent text-primary hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-              aria-label={
-                isCreatingProject 
-                  ? 'Creating project...' 
-                  : inputValue.trim() 
-                    ? 'Create project and start chat' 
-                    : 'Enter a message to create project'
-              }
-            >
-              {isCreatingProject ? (
-                <div className="w-6 h-6 flex items-center justify-center">
-                  <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        <div id="home-create-form" className="max-w-3xl mx-auto">
+          <div className="rounded-lg border p-4 sm:p-5 bg-card border-input shadow-sm">
+            <div className="grid gap-4 text-left">
+              <div className="grid gap-2.5">
+                <Label htmlFor="what">What are you building?</Label>
+                <Textarea
+                  id="what"
+                  value={what}
+                  onChange={e => setWhat(e.target.value)}
+                  placeholder="A customer support chatbot, inventory system, data dashboard..."
+                  className="min-h-[72px]"
+                  disabled={isCreatingProject}
+                />
+              </div>
+
+              <div className="grid gap-2.5">
+                <Label htmlFor="goals">What do you hope to achieve?</Label>
+                <Textarea
+                  id="goals"
+                  value={goals}
+                  onChange={e => setGoals(e.target.value)}
+                  placeholder="Reduce response times, automate tasks, improve satisfaction..."
+                  className="min-h-[72px]"
+                  disabled={isCreatingProject}
+                />
+              </div>
+
+              <div className="grid gap-2.5">
+                <Label htmlFor="audience">Who will use this?</Label>
+                <Input
+                  id="audience"
+                  value={audience}
+                  onChange={e => setAudience(e.target.value)}
+                  placeholder="Support team, end customers, internal employees..."
+                  disabled={isCreatingProject}
+                />
+              </div>
+
+              <div className="grid gap-2.5">
+                <Label>Where do you plan to deploy this?</Label>
+                <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+                  <label className="inline-flex items-center gap-2 rounded-md border border-input bg-card px-3 py-2 hover:bg-accent/20">
+                    <input
+                      type="radio"
+                      name="deploy"
+                      className="h-4 w-4"
+                      checked={deployment === 'local'}
+                      onChange={() => setDeployment('local')}
+                      disabled={isCreatingProject}
+                    />
+                    <span className="text-sm">Local machine</span>
+                  </label>
+                  <label className="inline-flex items-center gap-2 rounded-md border border-input bg-card px-3 py-2 hover:bg-accent/20">
+                    <input
+                      type="radio"
+                      name="deploy"
+                      className="h-4 w-4"
+                      checked={deployment === 'cloud'}
+                      onChange={() => setDeployment('cloud')}
+                      disabled={isCreatingProject}
+                    />
+                    <span className="text-sm">Cloud</span>
+                  </label>
+                  <label className="inline-flex items-center gap-2 rounded-md border border-input bg-card px-3 py-2 hover:bg-accent/20">
+                    <input
+                      type="radio"
+                      name="deploy"
+                      className="h-4 w-4"
+                      checked={deployment === 'unsure'}
+                      onChange={() => setDeployment('unsure')}
+                      disabled={isCreatingProject}
+                    />
+                    <span className="text-sm">Not sure</span>
+                  </label>
                 </div>
-              ) : (
-                <FontIcon type="arrow-filled" className="w-6 h-6 text-primary" />
-              )}
-            </button>
+              </div>
+
+              <div className="flex justify-end pt-1">
+                <button
+                  onClick={handleCreateProject}
+                  disabled={isCreatingProject || !hasAnyInput}
+                  className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label={
+                    isCreatingProject
+                      ? 'Creating project...'
+                      : hasAnyInput
+                        ? 'Create new project'
+                        : 'Fill at least one field to create a project'
+                  }
+                >
+                  {isCreatingProject ? 'Creating…' : 'Create new project'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
-        <p className="max-w-2xl mx-auto text-sm sm:text-base leading-relaxed text-foreground/80">
-          {isCreatingProject ? (
-            "Creating your project and setting up the chat environment..."
-          ) : (
-            "Describe what you're building and we'll create a project for you to start chatting about it right away."
-          )}
+        <p className="max-w-2xl mx-auto text-xs sm:text-sm leading-relaxed text-foreground/80">
+          {isCreatingProject
+            ? 'Creating your project and setting up the chat environment...'
+            : 'Provide at least one detail above (what, goals, or users) to create your project.'}
         </p>
-
-        {/* Project option buttons */}
-        <div className="max-w-4xl mx-auto space-y-4">
-          {/* First row - stacks on mobile */}
-          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
-            <button
-              onClick={() => handleOptionClick(projectOptions[0])}
-              className="px-4 py-2 backdrop-blur-sm rounded-full border font-serif text-sm sm:text-base transition-all duration-200 whitespace-nowrap bg-card/60 border-input text-foreground hover:bg-card/80"
-            >
-              {projectOptions[0].text}
-            </button>
-
-            <button
-              onClick={() => handleOptionClick(projectOptions[1])}
-              className="px-4 py-2 backdrop-blur-sm rounded-full border font-serif text-sm sm:text-base transition-all duration-200 whitespace-nowrap bg-card/60 border-input text-foreground hover:bg-card/80"
-            >
-              {projectOptions[1].text}
-            </button>
-          </div>
-
-          {/* Second row */}
-          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
-            <button
-              onClick={() => handleOptionClick(projectOptions[2])}
-              className="px-4 py-2 backdrop-blur-sm rounded-full border font-serif text-sm sm:text-base transition-all duration-200 whitespace-nowrap bg-card/60 border-input text-foreground hover:bg-card/80"
-            >
-              {projectOptions[2].text}
-            </button>
-
-            <button
-              onClick={() => handleOptionClick(projectOptions[3])}
-              className="px-4 py-2 backdrop-blur-sm rounded-full border font-serif text-sm sm:text-base transition-all duration-200 whitespace-nowrap bg-card/60 border-input text-foreground hover:bg-card/80"
-            >
-              {projectOptions[3].text}
-            </button>
-          </div>
-        </div>
-
         {/* Your projects removed here to place outside the narrow container */}
       </div>
 
@@ -244,12 +413,7 @@ function Home() {
             >
               Explore sample projects
             </button>
-            <button
-              className="px-3 py-2 rounded-lg bg-primary text-primary-foreground hover:opacity-90"
-              onClick={projectModal.openCreateModal}
-            >
-              New project
-            </button>
+            {/* New project button removed per design */}
           </div>
         </div>
         {/* Controls for small screens */}
@@ -260,12 +424,7 @@ function Home() {
           >
             Explore sample projects
           </button>
-          <button
-            className="px-3 py-2 rounded-lg bg-primary text-primary-foreground hover:opacity-90"
-            onClick={projectModal.openCreateModal}
-          >
-            New project
-          </button>
+          {/* New project button removed per design */}
         </div>
 
         {/* Search */}
@@ -283,12 +442,14 @@ function Home() {
           {filteredProjectNames.map(name => (
             <div
               key={name}
-              className="group w-full rounded-lg p-4 bg-card border border-border cursor-pointer"
+              className="group w-full rounded-lg p-4 bg-card border border-border cursor-pointer flex flex-col"
               onClick={() => openProject(name)}
             >
               <div className="flex items-start justify-between">
-                <div className="flex flex-col">
-                  <div className="text-base text-foreground">{name}</div>
+                <div className="flex flex-col flex-1 min-w-0">
+                  <div className="text-base text-foreground line-clamp-2 break-words">
+                    {name}
+                  </div>
                   <div className="mt-3">
                     <span className="text-xs text-primary-foreground bg-primary rounded-xl px-3 py-0.5">
                       TinyLama
@@ -298,9 +459,12 @@ function Home() {
                     Last edited on N/A
                   </div>
                 </div>
-                <FontIcon type="arrow-right" className="w-5 h-5 text-primary" />
+                <FontIcon
+                  type="arrow-right"
+                  className="w-5 h-5 text-primary shrink-0 ml-2"
+                />
               </div>
-              <div className="mt-4 flex justify-end">
+              <div className="mt-auto pt-4 flex justify-end">
                 <button
                   className="flex items-center gap-1 text-primary hover:opacity-80"
                   onClick={e => {

@@ -99,10 +99,10 @@ export const useProjectModal = ({
 
   // Actions
   const openCreateModal = () => {
-    setModalMode('create')
-    setProjectName('')
-    setProjectError(null)
-    setIsModalOpen(true)
+    // Redirect to Home and scroll to the creation form instead of opening a modal
+    try {
+      navigate('/', { state: { scrollTo: 'home-create-form' } })
+    } catch {}
   }
 
   const openEditModal = (name: string) => {
@@ -145,7 +145,9 @@ export const useProjectModal = ({
     }
 
     try {
-      toast({ message: `Creating "${sanitizedName}"...` })
+      toast({
+        message: `${modalMode === 'create' ? 'Creating' : 'Saving'} "${sanitizedName}"...`,
+      })
       if (modalMode === 'create') {
         await createProjectMutation.mutateAsync({
           namespace,
@@ -193,27 +195,71 @@ export const useProjectModal = ({
           return
         }
 
-        // Update the config with the new name while preserving all other properties
-        const updatedConfig = mergeProjectConfig(currentProject.config, {
-          name: sanitizedName,
-          namespace: namespace,
-        })
+        const oldName = projectName
+        const newName = sanitizedName
 
-        // Basic validation (backend will do detailed validation)
-        if (!validateProjectConfig(updatedConfig)) {
-          setProjectError('Invalid project configuration')
+        if (newName === oldName) {
+          // No rename; nothing to do
+          closeModal()
+          onSuccess?.(newName, 'edit')
           return
         }
 
-        await updateProjectMutation.mutateAsync({
+        // Rename semantics: create new project with copied config then delete old
+        // 1) Create new project
+        await createProjectMutation.mutateAsync({
           namespace,
-          projectId: projectName,
-          request: { config: updatedConfig },
+          request: { name: newName, config_template: 'default' },
         })
 
-        setActiveProject(sanitizedName)
+        // 2) Copy config and persist to new project
+        const copiedConfig = mergeProjectConfig(currentProject.config, {
+          name: newName,
+          namespace,
+        })
+        if (!validateProjectConfig(copiedConfig)) {
+          setProjectError('Invalid project configuration')
+          return
+        }
+        await updateProjectMutation.mutateAsync({
+          namespace,
+          projectId: newName,
+          request: { config: copiedConfig },
+        })
+
+        // 3) Delete old project
+        try {
+          await deleteProjectMutation.mutateAsync({
+            namespace,
+            projectId: oldName,
+          })
+        } catch (e) {
+          // Non-blocking; old project may linger if delete fails
+          console.warn('Rename: failed to delete old project', e)
+        }
+
+        // Update caches and fallback list so UI reflects the rename
+        try {
+          queryClient.setQueryData(projectKeys.detail(namespace, newName), {
+            project: { namespace, name: newName, config: copiedConfig },
+          })
+          queryClient.removeQueries({
+            queryKey: projectKeys.detail(namespace, oldName),
+          })
+          queryClient.invalidateQueries({
+            queryKey: projectKeys.list(namespace),
+          })
+
+          const raw = localStorage.getItem('lf_custom_projects')
+          const arr: string[] = raw ? JSON.parse(raw) : []
+          const withoutOld = arr.filter(n => n !== oldName)
+          if (!withoutOld.includes(newName)) withoutOld.push(newName)
+          localStorage.setItem('lf_custom_projects', JSON.stringify(withoutOld))
+        } catch {}
+
+        setActiveProject(newName)
         closeModal()
-        onSuccess?.(sanitizedName, 'edit')
+        onSuccess?.(newName, 'edit')
       }
     } catch (error: any) {
       console.error(`Failed to ${modalMode} project:`, error)
@@ -236,11 +282,38 @@ export const useProjectModal = ({
     if (modalMode !== 'edit') return
 
     try {
+      const nameToDelete = projectName
       await deleteProjectMutation.mutateAsync({
         namespace,
-        projectId: projectName,
+        projectId: nameToDelete,
       })
 
+      // Update caches and local lists
+      try {
+        // Remove detail cache for deleted project and refresh list
+        queryClient.removeQueries({
+          queryKey: projectKeys.detail(namespace, nameToDelete),
+        })
+        queryClient.invalidateQueries({ queryKey: projectKeys.list(namespace) })
+
+        // Update local fallback list
+        const raw = localStorage.getItem('lf_custom_projects')
+        const arr: string[] = raw ? JSON.parse(raw) : []
+        const filtered = arr.filter(n => n !== nameToDelete)
+        localStorage.setItem('lf_custom_projects', JSON.stringify(filtered))
+
+        // If the deleted project was active, clear it
+        const active = localStorage.getItem('activeProject')
+        if (active === nameToDelete) {
+          localStorage.removeItem('activeProject')
+          // notify listeners
+          window.dispatchEvent(
+            new CustomEvent<string>('lf-active-project', { detail: '' })
+          )
+        }
+      } catch {}
+
+      toast({ message: `Project "${nameToDelete}" deleted` })
       closeModal()
       onSuccess?.('', 'edit') // Empty name indicates deletion
     } catch (error: any) {
