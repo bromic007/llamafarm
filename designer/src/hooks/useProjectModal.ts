@@ -53,7 +53,10 @@ export interface UseProjectModalReturn {
   closeModal: () => void
 
   // CRUD operations
-  saveProject: (name: string) => Promise<void>
+  saveProject: (
+    name: string,
+    details?: { brief: { what: string; goals: string; audience: string } }
+  ) => Promise<void>
   deleteProject: () => Promise<void>
 
   // Validation
@@ -136,7 +139,10 @@ export const useProjectModal = ({
   }
 
   // Save project (create or update)
-  const saveProject = async (name: string): Promise<void> => {
+  const saveProject = async (
+    name: string,
+    details?: { brief: { what: string; goals: string; audience: string } }
+  ): Promise<void> => {
     const sanitizedName = sanitizeProjectName(name)
 
     // Validate name
@@ -199,9 +205,43 @@ export const useProjectModal = ({
         const newName = sanitizedName
 
         if (newName === oldName) {
-          // No rename; nothing to do
-          closeModal()
-          onSuccess?.(newName, 'edit')
+          // Update details on same project (no rename)
+          try {
+            const updates: Record<string, any> = {}
+            if (details) {
+              if (details.brief) {
+                updates.project_brief = {
+                  what: details.brief.what || '',
+                  goals: details.brief.goals || '',
+                  audience: details.brief.audience || '',
+                }
+              }
+            }
+            if (Object.keys(updates).length > 0) {
+              const mergedConfig = mergeProjectConfig(
+                currentProject.config,
+                updates
+              )
+              await updateProjectMutation.mutateAsync({
+                namespace,
+                projectId: newName,
+                request: { config: mergedConfig },
+              })
+              // Cache locally as well for resilience
+              try {
+                const briefKey = `lf_project_brief_${namespace}_${newName}`
+                localStorage.setItem(
+                  briefKey,
+                  JSON.stringify(updates.project_brief)
+                )
+              } catch {}
+            }
+            closeModal()
+            onSuccess?.(newName, 'edit')
+          } catch (e) {
+            console.error('Failed to update project details', e)
+            setProjectError('Failed to update project details')
+          }
           return
         }
 
@@ -213,10 +253,23 @@ export const useProjectModal = ({
         })
 
         // 2) Copy config and persist to new project
-        const copiedConfig = mergeProjectConfig(currentProject.config, {
+        const updatesAfterRename: Record<string, any> = {
           name: newName,
           namespace,
-        })
+        }
+        if (details) {
+          if (details.brief) {
+            updatesAfterRename.project_brief = {
+              what: details.brief.what || '',
+              goals: details.brief.goals || '',
+              audience: details.brief.audience || '',
+            }
+          }
+        }
+        const copiedConfig = mergeProjectConfig(
+          currentProject.config,
+          updatesAfterRename
+        )
         if (!validateProjectConfig(copiedConfig)) {
           setProjectError('Invalid project configuration')
           return

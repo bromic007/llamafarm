@@ -235,6 +235,12 @@ function Home() {
         console.warn('Failed to persist project_brief; continuing', e)
       }
 
+      // Also persist brief locally for resilience against schema mismatches or offline use
+      try {
+        const briefKey = `lf_project_brief_${namespace}_${created.project.name}`
+        localStorage.setItem(briefKey, JSON.stringify(brief))
+      } catch {}
+
       // 3) Activate and navigate with initial message
       localStorage.setItem('activeProject', created.project.name)
       // Optimistically update caches so it appears in dropdowns/lists immediately
