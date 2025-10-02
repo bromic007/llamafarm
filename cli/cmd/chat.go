@@ -56,12 +56,9 @@ Examples:
 		// 2) chat <ns>/<proj> --file <path>
 		// 3) chat <input>              (ns/proj inferred from config)
 		// 4) chat --file <path>        (ns/proj inferred from config)
+		// 5) chat
 
 		if len(args) == 0 {
-			// Must at least have input via file
-			if runInputFile == "" {
-				return fmt.Errorf("provide an input string or --file")
-			}
 			return nil
 		}
 
@@ -113,6 +110,12 @@ Examples:
 			}
 		}
 
+		// Start an interactive chat session if no input is provided
+		if input == "" {
+			start(SessionModeProject)
+			return
+		}
+
 		// Parse explicit project if provided
 		if len(args) >= 1 && strings.Contains(args[0], "/") {
 			parts := strings.SplitN(args[0], "/", 2)
@@ -153,7 +156,7 @@ Examples:
 			RAGScoreThreshold:    runRAGScoreThreshold,
 		}
 
-		messages := []ChatMessage{{Role: "user", Content: input}}
+		messages := []Message{{Role: "user", Content: input}}
 
 		if dryRun {
 			if err := printRunCurlCommand(messages, ctx); err != nil {
@@ -191,7 +194,7 @@ func init() {
 	rootCmd.AddCommand(chatCmd)
 }
 
-func printRunCurlCommand(messages []ChatMessage, ctx *ChatSessionContext) error {
+func printRunCurlCommand(messages []Message, ctx *ChatSessionContext) error {
 	curlCmd, err := buildChatCurl(messages, ctx)
 	if err != nil {
 		return err
