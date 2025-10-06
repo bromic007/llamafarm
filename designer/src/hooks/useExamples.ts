@@ -1,5 +1,7 @@
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import apiClient from '../api/client'
+import { datasetKeys } from './useDatasets'
+import { projectKeys } from './useProjects'
 
 type ExampleSummary = {
   id: string
@@ -21,6 +23,7 @@ export function useExamples() {
 }
 
 export function useImportExampleProject() {
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (payload: {
       exampleId: string
@@ -40,10 +43,22 @@ export function useImportExampleProject() {
         task_ids: string[]
       }
     },
+    onSuccess: (data, variables) => {
+      // New project created – refresh projects list and seed its dataset list
+      queryClient.invalidateQueries({
+        queryKey: projectKeys.list(variables.namespace),
+      })
+      if (data?.project) {
+        queryClient.invalidateQueries({
+          queryKey: datasetKeys.list(variables.namespace, data.project),
+        })
+      }
+    },
   })
 }
 
 export function useImportExampleData() {
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (payload: {
       exampleId: string
@@ -63,6 +78,14 @@ export function useImportExampleData() {
         datasets: string[]
         task_ids: string[]
       }
+    },
+    onSuccess: (data, variables) => {
+      // Force-refresh the datasets list for the target project
+      const ns = variables.namespace
+      const pid = variables.project
+      queryClient.invalidateQueries({
+        queryKey: datasetKeys.list(ns, pid),
+      })
     },
   })
 }

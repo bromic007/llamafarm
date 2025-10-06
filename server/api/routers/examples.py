@@ -28,6 +28,11 @@ class ExampleSummary(BaseModel):
     primaryModel: str | None = None
     tags: list[str] = []
     dataset_count: int | None = None
+    data_size_bytes: int | None = None
+    data_size_human: str | None = None
+    project_size_bytes: int | None = None
+    project_size_human: str | None = None
+    updated_at: str | None = None
 
 
 def _repo_root() -> str:
@@ -39,8 +44,21 @@ def _examples_root() -> str:
 
 
 def _scan_manifests() -> list[dict[str, Any]]:
+    def _humanize_size(num_bytes: int) -> str:
+        units = ["B", "KB", "MB", "GB", "TB"]
+        size = float(num_bytes)
+        unit_idx = 0
+        while size >= 1024 and unit_idx < len(units) - 1:
+            size /= 1024.0
+            unit_idx += 1
+        if unit_idx == 0:
+            return f"{int(size)}{units[unit_idx]}"
+        return f"{size:.1f}{units[unit_idx]}"
+
     manifests: list[dict[str, Any]] = []
-    for manifest_path in glob(os.path.join(_examples_root(), "*", "manifest.yaml")):
+    root = _examples_root()
+    # Primary path: directories with manifest.yaml
+    for manifest_path in glob(os.path.join(root, "*", "manifest.yaml")):
         try:
             import yaml
 
@@ -48,7 +66,44 @@ def _scan_manifests() -> list[dict[str, Any]]:
                 m = yaml.safe_load(f) or {}
             if not m.get("id") or not m.get("title"):
                 continue
+            base_dir = os.path.dirname(manifest_path)
             ds_list = m.get("datasets") or []
+
+            # Compute data size by summing files matched by ingest globs
+            data_bytes = 0
+            for ds in ds_list or []:
+                for pattern in ds.get("ingest", []) or []:
+                    abs_glob = _ensure_path_under_examples(os.path.join(_repo_root(), pattern))
+                    for path in glob(abs_glob):
+                        try:
+                            data_bytes += os.path.getsize(path)
+                        except OSError:
+                            pass
+
+            # Project size approximation: manifest + referenced cfg
+            proj_bytes = 0
+            try:
+                proj_bytes += os.path.getsize(manifest_path)
+            except OSError:
+                pass
+            cfg_path = m.get("config", {}).get("yaml_path")
+            if cfg_path:
+                cfg_abs = _ensure_path_under_examples(os.path.join(_repo_root(), cfg_path))
+                try:
+                    proj_bytes += os.path.getsize(cfg_abs)
+                except OSError:
+                    pass
+
+            # Updated at: directory mtime
+            try:
+                updated_at = None
+                dir_mtime = os.path.getmtime(base_dir)
+                import datetime as _dt
+
+                updated_at = _dt.datetime.fromtimestamp(dir_mtime).isoformat()
+            except OSError:
+                updated_at = None
+
             manifests.append(
                 {
                     "id": m.get("id"),
@@ -58,13 +113,99 @@ def _scan_manifests() -> list[dict[str, Any]]:
                     "tags": m.get("tags", []),
                     "primaryModel": m.get("primaryModel"),
                     "dataset_count": len(ds_list) if isinstance(ds_list, list) else None,
+                    "data_size_bytes": data_bytes,
+                    "data_size_human": _humanize_size(data_bytes) if data_bytes else None,
+                    "project_size_bytes": proj_bytes,
+                    "project_size_human": _humanize_size(proj_bytes) if proj_bytes else None,
+                    "updated_at": updated_at,
                 }
             )
         except Exception as e:
             logger.warning("Failed to read example manifest", path=manifest_path, error=str(e))
+
+    # Fallback: directories without manifest but with files/ or llamafarm.yaml
+    for candidate in glob(os.path.join(root, "*")):
+        if not os.path.isdir(candidate):
+            continue
+        manifest_file = os.path.join(candidate, "manifest.yaml")
+        if os.path.exists(manifest_file):
+            continue  # already handled
+        # Identify as example if it has a files directory or a llamafarm config
+        has_files = os.path.isdir(os.path.join(candidate, "files"))
+        cfg_guess = None
+        for name in ["llamafarm.yaml", "llamafarm-example.yaml"]:
+            p = os.path.join(candidate, name)
+            if os.path.exists(p):
+                cfg_guess = p
+                break
+        if not has_files and not cfg_guess:
+            continue
+
+        dir_name = os.path.basename(candidate)
+        # Title-case the dir name as a simple title
+        title = dir_name.replace("-", " ").replace("_", " ").title()
+
+        # Try to infer primary model from config if present
+        inferred_model = None
+        if cfg_guess:
+            try:
+                import yaml as _yaml
+
+                with open(cfg_guess) as f:
+                    cfg = _yaml.safe_load(f) or {}
+                runtime = cfg.get("runtime") or {}
+                inferred_model = runtime.get("model")
+            except Exception:
+                inferred_model = None
+
+        # Data size sum of files under files/
+        data_bytes = 0
+        files_dir = os.path.join(candidate, "files")
+        if os.path.isdir(files_dir):
+            for root_dir, _dirs, files in os.walk(files_dir):
+                for fn in files:
+                    fp = os.path.join(root_dir, fn)
+                    try:
+                        data_bytes += os.path.getsize(fp)
+                    except OSError:
+                        pass
+
+        proj_bytes = 0
+        if cfg_guess:
+            try:
+                proj_bytes += os.path.getsize(cfg_guess)
+            except OSError:
+                pass
+
+        try:
+            import datetime as _dt
+
+            updated_at = _dt.datetime.fromtimestamp(os.path.getmtime(candidate)).isoformat()
+        except OSError:
+            updated_at = None
+
+        manifests.append(
+            {
+                "id": dir_name,
+                "slug": dir_name,
+                "title": title,
+                "description": None,
+                "tags": [],
+                "primaryModel": inferred_model,
+                "dataset_count": None,
+                "data_size_bytes": data_bytes,
+                "data_size_human": _humanize_size(data_bytes) if data_bytes else None,
+                "project_size_bytes": proj_bytes,
+                "project_size_human": _humanize_size(proj_bytes) if proj_bytes else None,
+                "updated_at": updated_at,
+            }
+        )
+
     return manifests
 
 
+# Support both with and without trailing slash to avoid proxy redirect issues
+@router.get("/")
 @router.get("")
 async def list_examples() -> dict[str, list[ExampleSummary]]:
     data = _scan_manifests()

@@ -39,7 +39,12 @@ function SampleProjects() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [modelFilter, setModelFilter] = useState<'all' | string>('all')
   const [itemsToShow, setItemsToShow] = useState(12)
-  const { data: examplesData } = useExamples()
+  const {
+    data: examplesData,
+    isLoading: isExamplesLoading,
+    isError: isExamplesError,
+    refetch: refetchExamples,
+  } = useExamples()
 
   // Cycle sort: first click desc, second asc, third off
   const cycleSort = (key: 'projectSize' | 'dataSize') => {
@@ -91,25 +96,23 @@ function SampleProjects() {
 
   const exampleProjects: SampleProject[] = useMemo(() => {
     const ex = examplesData?.examples || []
-    return ex.map(e => ({
+    return ex.map((e: any) => ({
       id: e.id,
       slug: e.slug || e.id,
       title: e.title,
       description: e.description || '',
-      updatedAt: new Date().toISOString(),
-      downloadSize: '-',
-      dataSize: '-',
+      updatedAt: e.updated_at || new Date().toISOString(),
+      downloadSize: e.project_size_human || '-',
+      dataSize: e.data_size_human || '-',
       primaryModel: e.primaryModel,
       models: e.primaryModel ? [e.primaryModel] : [],
       tags: e.tags,
-      datasetCount: (e as any).dataset_count ?? undefined,
+      datasetCount: e.dataset_count ?? undefined,
     }))
   }, [examplesData])
 
-  const allProjects = useMemo(() => {
-    // Prefer dynamic examples first; fall back to local list if server empty
-    return exampleProjects.length > 0 ? exampleProjects : sampleProjects
-  }, [exampleProjects])
+  // Use only dynamic examples. Do NOT fall back to legacy hardcoded list.
+  const allProjects = useMemo(() => exampleProjects, [exampleProjects])
 
   const uniqueModels = useMemo(() => {
     const set = new Set<string>()
@@ -269,11 +272,48 @@ function SampleProjects() {
         </div>
       </div>
 
-      {/* List */}
+      {/* List / Empty states */}
       <div className="flex flex-col gap-3">
-        {filtered.length === 0 ? (
+        {isExamplesLoading ? (
           <div className="text-sm text-muted-foreground">
-            No sample projects match your search.
+            Loading sample projects…
+          </div>
+        ) : isExamplesError ? (
+          <div className="rounded-lg border border-input bg-card p-6 text-center">
+            <div className="text-foreground font-medium">
+              Could not load sample projects
+            </div>
+            <div className="mt-1 text-sm text-muted-foreground">
+              Make sure the API server is running on localhost:8000 and try
+              again.
+            </div>
+            <div className="mt-4 flex items-center justify-center gap-2">
+              <button
+                type="button"
+                className="px-3 py-2 rounded-md border border-input hover:bg-accent/30"
+                onClick={() => refetchExamples()}
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="rounded-lg border border-input bg-card p-6 text-center">
+            <div className="text-foreground font-medium">
+              No sample projects available
+            </div>
+            <div className="mt-1 text-sm text-muted-foreground">
+              Start the LlamaFarm server or adjust filters, then refresh.
+            </div>
+            <div className="mt-4 flex items-center justify-center gap-2">
+              <button
+                type="button"
+                className="px-3 py-2 rounded-md border border-input hover:bg-accent/30"
+                onClick={() => refetchExamples()}
+              >
+                Refresh
+              </button>
+            </div>
           </div>
         ) : (
           filtered.map(s => (
