@@ -43,7 +43,7 @@ export function useImportExampleProject() {
         task_ids: string[]
       }
     },
-    onSuccess: (data, variables) => {
+    onSuccess: (_data, variables) => {
       // New project created – refresh projects list and seed its dataset list
       queryClient.invalidateQueries({
         queryKey: projectKeys.list(variables.namespace),
@@ -79,7 +79,7 @@ export function useImportExampleData() {
         task_ids: string[]
       }
     },
-    onSuccess: (data, variables) => {
+    onSuccess: (_data, variables) => {
       // Force-refresh the datasets list for the target project
       const ns = variables.namespace
       const pid = variables.project

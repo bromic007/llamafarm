@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import FontIcon from '../../common/FontIcon'
-import { sampleProjects, SampleProject } from '../../data/sampleProjects'
+import { SampleProject } from '../../data/sampleProjects'
 import {
   useExamples,
   useImportExampleProject,
