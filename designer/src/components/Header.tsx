@@ -19,6 +19,7 @@ import { getCurrentNamespace } from '../utils/namespaceUtils'
 import { getProjectsList } from '../utils/projectConstants'
 import { useQueryClient } from '@tanstack/react-query'
 import { VersionDetailsDialog } from './common/VersionDetailsDialog'
+import UpgradeModal from './common/UpgradeModal'
 import { projectKeys } from '../hooks/useProjects'
 
 type HeaderProps = { currentVersion?: string }
@@ -30,6 +31,7 @@ function Header({ currentVersion }: HeaderProps) {
   const isSelected = location.pathname.split('/')[2]
   const { theme, setTheme } = useTheme()
   const [versionDialogOpen, setVersionDialogOpen] = useState(false)
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false)
   const [effectiveVersion, setEffectiveVersion] = useState<string>('0.0.0')
 
   // Project dropdown state
@@ -394,6 +396,14 @@ function Header({ currentVersion }: HeaderProps) {
       <VersionDetailsDialog
         open={versionDialogOpen}
         onOpenChange={setVersionDialogOpen}
+        onRequestUpgrade={() => {
+          setVersionDialogOpen(false)
+          setUpgradeModalOpen(true)
+        }}
+      />
+      <UpgradeModal
+        open={upgradeModalOpen}
+        onOpenChange={setUpgradeModalOpen}
       />
       {/* Modal is rendered by ProjectModalRoot in App */}
     </header>
