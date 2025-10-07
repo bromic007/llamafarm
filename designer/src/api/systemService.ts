@@ -13,6 +13,8 @@ export type VersionCheckResponse = {
   }
 }
 
+// (Avoid adding extra server info APIs in this commit)
+
 export async function getVersionCheck(
   signal?: AbortSignal
 ): Promise<VersionCheckResponse> {

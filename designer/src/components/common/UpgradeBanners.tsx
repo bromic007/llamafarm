@@ -9,7 +9,6 @@ export function HomeUpgradeBanner() {
     latestVersion,
     isDismissedFor,
     dismiss,
-    releasesUrl,
     _dismissCounter,
   } = useUpgradeAvailability()
 
@@ -27,14 +26,6 @@ export function HomeUpgradeBanner() {
           <div className="flex items-center gap-2 text-sm">
             <span className="font-medium">Upgrade available</span>
             <span className="font-mono">v{latestVersion}</span>
-            <a
-              href={releasesUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="text-teal-700 underline dark:text-teal-300"
-            >
-              Details
-            </a>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -66,7 +57,6 @@ export function ProjectUpgradeBanner() {
     latestVersion,
     isDismissedFor,
     dismiss,
-    releasesUrl,
     _dismissCounter,
   } = useUpgradeAvailability()
 

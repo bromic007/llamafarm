@@ -30,6 +30,7 @@ function Header({ currentVersion }: HeaderProps) {
   const isSelected = location.pathname.split('/')[2]
   const { theme, setTheme } = useTheme()
   const [versionDialogOpen, setVersionDialogOpen] = useState(false)
+  const [effectiveVersion, setEffectiveVersion] = useState<string>('0.0.0')
 
   // Project dropdown state
   const [isProjectOpen, setIsProjectOpen] = useState(false)
@@ -56,6 +57,31 @@ function Header({ currentVersion }: HeaderProps) {
     // Show middle nav only on /chat routes
     setIsBuilding(location.pathname.startsWith('/chat'))
   }, [location.pathname])
+
+  // Resolve effective version: prefer injected image tag, then prop
+  useEffect(() => {
+    let alive = true
+    const resolve = async () => {
+      // Prefer image tag from injected ENV (e.g., v0.0.6)
+      try {
+        const env: any = (window as any)?.ENV || {}
+        const tag: string | undefined = env?.VITE_APP_IMAGE_TAG
+        if (tag && typeof tag === 'string' && tag.trim() !== '') {
+          const normalized = tag.startsWith('v') ? tag.slice(1) : tag
+          if (alive) setEffectiveVersion(normalized)
+          return
+        }
+      } catch {}
+
+      // Final fallback to incoming prop
+      const normalized = (currentVersion || '0.0.0').replace(/^v/, '')
+      if (alive) setEffectiveVersion(normalized)
+    }
+    resolve()
+    return () => {
+      alive = false
+    }
+  }, [currentVersion])
 
   // Keep activeProject in sync with localStorage when route changes (e.g., from Projects click)
   useEffect(() => {
@@ -333,7 +359,7 @@ function Header({ currentVersion }: HeaderProps) {
               onClick={() => setVersionDialogOpen(true)}
               title="Version details"
             >
-              <span className="font-mono">v{currentVersion || '0.0.0'}</span>
+              <span className="font-mono">v{effectiveVersion}</span>
             </button>
           ) : null}
           <div className="flex rounded-lg overflow-hidden border border-border">

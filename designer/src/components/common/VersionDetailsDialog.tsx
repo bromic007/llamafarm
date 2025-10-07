@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -24,6 +24,29 @@ export function VersionDetailsDialog({ open, onOpenChange }: Props) {
     releasesUrl,
   } = useUpgradeAvailability()
   const [checking, setChecking] = useState(false)
+  const [effectiveVersion, setEffectiveVersion] = useState<string | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    const run = async () => {
+      try {
+        const env = (window as any)?.ENV || {}
+        const tag =
+          typeof env.VITE_APP_IMAGE_TAG === 'string'
+            ? env.VITE_APP_IMAGE_TAG
+            : null
+        if (tag && alive) {
+          setEffectiveVersion(tag)
+          return
+        }
+      } catch {}
+      if (alive) setEffectiveVersion(null)
+    }
+    run()
+    return () => {
+      alive = false
+    }
+  }, [])
 
   const statusText = useMemo(() => {
     if (checking || isLoading) return 'Checking for updates…'
@@ -51,7 +74,9 @@ export function VersionDetailsDialog({ open, onOpenChange }: Props) {
         <div className="space-y-2 text-sm">
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Current</span>
-            <span className="font-mono text-foreground">v{currentVersion}</span>
+            <span className="font-mono text-foreground">
+              v{effectiveVersion || currentVersion}
+            </span>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Latest</span>

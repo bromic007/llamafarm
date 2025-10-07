@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -7,6 +7,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { useUpgradeAvailability } from '@/hooks/useUpgradeAvailability'
+import { useToast } from '@/components/ui/toast'
 
 type Props = {
   open: boolean
@@ -24,17 +25,54 @@ export function UpgradeModal({ open, onOpenChange }: Props) {
     useUpgradeAvailability()
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
   const [verifying, setVerifying] = useState(false)
+  const { toast } = useToast()
+  const [imageTag, setImageTag] = useState<string | null>(null)
+
+  // Prefer injected image tag if available
+  useEffect(() => {
+    let alive = true
+    const run = async () => {
+      try {
+        const env = (window as any)?.ENV || {}
+        const tag =
+          typeof env.VITE_APP_IMAGE_TAG === 'string'
+            ? env.VITE_APP_IMAGE_TAG
+            : null
+        if (alive) setImageTag(tag)
+      } catch {}
+    }
+    run()
+    return () => {
+      alive = false
+    }
+  }, [])
 
   const commands = useMemo(() => {
     const os = detectOS()
+    const tag = (() => {
+      if (latestVersion && latestVersion.trim() !== '')
+        return `v${latestVersion}`
+      if (imageTag && imageTag.trim() !== '')
+        return imageTag.startsWith('v') ? imageTag : `v${imageTag}`
+      return currentVersion && currentVersion.trim() !== ''
+        ? `v${currentVersion}`
+        : 'v0.0.0'
+    })()
+
     const cli: { label: string; cmd: string }[] = []
     if (os === 'mac_linux') {
-      cli.push({ label: 'Upgrade CLI', cmd: 'lf version upgrade' })
+      cli.push({
+        label: 'One-liner (CLI + services)',
+        cmd: `lf version upgrade ${tag} && docker rm -f llamafarm-server llamafarm-rag llamafarm-designer 2>/dev/null || true; LF_IMAGE_TAG=${tag} lf start; docker run -d --restart unless-stopped --name llamafarm-designer -p 7724:80 ghcr.io/llama-farm/llamafarm/designer:${tag}`,
+      })
     } else {
-      cli.push({ label: 'Upgrade CLI', cmd: 'winget install LlamaFarm.CLI' })
+      cli.push({
+        label: 'One-liner (CLI + services)',
+        cmd: `winget install LlamaFarm.CLI && set TAG=${tag} && docker rm -f llamafarm-server llamafarm-rag llamafarm-designer 2>NUL || ver>NUL && set LF_IMAGE_TAG=%TAG% && lf start && docker run -d --restart unless-stopped --name llamafarm-designer -p 7724:80 ghcr.io/llama-farm/llamafarm/designer:%TAG%`,
+      })
     }
     return { os, cli }
-  }, [])
+  }, [latestVersion, imageTag, currentVersion])
 
   const copy = async (text: string, idx: number) => {
     try {
@@ -48,6 +86,11 @@ export function UpgradeModal({ open, onOpenChange }: Props) {
     setVerifying(true)
     try {
       await refreshLatest()
+      const cli = (imageTag as string) || currentVersion || 'unknown'
+      const current = latestVersion ? `Latest release: v${latestVersion}` : ''
+      toast({
+        message: `Verified. CLI: ${cli}${current ? ` · ${current}` : ''}`,
+      })
     } finally {
       setVerifying(false)
     }
@@ -63,7 +106,7 @@ export function UpgradeModal({ open, onOpenChange }: Props) {
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground">Current</span>
-              <span className="font-mono">v{currentVersion}</span>
+              <span className="font-mono">v{imageTag || currentVersion}</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground">Latest</span>
