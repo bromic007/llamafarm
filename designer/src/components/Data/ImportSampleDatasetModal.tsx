@@ -104,13 +104,13 @@ function ImportSampleDatasetModal({ open, onOpenChange, onImport }: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="sm:max-w-3xl -translate-y-[50%] md:-translate-y-[55%]"
+        className="sm:max-w-3xl -translate-y-[50%] md:-translate-y-[55%] h-[100dvh] sm:h-auto max-h-[100vh] md:max-h-[85vh] overflow-hidden flex flex-col"
         onOpenAutoFocus={e => e.preventDefault()}
       >
         <DialogHeader>
           <DialogTitle>Import sample dataset</DialogTitle>
         </DialogHeader>
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 flex-1 overflow-auto">
           <Input
             value={search}
             onChange={e => setSearch(e.target.value)}
@@ -145,7 +145,7 @@ function ImportSampleDatasetModal({ open, onOpenChange, onImport }: Props) {
             ))}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 min-h-[40vh] max-h-[50vh] overflow-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 min-h-[40vh]">
             {filtered.length === 0 ? (
               <div className="col-span-full text-sm text-muted-foreground p-2">
                 No datasets match your search.
@@ -185,8 +185,9 @@ function ImportSampleDatasetModal({ open, onOpenChange, onImport }: Props) {
               })
             )}
           </div>
-
-          <div className="flex items-center justify-between mt-2">
+        </div>
+        <DialogFooter className="sticky bottom-0 bg-card pt-2 flex-col gap-3">
+          <div className="flex items-center justify-between w-full">
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -202,27 +203,32 @@ function ImportSampleDatasetModal({ open, onOpenChange, onImport }: Props) {
               </div>
             ) : null}
           </div>
-        </div>
-        <DialogFooter>
-          <Button variant="secondary" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button
-            disabled={!selectedObj}
-            onClick={() => {
-              if (!selectedObj) return
-              const rag = includeStrategy
-                ? selectedObj.defaultStrategy
-                : 'default'
-              onImport({
-                name: selectedObj.name,
-                rag_strategy: rag,
-                sourceProjectId: selectedObj.projectId,
-              })
-            }}
-          >
-            Import
-          </Button>
+          <div className="flex flex-col sm:flex-row sm:justify-end gap-2 w-full">
+            <Button
+              variant="secondary"
+              onClick={() => onOpenChange(false)}
+              className="w-full sm:w-auto"
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={!selectedObj}
+              onClick={() => {
+                if (!selectedObj) return
+                const rag = includeStrategy
+                  ? selectedObj.defaultStrategy
+                  : 'default'
+                onImport({
+                  name: selectedObj.name,
+                  rag_strategy: rag,
+                  sourceProjectId: selectedObj.projectId,
+                })
+              }}
+              className="w-full sm:w-auto"
+            >
+              Import
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -476,8 +476,8 @@ function RetrievalMethod() {
         <>
           {/* Strategy summary card */}
           <section className="rounded-lg border border-border bg-card p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div className="flex-1 min-w-0 order-1 sm:order-none">
                 <div className="text-xs text-muted-foreground mb-1">
                   Current strategy
                 </div>
@@ -488,7 +488,7 @@ function RetrievalMethod() {
                   {STRATEGY_DESCRIPTIONS[selectedStrategy]}
                 </div>
               </div>
-              <div className="ml-3 shrink-0 flex items-center gap-3">
+              <div className="ml-0 sm:ml-3 shrink-0 flex items-center gap-3 w-full sm:w-auto order-2">
                 {strategyId
                   ? (() => {
                       const list = getRetrievals()
@@ -516,6 +516,7 @@ function RetrievalMethod() {
                   variant="outline"
                   size="sm"
                   onClick={() => setIsChangeOpen(true)}
+                  className="ml-auto sm:ml-0"
                 >
                   Change
                 </Button>
