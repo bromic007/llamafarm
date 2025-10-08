@@ -153,7 +153,7 @@ function Header({ currentVersion }: HeaderProps) {
       )}
 
       <div className="w-full flex items-center h-12 relative">
-        <div className="w-auto sm:w-1/4 pl-3 flex items-center gap-1.5">
+        <div className="w-auto sm:w-1/4 pl-3 flex items-center gap-1.5 min-w-0 relative">
           {isHomeLike ? (
             <button
               className="font-serif text-base text-foreground"
@@ -171,11 +171,11 @@ function Header({ currentVersion }: HeaderProps) {
               />
             </button>
           ) : (
-            <div ref={projectRef} className="flex items-center gap-2">
+            <div ref={projectRef} className="flex items-center gap-2 min-w-0">
               <button
                 onClick={() => navigate('/')}
                 aria-label="LlamaFarm Home"
-                className="hover:opacity-90 transition-opacity"
+                className="hover:opacity-90 transition-opacity shrink-0"
               >
                 <img
                   src={
@@ -184,7 +184,7 @@ function Header({ currentVersion }: HeaderProps) {
                       : '/llama-head-tan-light.svg'
                   }
                   alt="LlamaFarm logo"
-                  className="h-7 md:h-8 w-auto"
+                  className="h-7 md:h-8 w-auto shrink-0"
                 />
               </button>
               <DropdownMenu
@@ -193,11 +193,13 @@ function Header({ currentVersion }: HeaderProps) {
               >
                 <DropdownMenuTrigger asChild>
                   <button
-                    className="flex items-center gap-2 px-3 h-8 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                    className="flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2 px-2 sm:px-3 h-8 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 min-w-0 overflow-hidden w-8 sm:w-auto max-w-[28vw] sm:max-w-[22vw] md:max-w-[24vw] lg:max-w-[28vw] xl:max-w-[320px]"
                     aria-haspopup="listbox"
                     aria-expanded={isProjectOpen}
+                    aria-label={activeProject}
+                    title={activeProject}
                   >
-                    <span className="font-serif text-base whitespace-nowrap text-foreground">
+                    <span className="hidden sm:inline font-serif text-base whitespace-nowrap text-foreground truncate max-w-full">
                       {activeProject}
                     </span>
                     <FontIcon
@@ -255,7 +257,7 @@ function Header({ currentVersion }: HeaderProps) {
         </div>
 
         {isBuilding && (
-          <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-4">
+          <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-4 z-10">
             <button
               className={`w-full flex items-center justify-center gap-2 transition-colors rounded-lg p-2 ${
                 isSelected === 'dashboard'
