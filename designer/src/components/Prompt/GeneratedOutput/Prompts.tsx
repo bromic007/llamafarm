@@ -1,8 +1,16 @@
 import { useMemo, useState } from 'react'
+import FontIcon from '../../../common/FontIcon'
 import { useActiveProject } from '../../../hooks/useActiveProject'
 import { useProject } from '../../../hooks/useProjects'
 import projectService from '../../../api/projectService'
 import PromptModal, { PromptModalMode } from './PromptModal'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../../ui/dialog'
 
 interface PromptRow {
   role?: string
@@ -27,17 +35,34 @@ const Prompts = () => {
 
   // Add prompt modal state
   const [isOpen, setIsOpen] = useState(false)
-  const [mode] = useState<PromptModalMode>('create')
-  const [initialVersion] = useState('')
-  const [initialText] = useState('')
+  const [mode, setMode] = useState<PromptModalMode>('create')
+  const [initialText, setInitialText] = useState('')
+  const [initialRole, setInitialRole] = useState<
+    'system' | 'assistant' | 'user'
+  >('system')
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
+  const [deleteIndex, setDeleteIndex] = useState<number | null>(null)
+  const [editIndex, setEditIndex] = useState<number | null>(null)
 
-  const handleCreatePrompt = async (_version: string, text: string) => {
+  const handleSavePrompt = async (
+    text: string,
+    role: 'system' | 'assistant' | 'user'
+  ) => {
     if (!activeProject || !projectResponse?.project?.config) return
     const config = projectResponse.project.config
-    const nextPrompts = Array.isArray(config.prompts) ? [...config.prompts] : []
-    nextPrompts.unshift({ role: 'system', content: text })
-
-    const request = { config: { ...config, prompts: nextPrompts } }
+    const prompts = Array.isArray(config.prompts) ? [...config.prompts] : []
+    if (
+      mode === 'edit' &&
+      editIndex != null &&
+      editIndex >= 0 &&
+      editIndex < prompts.length
+    ) {
+      const existing = prompts[editIndex] as any
+      prompts[editIndex] = { ...existing, role, content: text }
+    } else {
+      prompts.unshift({ role, content: text })
+    }
+    const request = { config: { ...config, prompts } }
     await projectService.updateProject(
       activeProject.namespace,
       activeProject.project,
@@ -45,6 +70,51 @@ const Prompts = () => {
     )
     await refetch()
     setIsOpen(false)
+    setEditIndex(null)
+  }
+
+  const openCreatePrompt = () => {
+    setMode('create')
+    setInitialText('')
+    setInitialRole('system')
+    setEditIndex(null)
+    setIsOpen(true)
+  }
+
+  const openEditPrompt = (index: number) => {
+    const item = rows[index]
+    setMode('edit')
+    setEditIndex(index)
+    setInitialText(item?.preview || '')
+    setInitialRole((item?.role as 'system' | 'assistant' | 'user') || 'system')
+    setIsOpen(true)
+  }
+
+  const performDeletePrompt = async (index: number) => {
+    if (!activeProject || !projectResponse?.project?.config) return
+    const config = projectResponse.project.config
+    const prompts = Array.isArray(config.prompts) ? [...config.prompts] : []
+    if (index < 0 || index >= prompts.length) return
+    prompts.splice(index, 1)
+    const request = { config: { ...config, prompts } }
+    await projectService.updateProject(
+      activeProject.namespace,
+      activeProject.project,
+      request
+    )
+    await refetch()
+  }
+
+  const openDeletePrompt = (index: number) => {
+    setDeleteIndex(index)
+    setIsDeleteOpen(true)
+  }
+
+  const confirmDeletePrompt = async () => {
+    if (deleteIndex == null) return
+    await performDeletePrompt(deleteIndex)
+    setIsDeleteOpen(false)
+    setDeleteIndex(null)
   }
 
   return (
@@ -57,7 +127,7 @@ const Prompts = () => {
         </p>
         <button
           className="px-3 py-2 rounded-md bg-primary text-primary-foreground text-sm"
-          onClick={() => setIsOpen(true)}
+          onClick={openCreatePrompt}
         >
           New prompt
         </button>
@@ -66,7 +136,8 @@ const Prompts = () => {
         <thead className="bg-white dark:bg-blue-600 font-normal">
           <tr>
             <th className="text-left w-[15%] py-2 px-3 font-normal">Role</th>
-            <th className="text-left w-[85%] py-2 px-3 font-normal">Preview</th>
+            <th className="text-left py-2 px-3 font-normal">Preview</th>
+            <th className="text-right w-[1%] py-2 px-3 font-normal">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -83,12 +154,26 @@ const Prompts = () => {
                   {prompt.preview}
                 </div>
               </td>
+              <td className="align-top p-3 text-right whitespace-nowrap">
+                <FontIcon
+                  type="edit"
+                  isButton
+                  className="w-4 h-4 text-muted-foreground inline-block mr-3"
+                  handleOnClick={() => openEditPrompt(index)}
+                />
+                <FontIcon
+                  type="trashcan"
+                  isButton
+                  className="w-4 h-4 text-muted-foreground inline-block"
+                  handleOnClick={() => openDeletePrompt(index)}
+                />
+              </td>
             </tr>
           ))}
           {rows.length === 0 && (
             <tr>
               <td
-                colSpan={2}
+                colSpan={3}
                 className="align-top p-3 text-sm text-muted-foreground"
               >
                 No prompts found in project configuration.
@@ -100,11 +185,47 @@ const Prompts = () => {
       <PromptModal
         isOpen={isOpen}
         mode={mode}
-        initialVersion={initialVersion}
         initialText={initialText}
+        initialRole={initialRole}
         onClose={() => setIsOpen(false)}
-        onSave={handleCreatePrompt}
+        onSave={handleSavePrompt}
       />
+
+      <Dialog
+        open={isDeleteOpen}
+        onOpenChange={v => (!v ? setIsDeleteOpen(false) : undefined)}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg text-foreground">
+              Delete prompt
+            </DialogTitle>
+          </DialogHeader>
+          <div className="text-sm text-muted-foreground">
+            This will remove the prompt from your project configuration. This
+            action cannot be undone.
+          </div>
+          <DialogFooter className="flex flex-row items-center justify-between sm:justify-between gap-2">
+            <div />
+            <div className="flex items-center gap-2 ml-auto">
+              <button
+                className="px-3 py-2 rounded-md text-sm text-primary hover:underline"
+                onClick={() => setIsDeleteOpen(false)}
+                type="button"
+              >
+                Cancel
+              </button>
+              <button
+                className="px-3 py-2 rounded-md bg-destructive text-destructive-foreground hover:opacity-90 text-sm"
+                onClick={confirmDeletePrompt}
+                type="button"
+              >
+                Delete
+              </button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
