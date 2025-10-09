@@ -56,7 +56,7 @@ const mapKindToStrategy = (kind?: Kind): string => {
 
 function ImportSampleDatasetModal({ open, onOpenChange, onImport }: Props) {
   const [search, setSearch] = useState('')
-  const [kind, setKind] = useState<'all' | Kind>('all')
+  const [kind] = useState<'all' | Kind>('all')
   const [selected, setSelected] = useState<string>('')
   const [includeStrategy, setIncludeStrategy] = useState(true)
 

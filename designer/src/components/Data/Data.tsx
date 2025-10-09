@@ -596,7 +596,7 @@ const Data = () => {
       <ImportSampleDatasetModal
         open={isImportOpen}
         onOpenChange={setIsImportOpen}
-        onImport={async ({ name, rag_strategy, sourceProjectId }) => {
+        onImport={async ({ name, sourceProjectId }) => {
           try {
             if (!activeProject?.namespace || !activeProject?.project) {
               toast({
