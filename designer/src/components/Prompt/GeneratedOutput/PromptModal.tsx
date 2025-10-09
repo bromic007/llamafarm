@@ -63,6 +63,23 @@ const PromptModal: React.FC<PromptModalProps> = ({
         </DialogHeader>
 
         <div className="flex flex-col gap-3 pt-1">
+          {mode === 'create' && (
+            <div className="flex items-start justify-between gap-3 p-3 rounded-md bg-secondary/40 border border-border">
+              <p className="text-xs text-muted-foreground">
+                Explain how the model should use context chunks and what to do
+                when no documents are found. Keep instructions concise to
+                preserve tokens and avoid conflicting guidance.
+              </p>
+              <a
+                href="https://docs.llamafarm.dev/docs/prompts"
+                target="_blank"
+                rel="noreferrer"
+                className="shrink-0 inline-flex items-center px-2 py-1 rounded-md border border-input text-xs hover:bg-accent/30"
+              >
+                Learn more
+              </a>
+            </div>
+          )}
           <div>
             <label className="text-xs text-muted-foreground">Role</label>
             <DropdownMenu>
@@ -90,7 +107,7 @@ const PromptModal: React.FC<PromptModalProps> = ({
             <textarea
               rows={10}
               className="w-full mt-1 bg-transparent rounded-lg py-2 px-3 border border-input text-foreground font-mono text-sm"
-              placeholder="Enter the system or instruction prompt"
+              placeholder="You are a helpful assistant. When context is provided, cite sources by title. If no relevant information is found, answer from general knowledge."
               value={text}
               onChange={e => setText(e.target.value)}
             />
