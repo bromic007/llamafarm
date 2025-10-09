@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import FontIcon from '../../../common/FontIcon'
+import { Button } from '../../ui/button'
 import { useActiveProject } from '../../../hooks/useActiveProject'
 import { useProject } from '../../../hooks/useProjects'
 import projectService from '../../../api/projectService'
@@ -119,18 +120,18 @@ const Prompts = () => {
 
   return (
     <div className="w-full h-full">
-      <div className="w-full flex items-center justify-between mb-2 gap-3">
-        <p className="text-sm text-muted-foreground">
+      <div className="w-full flex flex-col sm:flex-row items-start sm:items-center justify-between mb-2 gap-3">
+        <p className="text-sm text-muted-foreground w-full">
           Prompts are instructions that tell your model how to behave. The
           following prompts have been saved for this project so far. You can
           view the prompts defined in your project configuration.
         </p>
-        <button
-          className="px-3 py-2 rounded-md bg-primary text-primary-foreground text-sm"
+        <Button
           onClick={openCreatePrompt}
+          className="whitespace-nowrap w-full sm:w-auto"
         >
           New prompt
-        </button>
+        </Button>
       </div>
       <table className="w-full">
         <thead className="bg-white dark:bg-blue-600 font-normal">

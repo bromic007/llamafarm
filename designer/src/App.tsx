@@ -28,6 +28,7 @@ import AddRetrievalStrategy from './components/Rag/AddRetrievalStrategy'
 // Projects standalone page removed; Home now hosts projects section
 import { HomeUpgradeBanner } from './components/common/UpgradeBanners'
 import { useUpgradeAvailability } from './hooks/useUpgradeAvailability'
+import { MobileViewProvider } from './contexts/MobileViewContext'
 
 function ProjectModalRoot() {
   const modal = useProjectModalContext()
@@ -63,47 +64,49 @@ function App() {
     <main className="h-screen w-full">
       <ToastProvider>
         <ProjectModalProvider>
-          <Header currentVersion={currentVersion} />
-          {isHome ? <HomeUpgradeBanner /> : null}
-          <div className="h-full w-full">
-            <Routes>
-              <Route path="/" element={<Home />} />
-              {/* Redirect '/projects' to Home; Home will scroll to projects */}
-              <Route path="/projects" element={<Home />} />
-              <Route path="/samples" element={<SampleProjects />} />
-              <Route path="/chat" element={<Chat />}>
-                <Route path="dashboard" element={<Dashboard />} />
-                <Route path="versions" element={<Versions />} />
-                <Route path="data" element={<Data />} />
-                <Route path="data/:datasetId" element={<DatasetView />} />
-                <Route path="models" element={<Models />} />
-                <Route path="rag" element={<Rag />} />
-                {/* Project-level pages */}
-                <Route
-                  path="rag/add-embedding"
-                  element={<AddEmbeddingStrategy />}
-                />
-                <Route
-                  path="rag/add-retrieval"
-                  element={<AddRetrievalStrategy />}
-                />
-                <Route path="rag/processing" element={<StrategyView />} />
-                <Route path="rag/:strategyId" element={<StrategyView />} />
-                <Route
-                  path="rag/:strategyId/change-embedding"
-                  element={<ChangeEmbeddingModel />}
-                />
-                {/* Legacy routes above remain; new entries reuse same components */}
-                <Route
-                  path="rag/:strategyId/retrieval"
-                  element={<RetrievalMethod />}
-                />
-                <Route path="prompt" element={<Prompt />} />
-                <Route path="test" element={<Test />} />
-              </Route>
-            </Routes>
-          </div>
-          <ProjectModalRoot />
+          <MobileViewProvider>
+            <Header currentVersion={currentVersion} />
+            {isHome ? <HomeUpgradeBanner /> : null}
+            <div className="h-full w-full">
+              <Routes>
+                <Route path="/" element={<Home />} />
+                {/* Redirect '/projects' to Home; Home will scroll to projects */}
+                <Route path="/projects" element={<Home />} />
+                <Route path="/samples" element={<SampleProjects />} />
+                <Route path="/chat" element={<Chat />}>
+                  <Route path="dashboard" element={<Dashboard />} />
+                  <Route path="versions" element={<Versions />} />
+                  <Route path="data" element={<Data />} />
+                  <Route path="data/:datasetId" element={<DatasetView />} />
+                  <Route path="models" element={<Models />} />
+                  <Route path="rag" element={<Rag />} />
+                  {/* Project-level pages */}
+                  <Route
+                    path="rag/add-embedding"
+                    element={<AddEmbeddingStrategy />}
+                  />
+                  <Route
+                    path="rag/add-retrieval"
+                    element={<AddRetrievalStrategy />}
+                  />
+                  <Route path="rag/processing" element={<StrategyView />} />
+                  <Route path="rag/:strategyId" element={<StrategyView />} />
+                  <Route
+                    path="rag/:strategyId/change-embedding"
+                    element={<ChangeEmbeddingModel />}
+                  />
+                  {/* Legacy routes above remain; new entries reuse same components */}
+                  <Route
+                    path="rag/:strategyId/retrieval"
+                    element={<RetrievalMethod />}
+                  />
+                  <Route path="prompt" element={<Prompt />} />
+                  <Route path="test" element={<Test />} />
+                </Route>
+              </Routes>
+            </div>
+            <ProjectModalRoot />
+          </MobileViewProvider>
         </ProjectModalProvider>
       </ToastProvider>
     </main>
