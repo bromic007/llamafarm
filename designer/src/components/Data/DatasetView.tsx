@@ -748,7 +748,9 @@ function DatasetView() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => navigate(`/chat/rag/${strategyId}`)}
+                  onClick={() =>
+                    navigate(`/chat/data/strategies/${strategyId}`)
+                  }
                 >
                   Configure
                 </Button>
@@ -797,7 +799,9 @@ function DatasetView() {
                                       variant="outline"
                                       size="sm"
                                       onClick={() =>
-                                        navigate(`/chat/rag/${s.id}`)
+                                        navigate(
+                                          `/chat/data/strategies/${s.id}`
+                                        )
                                       }
                                     >
                                       Configure

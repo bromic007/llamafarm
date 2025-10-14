@@ -78,9 +78,18 @@ function App() {
                   <Route path="versions" element={<Versions />} />
                   <Route path="data" element={<Data />} />
                   <Route path="data/:datasetId" element={<DatasetView />} />
+                  {/* Processing strategies routes - now under data */}
+                  <Route
+                    path="data/strategies/processing"
+                    element={<StrategyView />}
+                  />
+                  <Route
+                    path="data/strategies/:strategyId"
+                    element={<StrategyView />}
+                  />
                   <Route path="models" element={<Models />} />
                   <Route path="rag" element={<Rag />} />
-                  {/* Project-level pages */}
+                  {/* Project-level embedding and retrieval strategy pages */}
                   <Route
                     path="rag/add-embedding"
                     element={<AddEmbeddingStrategy />}
@@ -89,8 +98,6 @@ function App() {
                     path="rag/add-retrieval"
                     element={<AddRetrievalStrategy />}
                   />
-                  <Route path="rag/processing" element={<StrategyView />} />
-                  <Route path="rag/:strategyId" element={<StrategyView />} />
                   <Route
                     path="rag/:strategyId/change-embedding"
                     element={<ChangeEmbeddingModel />}
