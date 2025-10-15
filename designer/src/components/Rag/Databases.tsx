@@ -23,6 +23,13 @@ import {
 } from '../ui/dialog'
 import { useActiveProject } from '../../hooks/useActiveProject'
 import { useProject } from '../../hooks/useProjects'
+import { useListDatasets } from '../../hooks/useDatasets'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '../ui/tooltip'
 
 type Database = {
   name: string
@@ -39,6 +46,12 @@ function Databases() {
     activeProject?.namespace || '',
     activeProject?.project || '',
     !!activeProject
+  )
+
+  const { data: datasetsResp } = useListDatasets(
+    activeProject?.namespace || '',
+    activeProject?.project || '',
+    { enabled: !!activeProject }
   )
 
   const [metaTick, setMetaTick] = useState(0)
@@ -115,6 +128,14 @@ function Databases() {
       setActiveDatabase(databases[0].name)
     }
   }, [databases, activeDatabase])
+
+  // Connected datasets for the active database
+  const connectedDatasets = useMemo(() => {
+    if (!datasetsResp?.datasets) return []
+    return datasetsResp.datasets.filter(
+      (d: any) => d.database === activeDatabase
+    )
+  }, [datasetsResp, activeDatabase])
 
   // Database-level configs (Embeddings / Retrievals) -------------------------
   type EmbeddingItem = {
@@ -422,9 +443,30 @@ function Databases() {
         className={`w-full h-full flex flex-col ${mode === 'designer' ? 'gap-4 pb-32' : ''}`}
       >
         <div className="flex items-center justify-between mb-2">
-          <h2 className="text-2xl">
-            {mode === 'designer' ? 'Databases' : 'Config editor'}
-          </h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-2xl">
+              {mode === 'designer' ? 'Databases' : 'Config editor'}
+            </h2>
+            {mode === 'designer' && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button className="text-muted-foreground hover:text-foreground transition-colors">
+                      <FontIcon type="info" className="w-4 h-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p className="text-sm">
+                      Databases store and organize your embedded data for AI
+                      search. Create multiple databases to handle different
+                      content types with specialized embedding and retrieval
+                      strategies.
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+          </div>
           <PageActions mode={mode} onModeChange={setMode} />
         </div>
         {mode === 'designer' && databases.length > 0 && (
@@ -455,6 +497,11 @@ function Databases() {
           </div>
         ) : (
           <>
+            {/* Database name header */}
+            <div className="text-xl font-semibold mb-4 mt-2">
+              {activeDatabase}
+            </div>
+
             {/* Embedding and Retrieval strategies - title outside card */}
             <div className="text-sm font-medium mb-1">
               Project Embedding and retrieval strategies
@@ -469,7 +516,11 @@ function Databases() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => navigate('/chat/databases/add-embedding')}
+                  onClick={() =>
+                    navigate(
+                      `/chat/databases/add-embedding?database=${activeDatabase}`
+                    )
+                  }
                 >
                   Add new
                 </Button>
@@ -646,7 +697,11 @@ function Databases() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => navigate('/chat/databases/add-retrieval')}
+                  onClick={() =>
+                    navigate(
+                      `/chat/databases/add-retrieval?database=${activeDatabase}`
+                    )
+                  }
                 >
                   Add new
                 </Button>
@@ -786,6 +841,74 @@ function Databases() {
                   </div>
                 ))}
               </div>
+            </div>
+
+            {/* Connected datasets section */}
+            <div className="text-sm font-medium mb-1 mt-6">
+              Connected datasets
+            </div>
+            <div className="rounded-lg border border-border bg-card p-4">
+              {connectedDatasets.length === 0 ? (
+                <div className="text-sm text-muted-foreground text-center py-4">
+                  No datasets connected to this database yet
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="text-left py-2 px-2 font-medium">
+                          Name
+                        </th>
+                        <th className="text-left py-2 px-2 font-medium">
+                          Files
+                        </th>
+                        <th className="text-left py-2 px-2 font-medium">
+                          Processing Strategy
+                        </th>
+                        <th className="w-20"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {connectedDatasets.map((dataset: any) => (
+                        <tr
+                          key={dataset.name}
+                          className="border-b border-border last:border-0 hover:bg-accent/20"
+                        >
+                          <td className="py-2 px-2">{dataset.name}</td>
+                          <td className="py-2 px-2">
+                            {Array.isArray(dataset.files)
+                              ? dataset.files.length
+                              : 0}
+                          </td>
+                          <td className="py-2 px-2">
+                            <Badge
+                              variant="default"
+                              size="sm"
+                              className="rounded-xl"
+                            >
+                              {dataset.data_processing_strategy || 'default'}
+                            </Badge>
+                          </td>
+                          <td className="py-2 px-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 px-3"
+                              onClick={e => {
+                                e.stopPropagation()
+                                navigate(`/chat/data/${dataset.name}`)
+                              }}
+                            >
+                              View
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </>
         )}

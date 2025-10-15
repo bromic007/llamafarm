@@ -87,6 +87,10 @@ function App() {
                 <Route path="/projects" element={<Home />} />
                 <Route path="/samples" element={<SampleProjects />} />
                 <Route path="/chat" element={<Chat />}>
+                  <Route
+                    index
+                    element={<Navigate to="/chat/dashboard" replace />}
+                  />
                   <Route path="dashboard" element={<Dashboard />} />
                   <Route path="versions" element={<Versions />} />
                   <Route path="data" element={<Data />} />

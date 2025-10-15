@@ -89,6 +89,9 @@ const Data = () => {
       id: dataset.name,
       name: dataset.name,
       // No rag_strategy on datasets; server provides data_processing_strategy/database
+      database: (dataset as any).database,
+      processingStrategy:
+        (dataset as any).data_processing_strategy || 'default',
       files: Array.isArray((dataset as any).details?.files_metadata)
         ? (dataset as any).details.files_metadata
         : (dataset as any).files,
@@ -128,6 +131,8 @@ const Data = () => {
         {
           id: 'demo-arxiv',
           name: 'arxiv-papers',
+          database: 'main_database',
+          processingStrategy: 'universal_processor',
           files: [],
           lastRun: new Date(),
           embedModel: 'text-embedding-3-large',
@@ -139,6 +144,8 @@ const Data = () => {
         {
           id: 'demo-handbook',
           name: 'company-handbook',
+          database: 'main_database',
+          processingStrategy: 'universal_processor',
           files: [],
           lastRun: new Date(),
           embedModel: 'text-embedding-3-large',
@@ -278,46 +285,23 @@ const Data = () => {
       })
   }, [metaTick])
 
-  // Build mapping of strategy display name -> dataset names
+  // Build mapping of strategy name -> dataset names
   const datasetsByStrategyName = useMemo(() => {
     const map = new Map<string, string[]>()
-    if (apiDatasets?.datasets && apiDatasets.datasets.length > 0) {
-      for (const d of apiDatasets.datasets as any[]) {
-        const strategyName = d?.rag_strategy
-        const datasetName = d?.name
-        if (
-          typeof strategyName === 'string' &&
-          typeof datasetName === 'string'
-        ) {
-          const arr = map.get(strategyName) || []
-          arr.push(datasetName)
-          map.set(strategyName, arr)
-        }
+
+    // Use the datasets from the useMemo above
+    for (const d of datasets) {
+      const strategyName = (d as any).processingStrategy
+      const datasetName = d.name
+      if (typeof strategyName === 'string' && typeof datasetName === 'string') {
+        const arr = map.get(strategyName) || []
+        arr.push(datasetName)
+        map.set(strategyName, arr)
       }
-      return map
     }
-    // Fallback to localStorage
-    try {
-      const raw = localStorage.getItem('lf_datasets')
-      if (!raw) return map
-      const arr = JSON.parse(raw)
-      if (!Array.isArray(arr)) return map
-      for (const item of arr) {
-        const datasetName =
-          typeof item?.name === 'string' ? item.name : item?.id
-        if (!datasetName) continue
-        const strategyName = localStorage.getItem(
-          `lf_dataset_strategy_name_${datasetName}`
-        )
-        if (strategyName && strategyName.trim().length > 0) {
-          const list = map.get(strategyName) || []
-          list.push(datasetName)
-          map.set(strategyName, list)
-        }
-      }
-    } catch {}
+
     return map
-  }, [apiDatasets, metaTick])
+  }, [datasets, metaTick])
 
   const getParsersCount = (sid: string): number => {
     try {
@@ -538,7 +522,7 @@ const Data = () => {
             {/* Processing strategies section */}
             <div className="flex items-center justify-between mt-0 mb-3">
               <div>
-                <div className="text-sm font-medium">Processing strategies</div>
+                <div className="font-medium">Processing strategies</div>
                 <div className="h-1" />
                 <div className="text-xs text-muted-foreground">
                   Processing strategies are applied to datasets.
@@ -558,7 +542,7 @@ const Data = () => {
                 </Button>
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-8">
               {displayStrategies.map(s => {
                 const assigned = datasetsByStrategyName.get(s.name) || []
                 return (
@@ -692,9 +676,12 @@ const Data = () => {
             </div>
             {/* End processing strategies section */}
 
+            {/* Divider */}
+            <div className="border-t border-border mb-6"></div>
+
             {/* Datasets section */}
             <div className="mb-2 flex flex-row gap-2 justify-between items-end flex-shrink-0">
-              <div>Datasets</div>
+              <div className="font-medium">Datasets</div>
               <div className="flex items-center gap-2">
                 <Button
                   variant="secondary"
@@ -909,13 +896,22 @@ const Data = () => {
                           <div className="text-xs text-muted-foreground">
                             Last run on {formatLastRun(ds.lastRun)}
                           </div>
-                          <div className="flex flex-row gap-2 items-center">
+                          <div className="flex flex-row gap-2 items-center flex-wrap">
+                            {(ds as any).database && (
+                              <Badge
+                                variant="default"
+                                size="sm"
+                                className="rounded-xl bg-teal-600 text-white dark:bg-teal-500 dark:text-slate-900"
+                              >
+                                {(ds as any).database}
+                              </Badge>
+                            )}
                             <Badge
                               variant="default"
                               size="sm"
                               className="rounded-xl"
                             >
-                              {ds.embedModel}
+                              {(ds as any).processingStrategy || 'default'}
                             </Badge>
                           </div>
                           <div className="text-xs text-muted-foreground">

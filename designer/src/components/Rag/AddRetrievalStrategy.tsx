@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
@@ -42,6 +42,10 @@ const STRATEGY_DESCRIPTIONS: Record<StrategyType, string> = {
 
 function AddRetrievalStrategy() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+
+  // Get the database from URL query params (defaults to main_database if not provided)
+  const database = searchParams.get('database') || 'main_database'
 
   // New retrieval name and default toggle
   const [name, setName] = useState('New retrieval strategy')
@@ -188,7 +192,7 @@ function AddRetrievalStrategy() {
   // Ensure default checked when first retrieval
   useEffect(() => {
     try {
-      const raw = localStorage.getItem('lf_project_retrievals')
+      const raw = localStorage.getItem(`lf_db_${database}_retrievals`)
       const list = raw ? JSON.parse(raw) : []
       if (!Array.isArray(list) || list.length === 0) setMakeDefault(true)
     } catch {}
@@ -203,7 +207,7 @@ function AddRetrievalStrategy() {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '')
     const baseId = `ret-${slug || Date.now()}`
-    const raw = localStorage.getItem('lf_project_retrievals')
+    const raw = localStorage.getItem(`lf_db_${database}_retrievals`)
     const list = raw ? JSON.parse(raw) : []
     const exists =
       Array.isArray(list) && list.some((e: any) => e?.id === baseId)
@@ -221,7 +225,10 @@ function AddRetrievalStrategy() {
     const finalList = makeDefault
       ? nextList.map((r: any) => ({ ...r, isDefault: r.id === id }))
       : nextList
-    localStorage.setItem('lf_project_retrievals', JSON.stringify(finalList))
+    localStorage.setItem(
+      `lf_db_${database}_retrievals`,
+      JSON.stringify(finalList)
+    )
 
     // Build config from current state like the edit page
     let config: Record<string, unknown> = {}
@@ -294,9 +301,12 @@ function AddRetrievalStrategy() {
       }
     }
     const payload = { type: selectedType, config }
-    localStorage.setItem(`lf_strategy_retrieval_${id}`, JSON.stringify(payload))
+    localStorage.setItem(
+      `lf_db_${database}_retrieval_${id}`,
+      JSON.stringify(payload)
+    )
 
-    navigate('/chat/rag')
+    navigate('/chat/databases')
   }
 
   return (
@@ -306,9 +316,9 @@ function AddRetrievalStrategy() {
         <nav className="text-sm md:text-base flex items-center gap-1.5">
           <button
             className="text-teal-600 dark:text-teal-400 hover:underline"
-            onClick={() => navigate('/chat/rag')}
+            onClick={() => navigate('/chat/databases')}
           >
-            RAG
+            Databases
           </button>
           <span className="text-muted-foreground px-1">/</span>
           <span className="text-foreground">New retrieval strategy</span>
@@ -317,7 +327,7 @@ function AddRetrievalStrategy() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => navigate('/chat/rag')}
+            onClick={() => navigate('/chat/databases')}
           >
             Cancel
           </Button>

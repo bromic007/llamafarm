@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import FontIcon from '../../common/FontIcon'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
@@ -61,6 +61,10 @@ async function encryptAPIKey(apiKey: string, secret: string) {
 function AddEmbeddingStrategy() {
   const navigate = useNavigate()
   const { toast } = useToast()
+  const [searchParams] = useSearchParams()
+
+  // Get the database from URL query params (defaults to main_database if not provided)
+  const database = searchParams.get('database') || 'main_database'
 
   // Name
   const [name, setName] = useState('New embedding strategy')
@@ -348,7 +352,7 @@ function AddEmbeddingStrategy() {
     chosenModel: string,
     encryptedApiKey?: string
   ) => {
-    const EMB_LIST_KEY = 'lf_project_embeddings'
+    const EMB_LIST_KEY = `lf_db_${database}_embeddings`
     const raw = localStorage.getItem(EMB_LIST_KEY)
     const list = raw ? JSON.parse(raw) : []
     const slug = name
@@ -401,10 +405,13 @@ function AddEmbeddingStrategy() {
     }
 
     localStorage.setItem(
-      `lf_strategy_embedding_config_${finalId}`,
+      `lf_db_${database}_embedding_config_${finalId}`,
       JSON.stringify(cfg)
     )
-    localStorage.setItem(`lf_strategy_embedding_model_${finalId}`, chosenModel)
+    localStorage.setItem(
+      `lf_db_${database}_embedding_model_${finalId}`,
+      chosenModel
+    )
 
     if (makeDefault) {
       try {
@@ -423,7 +430,7 @@ function AddEmbeddingStrategy() {
 
   const finalizeAndRedirect = () => {
     toast({ message: 'Embedding strategy created', variant: 'default' })
-    navigate('/chat/rag')
+    navigate('/chat/databases')
   }
 
   return (
@@ -432,9 +439,9 @@ function AddEmbeddingStrategy() {
         <nav className="text-sm md:text-base flex items-center gap-1.5">
           <button
             className="text-teal-600 dark:text-teal-400 hover:underline"
-            onClick={() => navigate('/chat/rag')}
+            onClick={() => navigate('/chat/databases')}
           >
-            RAG
+            Databases
           </button>
           <span className="text-muted-foreground px-1">/</span>
           <span className="text-foreground">Add embedding strategy</span>
