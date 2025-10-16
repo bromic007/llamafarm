@@ -84,10 +84,21 @@ function Databases() {
     return []
   }, [projectResp])
 
-  // Active database state
+  // Active database state (namespaced per project)
+  const projectKey = useMemo(() => {
+    const ns = activeProject?.namespace || 'global'
+    const proj = activeProject?.project || 'global'
+    return `${ns}__${proj}`
+  }, [activeProject?.namespace, activeProject?.project])
+
+  const ACTIVE_DB_KEY = useMemo(
+    () => `lf_ui_${projectKey}_active_database`,
+    [projectKey]
+  )
+
   const [activeDatabase, setActiveDatabase] = useState<string>(() => {
     try {
-      const stored = localStorage.getItem('lf_active_database')
+      const stored = localStorage.getItem(ACTIVE_DB_KEY)
       return stored || 'main_database'
     } catch {
       return 'main_database'
@@ -97,9 +108,22 @@ function Databases() {
   // Persist active database selection
   useEffect(() => {
     try {
-      localStorage.setItem('lf_active_database', activeDatabase)
+      localStorage.setItem(ACTIVE_DB_KEY, activeDatabase)
     } catch {}
-  }, [activeDatabase])
+  }, [activeDatabase, ACTIVE_DB_KEY])
+
+  // Reload selection when project changes (validate against available list)
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(ACTIVE_DB_KEY)
+      if (stored) {
+        // ensure it's in the current databases list
+        const exists = databases.some(d => d.name === stored)
+        setActiveDatabase(exists ? stored : activeDatabase)
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ACTIVE_DB_KEY, databases])
 
   // Ensure active database exists in the list
   useEffect(() => {
@@ -133,9 +157,9 @@ function Databases() {
     enabled: boolean
   }
 
-  // Database-scoped storage keys
-  const EMB_LIST_KEY = `lf_db_${activeDatabase}_embeddings`
-  const RET_LIST_KEY = `lf_db_${activeDatabase}_retrievals`
+  // Database-scoped storage keys (UI-only fallbacks; namespaced per project)
+  const EMB_LIST_KEY = `lf_ui_${projectKey}_db_${activeDatabase}_embeddings`
+  const RET_LIST_KEY = `lf_ui_${projectKey}_db_${activeDatabase}_retrievals`
 
   const getEmbeddings = (): EmbeddingItem[] => {
     const arr = getStoredArray(EMB_LIST_KEY)
@@ -763,7 +787,11 @@ function Databases() {
                 <div className="text-sm text-foreground font-medium">
                   Retrieval strategies ({retrievalCount})
                 </div>
-                {!usingServerRetrievals && (
+                {usingServerRetrievals ? (
+                  <span className="text-xs text-muted-foreground">
+                    Managed by server
+                  </span>
+                ) : (
                   <Button
                     variant="outline"
                     size="sm"

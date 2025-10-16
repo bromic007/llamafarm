@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import FontIcon from '../../common/FontIcon'
 import { Button } from '../ui/button'
+import { useActiveProject } from '../../hooks/useActiveProject'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import {
@@ -62,6 +63,12 @@ function AddEmbeddingStrategy() {
   const navigate = useNavigate()
   const { toast } = useToast()
   const [searchParams] = useSearchParams()
+  const activeProject = useActiveProject()
+  const projectKey = useMemo(() => {
+    const ns = activeProject?.namespace || 'global'
+    const proj = activeProject?.project || 'global'
+    return `${ns}__${proj}`
+  }, [activeProject?.namespace, activeProject?.project])
 
   // Get the database from URL query params (defaults to main_database if not provided)
   const database = searchParams.get('database') || 'main_database'
@@ -352,7 +359,7 @@ function AddEmbeddingStrategy() {
     chosenModel: string,
     encryptedApiKey?: string
   ) => {
-    const EMB_LIST_KEY = `lf_db_${database}_embeddings`
+    const EMB_LIST_KEY = `lf_ui_${projectKey}_db_${database}_embeddings`
     const raw = localStorage.getItem(EMB_LIST_KEY)
     const list = raw ? JSON.parse(raw) : []
     const slug = name
@@ -404,12 +411,18 @@ function AddEmbeddingStrategy() {
       if (encryptedApiKey) cfg.apiKey = encryptedApiKey
     }
 
+    // Store only non-sensitive UI hints (avoid provider/base_url/api_key)
+    const sanitized = {
+      modelId: cfg?.modelId || chosenModel,
+      runtime: cfg?.runtime,
+      dimension: cfg?.dimension,
+    }
     localStorage.setItem(
-      `lf_db_${database}_embedding_config_${finalId}`,
-      JSON.stringify(cfg)
+      `lf_ui_${projectKey}_db_${database}_embedding_config_${finalId}`,
+      JSON.stringify(sanitized)
     )
     localStorage.setItem(
-      `lf_db_${database}_embedding_model_${finalId}`,
+      `lf_ui_${projectKey}_db_${database}_embedding_model_${finalId}`,
       chosenModel
     )
 

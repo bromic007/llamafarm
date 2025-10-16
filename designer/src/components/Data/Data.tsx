@@ -11,12 +11,7 @@ import {
 } from '../ui/dropdown-menu'
 import { defaultStrategies } from '../Rag/strategies'
 import type { RagStrategy } from '../Rag/strategies'
-import {
-  getStoredArray,
-  setStoredArray,
-  getStoredSet,
-  setStoredSet,
-} from '../../utils/storage'
+import { getStoredSet, setStoredSet } from '../../utils/storage'
 import {
   Dialog,
   DialogContent,
@@ -90,8 +85,18 @@ const Data = () => {
       name: dataset.name,
       // No rag_strategy on datasets; server provides data_processing_strategy/database
       database: (dataset as any).database,
-      processingStrategy:
-        (dataset as any).data_processing_strategy || 'default',
+      processingStrategy: (() => {
+        const strategy = (dataset as any).data_processing_strategy
+        if (!strategy) {
+          try {
+            console.warn(
+              `Warning: 'data_processing_strategy' is missing for dataset '${dataset.name}'. Defaulting to 'default'.`
+            )
+          } catch {}
+          return 'default'
+        }
+        return strategy
+      })(),
       files: Array.isArray((dataset as any).details?.files_metadata)
         ? (dataset as any).details.files_metadata
         : (dataset as any).files,
@@ -269,8 +274,7 @@ const Data = () => {
     return all
       .filter(s => !deleted.has(s.id))
       .map(s => {
-        let name = s.name
-        let description = s.description
+        let { name, description } = s
         try {
           const n = localStorage.getItem(`lf_strategy_name_override_${s.id}`)
           if (typeof n === 'string' && n.trim().length > 0) {

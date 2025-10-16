@@ -80,7 +80,7 @@ function Header({ currentVersion }: HeaderProps) {
     },
     prompt: { label: 'Prompts', icon: 'prompt', path: '/chat/prompt' },
     data: { label: 'Data', icon: 'data', path: '/chat/data' },
-    rag: { label: 'Databases', icon: 'rag', path: '/chat/databases' },
+    databases: { label: 'Databases', icon: 'rag', path: '/chat/databases' },
     models: { label: 'Models', icon: 'model', path: '/chat/models' },
     test: { label: 'Test', icon: 'test', path: '/chat/test' },
   }

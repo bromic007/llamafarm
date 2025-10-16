@@ -25,6 +25,7 @@ import {
   DialogTitle,
 } from '../ui/dialog'
 import ConfigEditor from '../ConfigEditor/ConfigEditor'
+import { useActiveProject } from '../../hooks/useActiveProject'
 import {
   STRATEGY_TYPES,
   STRATEGY_LABELS,
@@ -38,6 +39,7 @@ function RetrievalMethod() {
   const { strategyId } = useParams()
   const [mode, setMode] = useState<Mode>('designer')
   const [, setDefaultTick] = useState(0)
+  const activeProject = useActiveProject()
 
   // removed unused strategyName
 
@@ -154,8 +156,19 @@ function RetrievalMethod() {
     useState<string>('weighted_average')
   const [hybFinalK, setHybFinalK] = useState<string>('10')
 
-  // Retrieval list helpers for default handling
-  const RET_LIST_KEY = 'lf_project_retrievals'
+  // Retrieval list helpers for default handling (UI-only, namespaced)
+  const ns = useMemo(
+    () => activeProject?.namespace || 'global',
+    [activeProject?.namespace]
+  )
+  const proj = useMemo(
+    () => activeProject?.project || 'global',
+    [activeProject?.project]
+  )
+  const RET_LIST_KEY = useMemo(
+    () => `lf_ui_${ns}__${proj}_project_retrievals`,
+    [ns, proj]
+  )
   const getRetrievals = (): Array<{
     id: string
     name: string

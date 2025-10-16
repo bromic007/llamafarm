@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Button } from '../ui/button'
+import { useActiveProject } from '../../hooks/useActiveProject'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 // removed unused imports
@@ -18,6 +19,12 @@ import {
 function AddRetrievalStrategy() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+  const activeProject = useActiveProject()
+  const projectKey = useMemo(() => {
+    const ns = activeProject?.namespace || 'global'
+    const proj = activeProject?.project || 'global'
+    return `${ns}__${proj}`
+  }, [activeProject?.namespace, activeProject?.project])
 
   // Get the database from URL query params (defaults to main_database if not provided)
   const database = searchParams.get('database') || 'main_database'
@@ -167,11 +174,13 @@ function AddRetrievalStrategy() {
   // Ensure default checked when first retrieval
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(`lf_db_${database}_retrievals`)
+      const raw = localStorage.getItem(
+        `lf_ui_${projectKey}_db_${database}_retrievals`
+      )
       const list = raw ? JSON.parse(raw) : []
       if (!Array.isArray(list) || list.length === 0) setMakeDefault(true)
     } catch {}
-  }, [])
+  }, [projectKey, database])
 
   // Save handler
   const onSave = () => {
@@ -182,7 +191,9 @@ function AddRetrievalStrategy() {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '')
     const baseId = `ret-${slug || Date.now()}`
-    const raw = localStorage.getItem(`lf_db_${database}_retrievals`)
+    const raw = localStorage.getItem(
+      `lf_ui_${projectKey}_db_${database}_retrievals`
+    )
     const list = raw ? JSON.parse(raw) : []
     const exists =
       Array.isArray(list) && list.some((e: any) => e?.id === baseId)
@@ -201,7 +212,7 @@ function AddRetrievalStrategy() {
       ? nextList.map((r: any) => ({ ...r, isDefault: r.id === id }))
       : nextList
     localStorage.setItem(
-      `lf_db_${database}_retrievals`,
+      `lf_ui_${projectKey}_db_${database}_retrievals`,
       JSON.stringify(finalList)
     )
 
@@ -277,7 +288,7 @@ function AddRetrievalStrategy() {
     }
     const payload = { type: selectedType, config }
     localStorage.setItem(
-      `lf_db_${database}_retrieval_${id}`,
+      `lf_ui_${projectKey}_db_${database}_retrieval_${id}`,
       JSON.stringify(payload)
     )
 

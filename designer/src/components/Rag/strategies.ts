@@ -9,7 +9,7 @@ export type RagStrategy = {
 export const defaultStrategies: RagStrategy[] = [
   {
     id: 'processing-universal',
-    name: 'universal_processor',
+    name: 'Universal Processor',
     description:
       'Unified processor for PDFs, Word docs, CSVs, Markdown, and text files',
     isDefault: true,
