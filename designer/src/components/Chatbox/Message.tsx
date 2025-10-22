@@ -7,7 +7,14 @@ export interface MessageProps {
 const Message: React.FC<MessageProps> = ({ message }) => {
   const { type, content, isLoading, isStreaming } = message
 
-  // Minimal markdown renderer for bold and inline code with HTML escaping
+  // Show typing indicator while assistant is preparing/streaming with no content yet
+  const showTypingIndicator =
+    type === 'assistant' &&
+    (isLoading || isStreaming) &&
+    (!content || content.trim() === '' || content === 'Thinking...')
+
+  // Minimal markdown renderer with safe HTML escaping and light formatting.
+  // Supports: inline code, bold, italics (without spanning lines), and bullet markers.
   const renderMarkdown = (text: string): { __html: string } => {
     const escapeHtml = (s: string) =>
       s
@@ -19,15 +26,39 @@ const Message: React.FC<MessageProps> = ({ message }) => {
 
     // Escape first
     let html = escapeHtml(text)
+
+    // Convert leading list markers to bullets to avoid italics regex picking up '* '
+    // Matches start-of-line '-' or '*' followed by space across lines
+    html = html.replace(/(^|\n)\s*[-*]\s+/g, '$1• ')
+
+    // Markdown links [text](url)
+    html = html.replace(
+      /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+      '<a href="$2" target="_blank" rel="noopener noreferrer" class="underline text-primary hover:opacity-80">$1<\/a>'
+    )
+
     // Inline code `code`
     html = html.replace(
       /`([^`]+)`/g,
       '<code class="px-1 py-0.5 rounded bg-muted/60">$1</code>'
     )
-    // Bold **text**
-    html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    // Italic *text* (after bold so it does not conflict)
-    html = html.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '<em>$1</em>')
+
+    // Bold using **text** or __text__ on a single line (non-greedy)
+    html = html.replace(/(\*\*|__)([^\n]+?)\1/g, '<strong>$2<\/strong>')
+
+    // Italic using asterisks. Avoid list markers and span only within a single line.
+    // Require non-space characters inside and whitespace or line boundaries outside.
+    html = html.replace(
+      /(^|[\s[(])\*([^\s][^*\n]*?)\*(?=[\s)\].,;!?]|$)/g,
+      '$1<em>$2</em>'
+    )
+
+    // Italic using underscores as well
+    html = html.replace(
+      /(^|[\s[(])_([^\s][^_\n]*?)_(?=[\s)\].,;!?]|$)/g,
+      '$1<em>$2</em>'
+    )
+
     // Preserve line breaks
     html = html.replace(/\n/g, '<br/>')
     return { __html: html }
@@ -68,8 +99,8 @@ const Message: React.FC<MessageProps> = ({ message }) => {
           isLoading ? (
             <span className="italic opacity-70">{content}</span>
           ) : (
-            <span
-              className="whitespace-pre-wrap"
+            <div
+              className="whitespace-pre-wrap leading-relaxed"
               // eslint-disable-next-line react/no-danger
               dangerouslySetInnerHTML={renderMarkdown(content)}
             />
@@ -77,8 +108,15 @@ const Message: React.FC<MessageProps> = ({ message }) => {
         ) : (
           <span className="whitespace-pre-wrap">{content}</span>
         )}
-        {isStreaming && type === 'assistant' && (
-          <span className="inline-block ml-1 w-2 h-5 bg-current animate-pulse" />
+        {showTypingIndicator && (
+          <span
+            className="inline-flex items-center gap-1 ml-1 align-middle"
+            aria-label="Assistant is typing"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-foreground/70 animate-bounce [animation-delay:-0.2s]" />
+            <span className="w-1.5 h-1.5 rounded-full bg-foreground/70 animate-bounce [animation-delay:-0.1s]" />
+            <span className="w-1.5 h-1.5 rounded-full bg-foreground/70 animate-bounce" />
+          </span>
         )}
       </div>
     </div>

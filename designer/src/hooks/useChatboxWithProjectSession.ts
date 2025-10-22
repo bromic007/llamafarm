@@ -245,6 +245,16 @@ export function useChatboxWithProjectSession(enableStreaming: boolean = true) {
         isStreaming: streamingEnabled,
       })
 
+      // Ensure a visible temporary streaming bubble exists immediately so the
+      // UI can show the typing indicator before the first chunk arrives.
+      if (streamingEnabled) {
+        updateMessage(assistantMessageId, {
+          content: '',
+          isStreaming: true,
+          isLoading: false,
+        })
+      }
+
       let timeoutId: NodeJS.Timeout | undefined
 
       try {
