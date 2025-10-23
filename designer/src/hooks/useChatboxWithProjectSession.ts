@@ -6,11 +6,24 @@
  */
 
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
+// Minimal mutation interface to avoid inference issues in strict builds
+type ProjectChatMutation = {
+  mutateAsync: (args: {
+    chatRequest: ChatRequest
+    sessionId?: string
+  }) => Promise<{ data: ChatResponse; sessionId: string }>
+  isPending?: boolean
+}
 import { useDeleteProjectChatSession, useProjectChat } from './useChat'
 import { createChatRequest, chatProjectStreaming } from '../api/chatService'
 import { useProjectSession } from './useProjectSession'
 import { ChatboxMessage } from '../types/chatbox'
-import { ChatStreamChunk, NetworkError } from '../types/chat'
+import {
+  ChatStreamChunk,
+  NetworkError,
+  ChatRequest,
+  ChatResponse,
+} from '../types/chat'
 import { generateMessageId } from '../utils/idGenerator'
 import { useActiveProject } from './useActiveProject'
 
@@ -67,7 +80,10 @@ export function useChatboxWithProjectSession(enableStreaming: boolean = true) {
 
   // API hooks (project-scoped); must be called unconditionally to satisfy React rules.
   // We will guard usage when ns/proj are missing.
-  const projectChat = useProjectChat(ns, proj)
+  const projectChat: ProjectChatMutation = useProjectChat(
+    ns,
+    proj
+  ) as unknown as ProjectChatMutation
   const deleteProjectSessionMutation = useDeleteProjectChatSession(ns, proj)
 
   // Get current state from project session system (always used)
@@ -111,7 +127,7 @@ export function useChatboxWithProjectSession(enableStreaming: boolean = true) {
           onError(new Error('No active project'))
           return
         }
-        const response = await projectChat.mutateAsync({
+        const response = await (projectChat as any).mutateAsync({
           chatRequest,
           sessionId: currentSessionId,
         })
@@ -538,11 +554,7 @@ export function useChatboxWithProjectSession(enableStreaming: boolean = true) {
             setError('Select or create a project before chatting.')
             return false
           }
-          if (!projectChat) {
-            setError('Select or create a project before chatting.')
-            return false
-          }
-          const response = await projectChat.mutateAsync({
+          const response = await (projectChat as any).mutateAsync({
             chatRequest,
             sessionId: fixedSessionId || undefined,
           })
