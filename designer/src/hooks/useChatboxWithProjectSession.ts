@@ -289,7 +289,7 @@ export function useChatboxWithProjectSession(enableStreaming: boolean = true) {
           }, 60000)
 
           let accumulatedContent = ''
-          const responseSessionId = await chatProjectStreaming(
+          await chatProjectStreaming(
             ns,
             proj,
             chatRequest,
@@ -326,7 +326,7 @@ export function useChatboxWithProjectSession(enableStreaming: boolean = true) {
                 const isUserCancelled =
                   isAbortError ||
                   (error as any)?.code === 'USER_CANCELLED' ||
-                  error.name === 'UserCancelledError' ||
+                  (error as any)?.name === 'UserCancelledError' ||
                   isWrappedCancel
 
                 if (!isUserCancelled && error instanceof NetworkError) {
@@ -598,7 +598,7 @@ export function useChatboxWithProjectSession(enableStreaming: boolean = true) {
         const isUserCancelled =
           isAbortError ||
           (error as any)?.code === 'USER_CANCELLED' ||
-          error?.name === 'UserCancelledError' ||
+          (error as any)?.name === 'UserCancelledError' ||
           isWrappedCancel
         if (isUserCancelled) {
           setError(null)
