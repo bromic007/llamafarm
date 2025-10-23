@@ -49,6 +49,12 @@ export function useChatboxWithProjectSession(enableStreaming: boolean = true) {
   const ns = activeProject?.namespace || ''
   const proj = activeProject?.project || ''
 
+  // Deterministic per-project session ID for Designer chat
+  const fixedSessionId = useMemo(
+    () => (ns && proj ? `${ns}:${proj}:designer` : ''),
+    [ns, proj]
+  )
+
   // UI state
   const [inputValue, setInputValue] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -64,7 +70,7 @@ export function useChatboxWithProjectSession(enableStreaming: boolean = true) {
   const deleteProjectSessionMutation = useDeleteProjectChatSession(ns, proj)
 
   // Get current state from project session system (always used)
-  const currentSessionId = projectSession.sessionId
+  const currentSessionId = fixedSessionId || projectSession.sessionId
   const projectSessionMessages = useMemo(() => {
     return projectSession.messages.map(projectSessionToChatboxMessage)
   }, [projectSession.messages, currentSessionId])
@@ -282,7 +288,7 @@ export function useChatboxWithProjectSession(enableStreaming: boolean = true) {
             ns,
             proj,
             chatRequest,
-            currentSessionId || undefined,
+            fixedSessionId || undefined,
             {
               onChunk: (chunk: ChatStreamChunk) => {
                 // Handle role assignment (first chunk)
@@ -426,37 +432,8 @@ export function useChatboxWithProjectSession(enableStreaming: boolean = true) {
 
                     // NOW handle session creation/reconciliation after all messages are added
                     // Use a small delay to ensure the addMessage state update has completed
-                    setTimeout(() => {
-                      if (deferredSessionId) {
-                        try {
-                          // Check if we have any existing session
-                          const existingSessionId =
-                            currentSessionId || projectSession.sessionId
-
-                          if (existingSessionId) {
-                            // Check if reconciliation is actually needed
-                            if (existingSessionId !== deferredSessionId) {
-                              // Session IDs differ, reconciliation needed
-                              projectSession.reconcileWithServer(
-                                existingSessionId,
-                                deferredSessionId
-                              )
-                            }
-                          } else {
-                            // Truly no existing session, create new one with all temp messages
-                            projectSession.createSessionFromServer(
-                              deferredSessionId
-                            )
-                          }
-                        } catch (sessionError) {
-                          console.error(
-                            'Failed to handle deferred session creation:',
-                            sessionError
-                          )
-                          // Don't fail the whole request for session management errors
-                        }
-                      }
-                    }, 10) // Small delay to ensure state updates have completed
+                    // With fixed session IDs, no reconciliation is required
+                    setTimeout(() => {}, 10)
                   } catch (err) {
                     console.warn('Failed to save to project session:', err)
                     // Keep the message in streaming state with final content
@@ -472,23 +449,7 @@ export function useChatboxWithProjectSession(enableStreaming: boolean = true) {
                     prev.filter(msg => msg.id !== assistantMessageId)
                   )
 
-                  // Handle deferred session even without content
-                  if (deferredSessionId) {
-                    try {
-                      const existingSessionId =
-                        currentSessionId || projectSession.sessionId
-                      if (!existingSessionId) {
-                        projectSession.createSessionFromServer(
-                          deferredSessionId
-                        )
-                      }
-                    } catch (sessionError) {
-                      console.error(
-                        'Failed to handle deferred session after streaming failure:',
-                        sessionError
-                      )
-                    }
-                  }
+                  // No-op for fixed session IDs
 
                   // Clear any existing fallback timeout
                   if (fallbackTimeoutRef.current) {
@@ -569,37 +530,10 @@ export function useChatboxWithProjectSession(enableStreaming: boolean = true) {
           // Non-streaming path
           const response = await projectChat.mutateAsync({
             chatRequest,
-            sessionId: currentSessionId || undefined,
+            sessionId: fixedSessionId || undefined,
           })
 
-          // Handle session reconciliation if we got a session ID from server
-          if (response.sessionId) {
-            try {
-              // Check if we have any existing session (even if currentSessionId is null)
-              const existingSessionId =
-                currentSessionId || projectSession.sessionId
-
-              if (existingSessionId) {
-                // Check if reconciliation is actually needed
-                if (existingSessionId !== response.sessionId) {
-                  // Session IDs differ, reconciliation needed
-                  projectSession.reconcileWithServer(
-                    existingSessionId,
-                    response.sessionId
-                  )
-                }
-              } else {
-                // Truly no existing session, create new one
-                projectSession.createSessionFromServer(response.sessionId)
-              }
-            } catch (sessionError) {
-              console.error(
-                'Failed to handle session from server response:',
-                sessionError
-              )
-              // Don't fail the whole request for session management errors
-            }
-          }
+          // With fixed session IDs, ignore response.sessionId
 
           // Update assistant message with response
           if (response.data.choices && response.data.choices.length > 0) {

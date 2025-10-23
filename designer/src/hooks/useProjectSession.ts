@@ -112,7 +112,13 @@ export function useProjectSession(
     activeProject,
   ])
 
-  // Project change effect - update to clear temp messages too
+  // Helper to build fixed session id per project/service
+  const makeFixedId = useCallback(
+    (ns: string, project: string, svc: string) => `${ns}:${project}:${svc}`,
+    []
+  )
+
+  // Project change effect - single persistent session per project/service
   useEffect(() => {
     // Don't reset session if we're in the middle of a transfer
     if (shouldPreventReset('project change effect')) {
@@ -120,32 +126,28 @@ export function useProjectSession(
     }
 
     if (activeProject) {
-      const existingSessionId = findExistingSession(
+      const id = makeFixedId(
         activeProject.namespace,
         activeProject.project,
         chatService
       )
-
-      if (existingSessionId) {
-        // Load existing session
-        const sessions = getStoredSessions()
-        const sessionData = sessions[existingSessionId]
-        setSessionId(existingSessionId)
-        setMessages(sessionData ? sessionData.messages : [])
-        setTempMessages([]) // Clear temp messages
-      } else {
-        // No existing session - start fresh
-        setSessionId(null)
-        setMessages([])
-        setTempMessages([])
-      }
+      setSessionId(id)
+      const sessions = getStoredSessions()
+      const sessionData = sessions[id]
+      setMessages(sessionData ? sessionData.messages : [])
+      setTempMessages([])
     } else {
       // No active project
       setSessionId(null)
       setMessages([])
       setTempMessages([])
     }
-  }, [activeProject?.namespace, activeProject?.project, chatService])
+  }, [
+    activeProject?.namespace,
+    activeProject?.project,
+    chatService,
+    makeFixedId,
+  ])
 
   //  Function to add message to temporary state
   const addTempMessage = useCallback((message: ChatMessage) => {
@@ -282,147 +284,26 @@ export function useProjectSession(
 
   // Reconcile with server session ID (handles session ID mismatches)
   const reconcileWithServer = useCallback(
-    (clientSessionId: string, serverSessionId: string) => {
-      // Early exit if session IDs are identical
-      if (
-        clientSessionId === serverSessionId &&
-        typeof clientSessionId === 'string' &&
-        typeof serverSessionId === 'string' &&
-        clientSessionId.length > 0
-      ) {
-        return // Exit early - don't touch existing session!
-      }
-
-      const currentTempMessages = tempMessagesRef.current
-      const currentMessages = messages
-      const currentIsTemporaryMode = isTemporaryMode
-
-      if (activeProject && tempMessages.length > 0) {
-        createPersistentSession(
-          serverSessionId,
-          activeProject.namespace,
-          activeProject.project,
-          chatService,
-          currentTempMessages
-        )
-      } else if (activeProject) {
-        createPersistentSession(
-          serverSessionId,
-          activeProject.namespace,
-          activeProject.project,
-          chatService,
-          currentMessages
-        )
-      }
-
-      // Update to use server session ID
-      setSessionId(serverSessionId)
-      setMessages(
-        currentIsTemporaryMode ? currentTempMessages : currentMessages
-      )
-      setTempMessages([])
+    (_clientId: string, _serverId: string) => {
+      // No-op with fixed session IDs
     },
-    [activeProject, chatService, tempMessages, messages, isTemporaryMode]
+    []
   )
 
   // Create session from server (when server provides a new session ID)
-  const createSessionFromServer = useCallback(
-    (serverSessionId: string) => {
-      const currentTempMessages = tempMessagesRef.current
-      const currentMessages = messages
-      const currentIsTemporaryMode = isTemporaryMode
-
-      if (currentIsTemporaryMode && currentTempMessages.length > 0) {
-        // We have temp messages to transfer
-        transferToServerSession(serverSessionId, currentTempMessages)
-      } else if (!currentIsTemporaryMode && currentMessages.length > 0) {
-        // We already have persistent messages, just update the session ID and save
-        if (activeProject) {
-          createPersistentSession(
-            serverSessionId,
-            activeProject.namespace,
-            activeProject.project,
-            chatService,
-            currentMessages
-          )
-          setSessionId(serverSessionId)
-        }
-      } else {
-        // No messages to transfer, just create empty session
-        if (activeProject) {
-          createPersistentSession(
-            serverSessionId,
-            activeProject.namespace,
-            activeProject.project,
-            chatService,
-            []
-          )
-          setSessionId(serverSessionId)
-          setMessages([])
-          setTempMessages([])
-        }
-      }
-    },
-    [
-      activeProject,
-      chatService,
-      messages,
-      isTemporaryMode,
-      transferToServerSession,
-    ]
-  )
+  const createSessionFromServer = useCallback((_serverSessionId: string) => {
+    // No-op with fixed session IDs
+  }, [])
 
   // List sessions for current project/chatService
-  const listSessions = useCallback(() => {
-    const result: Array<{
-      id: string
-      createdAt: string
-      lastUsed: string
-      messageCount: number
-    }> = []
-    if (!activeProject) return result
-    const sessions = getStoredSessions()
-    Object.entries(sessions).forEach(([id, s]) => {
-      if (
-        s.namespace === activeProject.namespace &&
-        s.project === activeProject.project &&
-        s.chatService === chatService
-      ) {
-        result.push({
-          id,
-          createdAt: s.createdAt,
-          lastUsed: s.lastUsed,
-          messageCount: s.messages?.length || 0,
-        })
-      }
-    })
-    // Sort by lastUsed desc
-    result.sort((a, b) => (b.lastUsed || '').localeCompare(a.lastUsed || ''))
-    return result
-  }, [activeProject, chatService])
+  const listSessions = useCallback(() => [], [])
 
   // Select an existing session by ID
-  const selectSession = useCallback(
-    (targetSessionId: string) => {
-      if (!activeProject) return
-      if (!targetSessionId) {
-        // Start a fresh, empty session (temporary mode until server responds)
-        setSessionId(null)
-        setMessages([])
-        setTempMessages([])
-        setError(null)
-        return
-      }
-      const sessions = getStoredSessions()
-      const s = sessions[targetSessionId]
-      if (!s) return
-      setSessionId(targetSessionId)
-      setMessages(s.messages || [])
-      setTempMessages([])
-      setError(null)
-    },
-    [activeProject]
-  )
+  const selectSession = useCallback((_id: string) => {
+    setMessages([])
+    setTempMessages([])
+    setError(null)
+  }, [])
 
   return {
     // State
