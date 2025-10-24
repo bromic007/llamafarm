@@ -3,7 +3,6 @@ import { useActiveProject } from '../../hooks/useActiveProject'
 import { useFormattedConfig } from '../../hooks/useFormattedConfig'
 import { useUpdateProject } from '../../hooks/useProjects'
 import { useTheme } from '../../contexts/ThemeContext'
-import { validateYAML } from '../../utils/yamlSchemaValidator'
 import yaml from 'yaml'
 import ConfigLoading from './ConfigLoading'
 import ConfigError from './ConfigError'
@@ -61,22 +60,6 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({ className = '' }) => {
         configObj = yaml.parse(editedContent)
       } catch (parseError) {
         alert(`YAML syntax error:\n\n${parseError instanceof Error ? parseError.message : 'Invalid YAML syntax'}\n\nPlease fix the syntax before saving.`)
-        return
-      }
-
-      // Validate against schema
-      const validationErrors = await validateYAML(editedContent)
-
-      if (validationErrors.length > 0) {
-        // Show validation errors with line numbers
-        const errorMessages = validationErrors
-          .slice(0, 10)
-          .map((e) => `  Line ${e.line}, Col ${e.column}: ${e.message}`)
-          .join('\n')
-
-        const moreErrors = validationErrors.length > 10 ? `\n  ... and ${validationErrors.length - 10} more errors` : ''
-
-        alert(`Configuration has ${validationErrors.length} validation error${validationErrors.length > 1 ? 's' : ''}:\n\n${errorMessages}${moreErrors}\n\nPlease fix these errors before saving.`)
         return
       }
 

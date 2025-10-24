@@ -92,16 +92,6 @@ if __name__ == "__main__":
         dest_file.write_text(compiled, encoding="utf-8")
         print(f"Schema also copied to {dest_file}")
 
-        # Generate JSON Schema for designer (for real-time validation in UI)
-        designer_dir = Path(__file__).parent.parent / "designer" / "src" / "schemas"
-        designer_dir.mkdir(parents=True, exist_ok=True)
-
-        # Convert to JSON Schema format
-        json_schema_file = designer_dir / "llamafarm-config.schema.json"
-        json_schema_content = json.dumps(deref, indent=2, ensure_ascii=False)
-        json_schema_file.write_text(json_schema_content, encoding="utf-8")
-        print(f"JSON Schema generated for designer at {json_schema_file}")
-
     except Exception as e:
         print(f"Error during schema compilation: {e}")
         import traceback
