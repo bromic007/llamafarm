@@ -27,8 +27,21 @@ export function useFormattedConfig(): UseFormattedConfigReturn {
   // Format the configuration for display
   const formattedConfig = useMemo(() => {
     if (error) {
+      // Escape error message for safe YAML embedding
+      const escapeYamlString = (str: string) => {
+        return str
+          .replace(/\\/g, '\\\\')
+          .replace(/"/g, '\\"')
+          .replace(/\n/g, '\\n')
+          .replace(/\r/g, '\\r')
+          .replace(/\t/g, '\\t')
+      }
+
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      const escapedErrorMessage = escapeYamlString(errorMessage)
+
       return `# Error loading project configuration
-# Error: ${error instanceof Error ? error.message : 'Unknown error'}
+# Error: ${escapedErrorMessage}
 #
 # Please check:
 # - Project exists and is accessible
@@ -38,7 +51,7 @@ export function useFormattedConfig(): UseFormattedConfigReturn {
 # You can try refreshing to reload the configuration.
 
 error:
-  message: "${error instanceof Error ? error.message : 'Unknown error'}"
+  message: "${escapedErrorMessage}"
   timestamp: "${new Date().toISOString()}"
 `
     }

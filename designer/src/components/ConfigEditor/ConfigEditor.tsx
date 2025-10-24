@@ -33,11 +33,13 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({ className = '' }) => {
   const [saveError, setSaveError] = useState<string | null>(null)
 
   // Update edited content when formatted config changes
+  // Guard: Don't reset if user has unsaved changes
   useEffect(() => {
-    setEditedContent(formattedConfig)
-    setIsDirty(false)
-    setSaveError(null) // Clear errors when config reloads
-  }, [formattedConfig])
+    if (!isDirty) {
+      setEditedContent(formattedConfig)
+      setSaveError(null) // Clear errors when config reloads
+    }
+  }, [formattedConfig, isDirty])
 
   // Update project mutation
   const updateProject = useUpdateProject()

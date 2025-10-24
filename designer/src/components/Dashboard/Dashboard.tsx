@@ -197,9 +197,21 @@ const Dashboard = () => {
 
         {/* Validation Error Banner */}
         {projectDetail?.project?.validation_error && (() => {
-          // Count the number of validation errors
+          // Parse actual error count from validation messages
           const errorText = projectDetail.project.validation_error
-          const errorCount = (errorText.match(/validation error/gi) || []).length
+          let errorCount = 1 // Default to 1 if we can't parse
+
+          // Try to extract error count from patterns like "5 validation errors" or "(and 3 more errors)"
+          const countMatch = errorText.match(/(\d+)\s+(?:validation\s+)?errors?/i)
+          if (countMatch) {
+            errorCount = parseInt(countMatch[1], 10)
+          } else {
+            // Count semicolon-separated error messages as individual errors
+            const parts = errorText.split(';').filter(s => s.trim().length > 0)
+            if (parts.length > 1) {
+              errorCount = parts.length
+            }
+          }
 
           return (
             <div className="mb-4 rounded-lg border border-red-600 bg-red-50 dark:bg-red-950/20">

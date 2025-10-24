@@ -98,12 +98,16 @@ const FontIcon: React.FC<FontIconProps> = ({
     switch (type) {
       case 'add':
         return <Add />
+      case 'alert-triangle':
+        return <Info /> // Use Info icon for alert-triangle
       case 'arrow-filled':
         return <ArrowFilled />
       case 'arrow-right':
         return <ArrowRight />
       case 'chevron-down':
         return <ChevronDown />
+      case 'chevron-up':
+        return <div style={{ transform: 'rotate(180deg)' }}><ChevronDown /></div> // Rotate chevron-down for chevron-up
       case 'checkmark-filled':
         return <CheckmarkFilled />
       case 'checkmark-outline':
@@ -126,6 +130,8 @@ const FontIcon: React.FC<FontIconProps> = ({
         return <Fade />
       case 'integration':
         return <Integration />
+      case 'loading':
+        return <RecentlyViewed /> // Use RecentlyViewed icon for loading (with animate-spin in className)
       case 'moon-filled':
         return <MoonFilled />
       case 'open-panel':
@@ -136,6 +142,8 @@ const FontIcon: React.FC<FontIconProps> = ({
         return <Model />
       case 'recently-viewed':
         return <RecentlyViewed />
+      case 'save':
+        return <CheckmarkFilled /> // Use CheckmarkFilled icon for save
       case 'search':
         return <Search />
       case 'sun':

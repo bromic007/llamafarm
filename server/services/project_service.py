@@ -74,7 +74,7 @@ class ProjectService:
         """
         try:
             # Look for config files in order of preference
-            config_files = ["llamafarm.yaml", "llamafarm.yml", "llamafarm.toml"]
+            config_files = ["llamafarm.yaml", "llamafarm.yml", "llamafarm.toml", "llamafarm.json"]
             for config_file in config_files:
                 config_path = os.path.join(project_dir, config_file)
                 if os.path.isfile(config_path):
