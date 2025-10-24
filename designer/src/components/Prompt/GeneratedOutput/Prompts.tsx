@@ -43,13 +43,7 @@ const Prompts = () => {
     return sets
   }, [projectResponse])
 
-  // Flatten current active set to rows for simple preview (keeps previous UX feel)
-  const rows: PromptRow[] = useMemo(() => {
-    if (promptSets.length === 0) return []
-    const activeIndex = promptSets.findIndex(s => s.active)
-    const set = activeIndex >= 0 ? promptSets[activeIndex] : promptSets[0]
-    return set.items.map(p => ({ role: p.role, preview: p.content }))
-  }, [promptSets])
+  // (preview rows removed; table renders directly from sets)
 
   // Add prompt modal state
   const [isOpen, setIsOpen] = useState(false)
@@ -88,7 +82,12 @@ const Prompts = () => {
     const target = { ...nextSets[idx] }
     target.items = [...target.items]
 
-    if (mode === 'edit' && editIndex != null && editIndex >= 0) {
+    if (
+      mode === 'edit' &&
+      editIndex != null &&
+      editIndex >= 0 &&
+      editIndex < target.items.length
+    ) {
       target.items[editIndex] = { role, content: text }
     } else {
       target.items.unshift({ role, content: text })
@@ -114,13 +113,7 @@ const Prompts = () => {
     }
   }
 
-  const openCreatePrompt = () => {
-    setMode('create')
-    setInitialText('')
-    setInitialRole('system')
-    setEditIndex(null)
-    setIsOpen(true)
-  }
+  // openCreatePrompt removed (unused)
 
   const openEditPrompt = (index: number, setIndex: number) => {
     const set = promptSets[setIndex]

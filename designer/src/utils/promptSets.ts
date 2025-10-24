@@ -54,6 +54,14 @@ function generateId(prefix: string = 'set'): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`
 }
 
+function hashString(input: string): string {
+  let hash = 0
+  for (let i = 0; i < input.length; i++) {
+    hash = (hash * 31 + input.charCodeAt(i)) | 0
+  }
+  return Math.abs(hash).toString(36)
+}
+
 export function parsePromptSets(prompts: RawPromptMessage[] | undefined): {
   sets: PromptSet[]
   hasMarkers: boolean
@@ -125,14 +133,19 @@ export function parsePromptSets(prompts: RawPromptMessage[] | undefined): {
   }
 
   // Ensure exactly one active
-  const activeIndex = sets.findIndex(s => s.active)
-  if (activeIndex === -1) {
-    sets[0].active = true
-  } else if (activeIndex > 0) {
-    // Keep the first active true, turn off others
-    for (let i = 0; i < sets.length; i++) {
-      sets[i].active = i === activeIndex
-    }
+  let firstActiveIndex = sets.findIndex(s => s.active)
+  if (firstActiveIndex === -1) firstActiveIndex = 0
+  for (let i = 0; i < sets.length; i++) {
+    sets[i].active = i === firstActiveIndex
+  }
+
+  // Assign stable IDs derived from set content to avoid React key churn
+  for (let i = 0; i < sets.length; i++) {
+    const s = sets[i]
+    const base = `${i}|${s.name}|${s.items
+      .map(it => `${it.role}:${it.content}`)
+      .join('|')}`
+    s.id = `set-${hashString(base)}`
   }
 
   return { sets, hasMarkers }

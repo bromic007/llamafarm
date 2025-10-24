@@ -89,6 +89,26 @@ export function useChatboxWithProjectSession(enableStreaming: boolean = true) {
   }, [])
 
   // Helper function to execute fallback non-streaming request
+  const prependActiveSet = useCallback(
+    (chatRequest: { messages: ChatMessage[] }) => {
+      const projectPrompts = projectResponse?.project?.config
+        ?.prompts as Array<{
+        role?: string
+        content: string
+      }>
+      if (Array.isArray(projectPrompts) && projectPrompts.length > 0) {
+        const systemMessages = filterActiveSetMessages(
+          projectPrompts
+        ) as ChatMessage[]
+        if (systemMessages.length > 0) {
+          chatRequest.messages = [...systemMessages, ...chatRequest.messages]
+        }
+      }
+    },
+    [projectResponse?.project?.config]
+  )
+
+  // Helper function to execute fallback non-streaming request
   const executeFallbackRequest = useCallback(
     async (
       messageContent: string,
@@ -103,35 +123,8 @@ export function useChatboxWithProjectSession(enableStreaming: boolean = true) {
 
       try {
         const chatRequest = createChatRequest(messageContent)
-        // Prepend active prompt set for streaming path as well
-        const streamPrompts = projectResponse?.project?.config
-          ?.prompts as Array<{
-          role?: string
-          content: string
-        }>
-        if (Array.isArray(streamPrompts) && streamPrompts.length > 0) {
-          const systemMessages = filterActiveSetMessages(
-            streamPrompts
-          ) as ChatMessage[]
-          if (systemMessages.length > 0) {
-            chatRequest.messages = [...systemMessages, ...chatRequest.messages]
-          }
-        }
-        // Prepend active prompt set for fallback (non-streaming)
-        const projectPrompts = projectResponse?.project?.config
-          ?.prompts as Array<{
-          role?: string
-          content: string
-        }>
-        if (Array.isArray(projectPrompts) && projectPrompts.length > 0) {
-          const systemMessages = filterActiveSetMessages(
-            projectPrompts
-          ) as ChatMessage[]
-          if (systemMessages.length > 0) {
-            chatRequest.messages = [...systemMessages, ...chatRequest.messages]
-          }
-        }
-        // (no-op: legacy duplication removed)
+        // Prepend active prompt set once
+        prependActiveSet(chatRequest)
         const response = await chatMutation.mutateAsync({
           chatRequest,
           sessionId: currentSessionId,
@@ -157,7 +150,7 @@ export function useChatboxWithProjectSession(enableStreaming: boolean = true) {
         )
       }
     },
-    [chatMutation]
+    [chatMutation, prependActiveSet]
   )
 
   // Add message to both streaming state and project session
@@ -284,6 +277,9 @@ export function useChatboxWithProjectSession(enableStreaming: boolean = true) {
       try {
         // Create chat request
         const chatRequest = createChatRequest(messageContent)
+
+        // Prepend active prompt set once
+        prependActiveSet(chatRequest)
 
         if (streamingEnabled) {
           // Streaming path
@@ -581,6 +577,8 @@ export function useChatboxWithProjectSession(enableStreaming: boolean = true) {
           return true
         } else {
           // Non-streaming path
+          // Prepend active prompt set once
+          prependActiveSet(chatRequest)
           const response = await chatMutation.mutateAsync({
             chatRequest,
             sessionId: currentSessionId || undefined,
