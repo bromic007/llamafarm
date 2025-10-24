@@ -22,7 +22,8 @@ const CodeMirrorEditor: React.FC<CodeMirrorEditorProps> = ({
   onSave,
   onDiscard,
   isDirty = false,
-  isSaving = false
+  isSaving = false,
+  saveError = null
 }) => {
   const activeProject = useActiveProject()
 
@@ -50,8 +51,9 @@ const CodeMirrorEditor: React.FC<CodeMirrorEditorProps> = ({
           onDiscard={onDiscard}
           isDirty={isDirty}
           isSaving={isSaving}
+          saveError={saveError}
         />
-        
+
         {/* Loading content */}
         <div className="flex-1 flex items-center justify-center">
           <div className="flex flex-col items-center gap-3">
@@ -74,8 +76,9 @@ const CodeMirrorEditor: React.FC<CodeMirrorEditorProps> = ({
           onDiscard={onDiscard}
           isDirty={isDirty}
           isSaving={isSaving}
+          saveError={saveError}
         />
-        
+
         {/* Error content */}
         <div className="flex-1 flex items-center justify-center p-6">
           <div className="max-w-md text-center space-y-4">
@@ -116,15 +119,16 @@ const CodeMirrorEditor: React.FC<CodeMirrorEditorProps> = ({
         onDiscard={onDiscard}
         isDirty={isDirty}
         isSaving={isSaving}
+        saveError={saveError}
       />
-      
+
       {/* Editor container with fallback */}
       <div className="flex-1 min-h-0 relative">
-        <EditorContent 
-          editorRef={editorRef} 
+        <EditorContent
+          editorRef={editorRef}
         />
-        <EditorFallback 
-          content={content} 
+        <EditorFallback
+          content={content}
           isInitialized={isInitialized}
         />
       </div>

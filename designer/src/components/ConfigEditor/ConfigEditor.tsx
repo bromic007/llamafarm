@@ -30,11 +30,13 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({ className = '' }) => {
   // Edit state
   const [editedContent, setEditedContent] = useState<string>(formattedConfig)
   const [isDirty, setIsDirty] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   // Update edited content when formatted config changes
   useEffect(() => {
     setEditedContent(formattedConfig)
     setIsDirty(false)
+    setSaveError(null) // Clear errors when config reloads
   }, [formattedConfig])
 
   // Update project mutation
@@ -47,11 +49,14 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({ className = '' }) => {
   const handleChange = (newContent: string) => {
     setEditedContent(newContent)
     setIsDirty(newContent !== formattedConfig)
+    setSaveError(null) // Clear error on change
   }
 
   // Handle save
   const handleSave = async () => {
     if (!activeProject || !isDirty) return
+
+    setSaveError(null) // Clear previous errors
 
     try {
       // Parse YAML first to check for syntax errors
@@ -59,7 +64,7 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({ className = '' }) => {
       try {
         configObj = yaml.parse(editedContent)
       } catch (parseError) {
-        alert(`YAML syntax error:\n\n${parseError instanceof Error ? parseError.message : 'Invalid YAML syntax'}\n\nPlease fix the syntax before saving.`)
+        setSaveError(`YAML syntax error: ${parseError instanceof Error ? parseError.message : 'Invalid YAML syntax'}. Please fix the syntax before saving.`)
         return
       }
 
@@ -76,42 +81,49 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({ className = '' }) => {
       await refetch()
 
       setIsDirty(false)
+      setSaveError(null) // Clear any previous errors on success
     } catch (err: any) {
       console.error('Failed to save config:', err)
 
-      // Parse backend validation errors
+      // Parse and sanitize backend validation errors
       let errorMessage = 'Failed to save configuration'
 
       if (err.response?.data) {
-        const data = err.response.data
+        const {data} = err.response
 
-        // Handle backend validation errors
+        // Handle backend validation errors - sanitize to avoid exposing internal details
         if (data.detail) {
           if (Array.isArray(data.detail)) {
-            // Pydantic validation errors
+            // Pydantic validation errors - only show user-relevant information
             const backendErrors = data.detail
-              .slice(0, 10)
+              .slice(0, 5) // Limit to first 5 errors for UX
               .map((e: any) => {
-                const location = e.loc ? e.loc.join('.') : 'unknown'
-                return `  ${location}: ${e.msg || e.message || 'validation error'}`
+                const location = e.loc ? e.loc.slice(1).join('.') : 'configuration' // Remove 'body' prefix
+                const message = e.msg || e.message || 'Invalid value'
+                return `${location}: ${message}`
               })
-              .join('\n')
+              .join('; ')
 
-            const moreErrors = data.detail.length > 10 ? `\n  ... and ${data.detail.length - 10} more errors` : ''
-            errorMessage = `Backend validation errors:\n\n${backendErrors}${moreErrors}`
+            const moreErrors = data.detail.length > 5 ? ` (and ${data.detail.length - 5} more)` : ''
+            errorMessage = `Validation failed: ${backendErrors}${moreErrors}`
           } else if (typeof data.detail === 'string') {
-            errorMessage = `Backend error: ${data.detail}`
+            // Sanitize string errors to remove potential internal paths/traces
+            const sanitizedDetail = data.detail
+              .replace(/\/[^\s]+\/llamafarm/g, 'llamafarm') // Remove absolute paths
+              .replace(/File "[^"]+", /g, '') // Remove file references
+            errorMessage = `Error: ${sanitizedDetail}`
           } else {
-            errorMessage = `Backend error: ${JSON.stringify(data.detail)}`
+            errorMessage = 'Invalid configuration format'
           }
         } else if (data.message) {
           errorMessage = data.message
         }
       } else if (err.message) {
-        errorMessage = err.message
+        // Client-side error
+        errorMessage = `Network error: ${err.message}`
       }
 
-      alert(errorMessage)
+      setSaveError(errorMessage)
     }
   }
 
@@ -119,6 +131,7 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({ className = '' }) => {
   const handleDiscard = () => {
     setEditedContent(formattedConfig)
     setIsDirty(false)
+    setSaveError(null) // Clear errors on discard
   }
 
   if (isActuallyLoading) {
@@ -185,6 +198,7 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({ className = '' }) => {
         onDiscard={handleDiscard}
         isDirty={isDirty}
         isSaving={updateProject.isPending}
+        saveError={saveError}
       />
     </Suspense>
   )

@@ -24,24 +24,9 @@ class DatasetService:
     def list_datasets(cls, namespace: str, project: str) -> list[Dataset]:
         """
         List all datasets for a given project
-        Works even if project has validation errors in other sections
         """
-        project_obj = ProjectService.get_project(namespace, project)
-        config = project_obj.config
-
-        # Handle both LlamaFarmConfig and dict (for projects with validation errors)
-        if hasattr(config, 'datasets'):
-            # LlamaFarmConfig object
-            return config.datasets or []
-        elif isinstance(config, dict):
-            # Raw dict (validation errors in other sections)
-            datasets_data = config.get('datasets', [])
-            if datasets_data:
-                # Convert dict to Dataset objects
-                return [Dataset(**ds) if isinstance(ds, dict) else ds for ds in datasets_data]
-            return []
-
-        return []
+        project_config = ProjectService.load_config(namespace, project)
+        return project_config.datasets or []
 
     @classmethod
     def list_datasets_with_file_details(

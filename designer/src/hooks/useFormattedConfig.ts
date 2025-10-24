@@ -62,11 +62,27 @@ activeProject: ${activeProject ? `"${activeProject.project}"` : 'null'}
     // This is the actual project configuration that can be edited
     const config = projectResponse.project?.config || {}
 
-    return yaml.stringify(config, {
-      indent: 2,
-      lineWidth: 0, // Don't wrap lines
-      minContentWidth: 0
-    })
+    try {
+      return yaml.stringify(config, {
+        indent: 2,
+        lineWidth: 0, // Don't wrap lines
+        minContentWidth: 0
+      })
+    } catch (yamlError) {
+      // Handle circular references or non-serializable values
+      return `# Error converting configuration to YAML
+# Error: ${yamlError instanceof Error ? yamlError.message : 'Failed to serialize configuration'}
+#
+# This could be due to:
+# - Circular references in the configuration
+# - Non-serializable values
+# - Invalid data structure
+#
+# Raw config (as JSON):
+
+${JSON.stringify(config, null, 2)}
+`
+    }
   }, [error, projectResponse, activeProject])
 
   return {

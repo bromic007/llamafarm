@@ -10,6 +10,11 @@ import {
   filterProjectsBySearch,
   getProjectsList,
 } from './utils/projectConstants'
+import {
+  getModelNames,
+  formatLastModified,
+  parseTimestamp
+} from './utils/projectHelpers'
 import { getCurrentNamespace } from './utils/namespaceUtils'
 import { encodeMessageForUrl } from './utils/homePageUtils'
 import projectService from './api/projectService'
@@ -54,67 +59,22 @@ function Home() {
     [projectsResponse]
   )
 
-  // Get full project objects from API
+  // Get full project objects from API with precomputed sort keys
+  // Uses namespace+name as key to avoid potential collisions
   const fullProjects = useMemo(() => {
     const apiProjects = projectsResponse?.projects || []
-    // Map by name for quick lookup
-    const projectMap = new Map(apiProjects.map(p => [p.name, p]))
-    return projectMap
+    return new Map(
+      apiProjects.map(p => {
+        const key = `${p.namespace}/${p.name}`
+        return [key, {
+          ...p,
+          // Precompute sort keys for performance
+          _sortTimestamp: parseTimestamp(p.last_modified),
+          _sortModels: getModelNames(p.config)
+        }]
+      })
+    )
   }, [projectsResponse])
-
-  // Helper to extract all model names from config
-  const getModelNames = (config: any): string[] => {
-    const modelNames: string[] = []
-
-    // Try multi-model format first
-    if (config?.runtime?.models) {
-      const models = Array.isArray(config.runtime.models)
-        ? config.runtime.models
-        : Object.values(config.runtime.models)
-
-      for (const modelConfig of models) {
-        if (modelConfig?.model) {
-          modelNames.push(modelConfig.model)
-        }
-      }
-    }
-
-    // Try legacy single-model format
-    if (modelNames.length === 0 && config?.runtime?.model) {
-      modelNames.push(config.runtime.model)
-    }
-
-    // Return unique model names
-    return [...new Set(modelNames)]
-  }
-
-  // Helper to format last modified date
-  const formatLastModified = (dateString: string | null | undefined): string => {
-    if (!dateString) return 'Never'
-
-    try {
-      const date = new Date(dateString)
-      const now = new Date()
-      const diffMs = now.getTime() - date.getTime()
-      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
-
-      if (diffDays === 0) {
-        return 'Today'
-      } else if (diffDays === 1) {
-        return 'Yesterday'
-      } else if (diffDays < 7) {
-        return `${diffDays} days ago`
-      } else if (diffDays < 30) {
-        const weeks = Math.floor(diffDays / 7)
-        return `${weeks} week${weeks > 1 ? 's' : ''} ago`
-      } else {
-        // Show actual date for older items
-        return date.toLocaleDateString()
-      }
-    } catch {
-      return 'Unknown'
-    }
-  }
 
   // Shared modal hook
   const projectModal = useProjectModalContext()
@@ -128,40 +88,37 @@ function Home() {
       search
     ).map(item => item.name)
 
-    // Then sort based on sortBy selection
-    const sorted = [...filtered].sort((a, b) => {
-      const projectA = fullProjects.get(a)
-      const projectB = fullProjects.get(b)
+    // Get current namespace for key lookup
+    const currentNamespace = namespace
+
+    // Then sort based on sortBy selection (inline immediately returned variable)
+    return [...filtered].sort((a, b) => {
+      // Use namespace+name composite key for lookup
+      const projectA = fullProjects.get(`${currentNamespace}/${a}`)
+      const projectB = fullProjects.get(`${currentNamespace}/${b}`)
 
       switch (sortBy) {
-        case 'newest': {
-          const dateA = projectA?.last_modified ? new Date(projectA.last_modified).getTime() : 0
-          const dateB = projectB?.last_modified ? new Date(projectB.last_modified).getTime() : 0
-          return dateB - dateA // Newest first
-        }
-        case 'oldest': {
-          const dateA = projectA?.last_modified ? new Date(projectA.last_modified).getTime() : 0
-          const dateB = projectB?.last_modified ? new Date(projectB.last_modified).getTime() : 0
-          return dateA - dateB // Oldest first
-        }
+        case 'newest':
+          // Use precomputed timestamps
+          return (projectB?._sortTimestamp || 0) - (projectA?._sortTimestamp || 0)
+        case 'oldest':
+          // Use precomputed timestamps
+          return (projectA?._sortTimestamp || 0) - (projectB?._sortTimestamp || 0)
         case 'a-z':
           return a.localeCompare(b)
         case 'z-a':
           return b.localeCompare(a)
         case 'model': {
-          const modelsA = projectA ? getModelNames(projectA.config) : []
-          const modelsB = projectB ? getModelNames(projectB.config) : []
-          const modelA = modelsA[0] || 'zzz' // Sort projects without models to end
-          const modelB = modelsB[0] || 'zzz'
+          // Use precomputed model lists
+          const modelA = projectA?._sortModels?.[0] || 'zzz'
+          const modelB = projectB?._sortModels?.[0] || 'zzz'
           return modelA.localeCompare(modelB)
         }
         default:
           return 0
       }
     })
-
-    return sorted
-  }, [projectsList, search, sortBy, fullProjects])
+  }, [projectsList, search, sortBy, fullProjects, namespace])
 
   // No-op: pills removed
 
@@ -645,8 +602,8 @@ function Home() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-8">
           {filteredAndSortedProjectNames.map(name => {
-            const project = fullProjects.get(name)
-            const modelNames = project ? getModelNames(project.config) : []
+            const project = fullProjects.get(`${namespace}/${name}`)
+            const modelNames = project?._sortModels || []
             const hasValidationError = project?.validation_error
 
             // Show first 2 models, then "+N" for additional

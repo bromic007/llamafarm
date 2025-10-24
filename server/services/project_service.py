@@ -185,7 +185,18 @@ class ProjectService:
                     entry=project_name,
                     error=str(e),
                 )
-                validation_error_msg = f"Config validation failed: {str(e)}"
+                # Extract structured error messages from Pydantic validation errors
+                if hasattr(e, "errors") and callable(e.errors):
+                    error_details = []
+                    for err in e.errors():
+                        loc = ".".join(str(x) for x in err.get("loc", []))
+                        msg = err.get("msg", "validation error")
+                        error_details.append(f"{loc}: {msg}")
+                    validation_error_msg = "; ".join(error_details[:5])  # Limit to first 5 errors
+                    if len(e.errors()) > 5:
+                        validation_error_msg += f" (and {len(e.errors()) - 5} more errors)"
+                else:
+                    validation_error_msg = f"Config validation failed: {str(e)}"
                 try:
                     cfg = load_config_dict(
                         directory=project_path,
@@ -276,7 +287,18 @@ class ProjectService:
                 project_id=project_id,
                 error=str(e),
             )
-            validation_error_msg = f"Config validation failed: {str(e)}"
+            # Extract structured error messages from Pydantic validation errors
+            if hasattr(e, "errors") and callable(e.errors):
+                error_details = []
+                for err in e.errors():
+                    loc = ".".join(str(x) for x in err.get("loc", []))
+                    msg = err.get("msg", "validation error")
+                    error_details.append(f"{loc}: {msg}")
+                validation_error_msg = "; ".join(error_details[:5])  # Limit to first 5 errors
+                if len(e.errors()) > 5:
+                    validation_error_msg += f" (and {len(e.errors()) - 5} more errors)"
+            else:
+                validation_error_msg = f"Config validation failed: {str(e)}"
             try:
                 cfg = load_config_dict(
                     directory=project_dir,

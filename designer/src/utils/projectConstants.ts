@@ -4,6 +4,7 @@
  */
 
 import type { Project } from '../types/project'
+import { getModelDisplayName } from './projectHelpers'
 
 export const DEFAULT_PROJECT_NAMES = [
   'aircraft-mx-flow',
@@ -39,28 +40,6 @@ export const getProjectsList = (apiResponse?: {
   return merged.length > 0 ? merged : DEFAULT_PROJECT_NAMES
 }
 
-/**
- * Extract model name from project config
- * @param config - Project configuration object
- * @returns Model name or 'Unknown'
- */
-function extractModelName(config: Record<string, any>): string {
-  // Try multi-model format first (runtime.models with default_model)
-  if (config?.runtime?.models && config?.runtime?.default_model) {
-    const defaultModel = config.runtime.default_model
-    const modelConfig = config.runtime.models[defaultModel]
-    if (modelConfig?.model) {
-      return modelConfig.model
-    }
-  }
-
-  // Try legacy single-model format (runtime.model)
-  if (config?.runtime?.model) {
-    return config.runtime.model
-  }
-
-  return 'Unknown'
-}
 
 /**
  * Convert API projects to UI ProjectItem format
@@ -78,7 +57,7 @@ export const getProjectsForUI = (apiResponse?: { projects?: Project[] }) => {
     const itemsFromApi = api.map((project, idx) => ({
       id: idx + 1,
       name: project.name,
-      model: extractModelName(project.config),
+      model: getModelDisplayName(project.config),
       lastEdited: 'N/A',
       description: project.config?.description || '',
       validationError: project.validation_error,

@@ -50,6 +50,7 @@ export interface EditorToolbarProps {
   onDiscard?: () => void
   isDirty?: boolean
   isSaving?: boolean
+  saveError?: string | null
 }
 
 export interface EditorContentProps {

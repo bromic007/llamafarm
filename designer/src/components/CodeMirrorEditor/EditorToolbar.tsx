@@ -13,10 +13,12 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
   onSave,
   onDiscard,
   isDirty = false,
-  isSaving = false
+  isSaving = false,
+  saveError = null
 }) => {
   return (
     <div className="px-4 py-3 border-b border-border bg-card flex-shrink-0">
+      {/* Main toolbar row */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <FontIcon type="code" className="w-4 h-4 text-foreground" />
@@ -82,6 +84,18 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
           )}
         </div>
       </div>
+
+      {/* Error banner */}
+      {saveError && (
+        <div className="mt-3 px-3 py-2 bg-destructive/10 border border-destructive/30 rounded-md flex items-start gap-2" role="alert">
+          <FontIcon type="info" className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-destructive break-words">
+              {saveError}
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

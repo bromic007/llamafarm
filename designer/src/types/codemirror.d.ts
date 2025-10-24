@@ -54,6 +54,7 @@ export interface CodeMirrorEditorProps {
   onDiscard?: () => void
   isDirty?: boolean
   isSaving?: boolean
+  saveError?: string | null
 }
 
 /**
