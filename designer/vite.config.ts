@@ -35,8 +35,8 @@ export default defineConfig({
             '@codemirror/theme-one-dark',
             '@lezer/highlight',
           ],
-          // YAML and validation
-          'yaml-validation': ['yaml', 'ajv', 'ajv-formats'],
+          // YAML parsing
+          'yaml-validation': ['yaml'],
           // React vendor libraries
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
           // UI vendor libraries
