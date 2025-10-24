@@ -21,11 +21,6 @@ import {
   type PromptSet,
 } from '../../../utils/promptSets'
 
-interface PromptRow {
-  role?: string
-  preview: string
-}
-
 const Prompts = () => {
   const activeProject = useActiveProject()
   const { data: projectResponse, refetch } = useProject(
