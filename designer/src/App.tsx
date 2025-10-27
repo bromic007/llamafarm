@@ -35,6 +35,7 @@ import AddRetrievalStrategy from './components/Rag/AddRetrievalStrategy'
 import { HomeUpgradeBanner } from './components/common/UpgradeBanners'
 import { useUpgradeAvailability } from './hooks/useUpgradeAvailability'
 import { MobileViewProvider } from './contexts/MobileViewContext'
+import NotFound from './components/NotFound'
 
 // Redirect component for dynamic routes from /rag to /databases
 function RagRedirect({ path }: { path: string }) {
@@ -157,7 +158,11 @@ function App() {
                   />
                   <Route path="prompt" element={<Prompt />} />
                   <Route path="test" element={<Test />} />
+                  {/* Catch-all for unknown /chat routes */}
+                  <Route path="*" element={<NotFound />} />
                 </Route>
+                {/* Catch-all for unknown top-level routes */}
+                <Route path="*" element={<NotFound />} />
               </Routes>
             </div>
             <ProjectModalRoot />
