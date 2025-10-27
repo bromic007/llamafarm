@@ -249,7 +249,7 @@ const Dashboard = () => {
               </div>
             </div>
             <DataCards />
-            <div className="w-full grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+            <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
               {/* Data (1/3) */}
               <div className="flex flex-col min-w-0 overflow-hidden">
                 <div className="flex flex-row gap-2 items-center h-[40px] px-2 rounded-tl-lg rounded-tr-lg justify-between bg-card border-b border-border">
@@ -342,7 +342,7 @@ const Dashboard = () => {
               </div>
 
               {/* Project versions (1/3) */}
-              <div className="min-w-0 overflow-hidden">
+              <div className="min-w-0 overflow-hidden hidden">
                 <div className="flex flex-row gap-2 items-center justify-between h-[40px] px-2 rounded-tl-lg rounded-tr-lg bg-card border-b border-border">
                   <span className="text-foreground pl-2">Project versions</span>
                 </div>

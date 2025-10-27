@@ -92,7 +92,10 @@ function App() {
                     element={<Navigate to="/chat/dashboard" replace />}
                   />
                   <Route path="dashboard" element={<Dashboard />} />
-                  <Route path="versions" element={<Versions />} />
+                  <Route
+                    path="versions"
+                    element={<Navigate to="/chat/dashboard" replace />}
+                  />
                   <Route path="data" element={<Data />} />
                   <Route path="data/:datasetId" element={<DatasetView />} />
                   {/* Processing strategies routes - now under data */}
