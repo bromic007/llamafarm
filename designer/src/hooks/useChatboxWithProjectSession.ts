@@ -88,7 +88,7 @@ export function useChatboxWithProjectSession(enableStreaming: boolean = true) {
     }
   }, [])
 
-  // Helper function to execute fallback non-streaming request
+  // Helper function to prepend prompt sets to chat request
   const prependActiveSet = useCallback(
     (chatRequest: { messages: ChatMessage[] }) => {
       const projectPrompts = projectResponse?.project?.config

@@ -51,6 +51,7 @@ const Prompts = () => {
   >('system')
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [deleteIndex, setDeleteIndex] = useState<number | null>(null)
+  const [deleteSetIndex, setDeleteSetIndex] = useState<number | null>(null)
   const [editIndex, setEditIndex] = useState<number | null>(null)
   const [currentSetIndex, setCurrentSetIndex] = useState<number | null>(null)
 
@@ -173,22 +174,19 @@ const Prompts = () => {
 
   const openDeletePrompt = (index: number, setIndex: number) => {
     setDeleteIndex(index)
-    setCurrentSetIndex(setIndex)
+    setDeleteSetIndex(setIndex)
     setIsDeleteOpen(true)
   }
 
   const confirmDeletePrompt = async () => {
-    if (deleteIndex == null) return
-    const sIdx = currentSetIndex ?? 0
-    const success = await performDeletePrompt(sIdx >= 0 ? sIdx : 0, deleteIndex)
+    if (deleteIndex == null || deleteSetIndex == null) return
+    const success = await performDeletePrompt(deleteSetIndex, deleteIndex)
     if (success) {
       setIsDeleteOpen(false)
       setDeleteIndex(null)
-      setCurrentSetIndex(null)
+      setDeleteSetIndex(null)
     }
   }
-
-  // Removed makeActive per updated UX
 
   const createSet = async () => {
     if (!activeProject || !projectResponse?.project?.config) return
@@ -403,8 +401,6 @@ const Prompts = () => {
                 className="w-4 h-4 text-muted-foreground inline-block mr-2"
                 handleOnClick={() => openEditSet(sIdx, set.name)}
               />
-              {/* Removed Make active button per updated UX */}
-              {/* Removed Delete set from header; available in edit modal */}
               <Button
                 size="sm"
                 variant="secondary"
