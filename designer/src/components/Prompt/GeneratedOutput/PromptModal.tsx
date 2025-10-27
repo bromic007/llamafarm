@@ -21,7 +21,7 @@ interface PromptModalProps {
   mode: PromptModalMode
   initialText?: string
   initialRole?: 'system' | 'assistant' | 'user'
-  promptSets?: Array<{ id: string; name: string }>
+  promptSets?: Array<{ name: string }>
   selectedSetIndex?: number
   onClose: () => void
   onSave: (
@@ -107,7 +107,7 @@ const PromptModal: React.FC<PromptModalProps> = ({
                 <DropdownMenuContent className="w-full">
                   {promptSets.map((set, idx) => (
                     <DropdownMenuItem
-                      key={set.id}
+                      key={idx}
                       className="w-full justify-start text-left"
                       onClick={() => setSetIndex(idx)}
                     >
