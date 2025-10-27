@@ -10,7 +10,7 @@ Always adhere to these formatting rules when modifying files with the specified 
 - Use double quotes for strings if necessary
   
 ## Javascript
-- Use single quotes strings unless otherwise required
+- Use single quotes for strings unless otherwise required
 
 ## TypeScript
-- Use single quotes strings unless otherwise required
+- Use single quotes for strings unless otherwise required
