@@ -32,10 +32,12 @@ const Prompts = () => {
 
   const promptSets: PromptSet[] = useMemo(() => {
     const prompts = projectResponse?.project?.config?.prompts as
-      | Array<{ role?: string; content: string }>
+      | Array<{
+          name: string
+          messages: Array<{ role?: string; content: string }>
+        }>
       | undefined
-    const { sets } = parsePromptSets(prompts)
-    return sets
+    return parsePromptSets(prompts)
   }, [projectResponse])
 
   // (preview rows removed; table renders directly from sets)
@@ -68,10 +70,15 @@ const Prompts = () => {
   ) => {
     if (!activeProject || !projectResponse?.project?.config) return
     const { config } = projectResponse.project
-    const { sets } = parsePromptSets(
-      (config.prompts as Array<{ role?: string; content: string }>) || []
+    const sets = parsePromptSets(
+      config.prompts as
+        | Array<{
+            name: string
+            messages: Array<{ role?: string; content: string }>
+          }>
+        | undefined
     )
-    const setIdx = currentSetIndex ?? sets.findIndex(s => s.active) ?? 0
+    const setIdx = currentSetIndex ?? 0
     const idx = setIdx >= 0 ? setIdx : 0
     const nextSets = [...sets]
     const target = { ...nextSets[idx] }
@@ -127,8 +134,13 @@ const Prompts = () => {
   ): Promise<boolean> => {
     if (!activeProject || !projectResponse?.project?.config) return false
     const { config } = projectResponse.project
-    const { sets } = parsePromptSets(
-      (config.prompts as Array<{ role?: string; content: string }>) || []
+    const sets = parsePromptSets(
+      config.prompts as
+        | Array<{
+            name: string
+            messages: Array<{ role?: string; content: string }>
+          }>
+        | undefined
     )
     if (setIndex < 0 || setIndex >= sets.length) return false
     const nextSets = [...sets]
@@ -164,7 +176,7 @@ const Prompts = () => {
 
   const confirmDeletePrompt = async () => {
     if (deleteIndex == null) return
-    const sIdx = currentSetIndex ?? promptSets.findIndex(s => s.active) ?? 0
+    const sIdx = currentSetIndex ?? 0
     const success = await performDeletePrompt(sIdx >= 0 ? sIdx : 0, deleteIndex)
     if (success) {
       setIsDeleteOpen(false)
@@ -179,13 +191,15 @@ const Prompts = () => {
     if (!activeProject || !projectResponse?.project?.config) return
     const name = newSetName.trim() || 'Untitled'
     const { config } = projectResponse.project
-    const { sets } = parsePromptSets(
-      (config.prompts as Array<{ role?: string; content: string }>) || []
+    const sets = parsePromptSets(
+      config.prompts as
+        | Array<{
+            name: string
+            messages: Array<{ role?: string; content: string }>
+          }>
+        | undefined
     )
-    const next = [
-      ...sets,
-      { id: `set-${Date.now()}`, name, active: sets.length === 0, items: [] },
-    ]
+    const next = [...sets, { id: `set-${Date.now()}`, name, items: [] }]
     const prompts = serializePromptSets(next)
     const request = { config: { ...config, prompts } }
     try {
@@ -207,14 +221,16 @@ const Prompts = () => {
   const deleteSet = async (index: number) => {
     if (!activeProject || !projectResponse?.project?.config) return
     const { config } = projectResponse.project
-    const { sets } = parsePromptSets(
-      (config.prompts as Array<{ role?: string; content: string }>) || []
+    const sets = parsePromptSets(
+      config.prompts as
+        | Array<{
+            name: string
+            messages: Array<{ role?: string; content: string }>
+          }>
+        | undefined
     )
     if (index < 0 || index >= sets.length) return
     const next = sets.filter((_, i) => i !== index)
-    if (next.length > 0 && !next.some(s => s.active)) {
-      next[0].active = true
-    }
     const prompts = serializePromptSets(next)
     const request = { config: { ...config, prompts } }
     try {
@@ -245,8 +261,13 @@ const Prompts = () => {
     )
       return
     const { config } = projectResponse.project
-    const { sets } = parsePromptSets(
-      (config.prompts as Array<{ role?: string; content: string }>) || []
+    const sets = parsePromptSets(
+      config.prompts as
+        | Array<{
+            name: string
+            messages: Array<{ role?: string; content: string }>
+          }>
+        | undefined
     )
     if (editSetIndex < 0 || editSetIndex >= sets.length) return
     const next = [...sets]
@@ -286,9 +307,8 @@ const Prompts = () => {
     <div className="w-full h-full">
       <div className="w-full flex flex-col sm:flex-row items-start sm:items-center justify-between mb-5 gap-3">
         <p className="text-sm text-muted-foreground w-full">
-          Manage multiple named prompt sets. One set is active and used by
-          tools. Each set contains role:prompt pairs you can add, edit, or
-          delete.
+          Manage multiple named prompt sets. Each set contains role:prompt pairs
+          you can add, edit, or delete.
         </p>
         <div className="flex gap-2 w-full sm:w-auto">
           <Button
