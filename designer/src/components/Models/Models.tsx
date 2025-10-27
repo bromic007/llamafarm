@@ -1046,10 +1046,13 @@ const Models = () => {
 
   const promptSetNames = (() => {
     const prompts = projectResponse?.project?.config?.prompts as
-      | Array<{ role?: string; content: string }>
+      | Array<{
+          name: string
+          messages: Array<{ role?: string; content: string }>
+        }>
       | undefined
-    const { sets } = parsePromptSets(prompts)
-    return sets.map(s => s.name)
+    const sets = parsePromptSets(prompts)
+    return sets.map((s: { name: string }) => s.name)
   })()
 
   useEffect(() => {

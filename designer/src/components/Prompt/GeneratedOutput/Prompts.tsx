@@ -32,10 +32,12 @@ const Prompts = () => {
 
   const promptSets: PromptSet[] = useMemo(() => {
     const prompts = projectResponse?.project?.config?.prompts as
-      | Array<{ role?: string; content: string }>
+      | Array<{
+          name: string
+          messages: Array<{ role?: string; content: string }>
+        }>
       | undefined
-    const { sets } = parsePromptSets(prompts)
-    return sets
+    return parsePromptSets(prompts)
   }, [projectResponse])
 
   // (preview rows removed; table renders directly from sets)
@@ -49,6 +51,7 @@ const Prompts = () => {
   >('system')
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [deleteIndex, setDeleteIndex] = useState<number | null>(null)
+  const [deleteSetIndex, setDeleteSetIndex] = useState<number | null>(null)
   const [editIndex, setEditIndex] = useState<number | null>(null)
   const [currentSetIndex, setCurrentSetIndex] = useState<number | null>(null)
 
@@ -64,14 +67,22 @@ const Prompts = () => {
 
   const handleSavePrompt = async (
     text: string,
-    role: 'system' | 'assistant' | 'user'
+    role: 'system' | 'assistant' | 'user',
+    selectedSetIdx?: number
   ) => {
     if (!activeProject || !projectResponse?.project?.config) return
     const { config } = projectResponse.project
-    const { sets } = parsePromptSets(
-      (config.prompts as Array<{ role?: string; content: string }>) || []
+    const sets = parsePromptSets(
+      config.prompts as
+        | Array<{
+            name: string
+            messages: Array<{ role?: string; content: string }>
+          }>
+        | undefined
     )
-    const setIdx = currentSetIndex ?? sets.findIndex(s => s.active) ?? 0
+    // Use the selected set index from modal if provided (create mode), otherwise use current set
+    const setIdx =
+      selectedSetIdx !== undefined ? selectedSetIdx : (currentSetIndex ?? 0)
     const idx = setIdx >= 0 ? setIdx : 0
     const nextSets = [...sets]
     const target = { ...nextSets[idx] }
@@ -127,8 +138,13 @@ const Prompts = () => {
   ): Promise<boolean> => {
     if (!activeProject || !projectResponse?.project?.config) return false
     const { config } = projectResponse.project
-    const { sets } = parsePromptSets(
-      (config.prompts as Array<{ role?: string; content: string }>) || []
+    const sets = parsePromptSets(
+      config.prompts as
+        | Array<{
+            name: string
+            messages: Array<{ role?: string; content: string }>
+          }>
+        | undefined
     )
     if (setIndex < 0 || setIndex >= sets.length) return false
     const nextSets = [...sets]
@@ -158,34 +174,33 @@ const Prompts = () => {
 
   const openDeletePrompt = (index: number, setIndex: number) => {
     setDeleteIndex(index)
-    setCurrentSetIndex(setIndex)
+    setDeleteSetIndex(setIndex)
     setIsDeleteOpen(true)
   }
 
   const confirmDeletePrompt = async () => {
-    if (deleteIndex == null) return
-    const sIdx = currentSetIndex ?? promptSets.findIndex(s => s.active) ?? 0
-    const success = await performDeletePrompt(sIdx >= 0 ? sIdx : 0, deleteIndex)
+    if (deleteIndex == null || deleteSetIndex == null) return
+    const success = await performDeletePrompt(deleteSetIndex, deleteIndex)
     if (success) {
       setIsDeleteOpen(false)
       setDeleteIndex(null)
-      setCurrentSetIndex(null)
+      setDeleteSetIndex(null)
     }
   }
-
-  // Removed makeActive per updated UX
 
   const createSet = async () => {
     if (!activeProject || !projectResponse?.project?.config) return
     const name = newSetName.trim() || 'Untitled'
     const { config } = projectResponse.project
-    const { sets } = parsePromptSets(
-      (config.prompts as Array<{ role?: string; content: string }>) || []
+    const sets = parsePromptSets(
+      config.prompts as
+        | Array<{
+            name: string
+            messages: Array<{ role?: string; content: string }>
+          }>
+        | undefined
     )
-    const next = [
-      ...sets,
-      { id: `set-${Date.now()}`, name, active: sets.length === 0, items: [] },
-    ]
+    const next = [...sets, { name, items: [] }]
     const prompts = serializePromptSets(next)
     const request = { config: { ...config, prompts } }
     try {
@@ -207,14 +222,16 @@ const Prompts = () => {
   const deleteSet = async (index: number) => {
     if (!activeProject || !projectResponse?.project?.config) return
     const { config } = projectResponse.project
-    const { sets } = parsePromptSets(
-      (config.prompts as Array<{ role?: string; content: string }>) || []
+    const sets = parsePromptSets(
+      config.prompts as
+        | Array<{
+            name: string
+            messages: Array<{ role?: string; content: string }>
+          }>
+        | undefined
     )
     if (index < 0 || index >= sets.length) return
     const next = sets.filter((_, i) => i !== index)
-    if (next.length > 0 && !next.some(s => s.active)) {
-      next[0].active = true
-    }
     const prompts = serializePromptSets(next)
     const request = { config: { ...config, prompts } }
     try {
@@ -245,8 +262,13 @@ const Prompts = () => {
     )
       return
     const { config } = projectResponse.project
-    const { sets } = parsePromptSets(
-      (config.prompts as Array<{ role?: string; content: string }>) || []
+    const sets = parsePromptSets(
+      config.prompts as
+        | Array<{
+            name: string
+            messages: Array<{ role?: string; content: string }>
+          }>
+        | undefined
     )
     if (editSetIndex < 0 || editSetIndex >= sets.length) return
     const next = [...sets]
@@ -282,13 +304,77 @@ const Prompts = () => {
     setEditSetName('')
   }
 
+  // Full page empty state when no sets exist
+  if (promptSets.length === 0) {
+    return (
+      <div className="w-full h-full flex items-center justify-center">
+        <div className="text-center px-6 py-10 rounded-xl border border-border bg-card/40 max-w-md">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/15 border border-primary/30">
+            <FontIcon type="prompt" className="w-6 h-6 text-primary" />
+          </div>
+          <div className="text-lg font-medium text-foreground mb-2">
+            No prompt sets yet
+          </div>
+          <div className="text-sm text-muted-foreground mb-6">
+            Create your first prompt set to start building your AI assistant's
+            behavior. Each set can contain system, user, and assistant prompts.
+          </div>
+          <Button
+            onClick={() => setIsCreateSetOpen(true)}
+            className="w-full sm:w-auto"
+          >
+            Create your first prompt set
+          </Button>
+        </div>
+        {/* Dialogs still need to be rendered */}
+        <Dialog
+          open={isCreateSetOpen}
+          onOpenChange={v => (!v ? setIsCreateSetOpen(false) : undefined)}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-lg text-foreground">
+                Create new prompt set
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div>
+                <Label htmlFor="set-name" className="text-sm text-foreground">
+                  Prompt set name
+                </Label>
+                <Input
+                  id="set-name"
+                  value={newSetName}
+                  onChange={e => setNewSetName(e.target.value)}
+                  placeholder="e.g., default, customer-service"
+                  className="mt-1"
+                />
+              </div>
+            </div>
+            <DialogFooter className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsCreateSetOpen(false)
+                  setNewSetName('')
+                }}
+              >
+                Cancel
+              </Button>
+              <Button onClick={createSet}>Create</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    )
+  }
+
   return (
     <div className="w-full h-full">
       <div className="w-full flex flex-col sm:flex-row items-start sm:items-center justify-between mb-5 gap-3">
         <p className="text-sm text-muted-foreground w-full">
-          Manage multiple named prompt sets. One set is active and used by
-          tools. Each set contains role:prompt pairs you can add, edit, or
-          delete.
+          Manage multiple named prompt sets. Each set contains role:prompt pairs
+          you can add, edit, or delete.
         </p>
         <div className="flex gap-2 w-full sm:w-auto">
           <Button
@@ -303,10 +389,10 @@ const Prompts = () => {
 
       {promptSets.map((set, sIdx) => (
         <div
-          key={set.id}
+          key={sIdx}
           className="w-full border border-white dark:border-blue-600 rounded-md mb-4"
         >
-          <div className="flex items-center justify-between px-3 py-2">
+          <div className="flex items-center justify-between px-3 py-2 bg-white dark:bg-blue-600">
             <div className="text-sm font-medium">{set.name}</div>
             <div className="flex items-center gap-3">
               <FontIcon
@@ -315,8 +401,6 @@ const Prompts = () => {
                 className="w-4 h-4 text-muted-foreground inline-block mr-2"
                 handleOnClick={() => openEditSet(sIdx, set.name)}
               />
-              {/* Removed Make active button per updated UX */}
-              {/* Removed Delete set from header; available in edit modal */}
               <Button
                 size="sm"
                 variant="secondary"
@@ -335,13 +419,15 @@ const Prompts = () => {
           </div>
 
           <table className="w-full">
-            <thead className="bg-white dark:bg-blue-600 font-normal">
-              <tr>
-                <th className="text-left w-[15%] py-2 px-3 font-normal">
+            <thead className="font-normal">
+              <tr className="border-b border-solid border-white dark:border-blue-600">
+                <th className="text-left w-[15%] py-2 px-3 font-normal text-muted-foreground">
                   Role
                 </th>
-                <th className="text-left py-2 px-3 font-normal">Preview</th>
-                <th className="text-right w-[1%] py-2 px-3 font-normal">
+                <th className="text-left py-2 px-3 font-normal text-muted-foreground">
+                  Preview
+                </th>
+                <th className="text-right w-[1%] py-2 px-3 font-normal text-muted-foreground">
                   Actions
                 </th>
               </tr>
@@ -378,11 +464,36 @@ const Prompts = () => {
               ))}
               {set.items.length === 0 && (
                 <tr>
-                  <td
-                    colSpan={3}
-                    className="align-top p-3 text-sm text-muted-foreground"
-                  >
-                    No prompts in this set.
+                  <td colSpan={3} className="p-0">
+                    <div className="flex items-center justify-center py-12">
+                      <div className="text-center px-6">
+                        <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-primary/15 border border-primary/30">
+                          <FontIcon
+                            type="prompt"
+                            className="w-5 h-5 text-primary"
+                          />
+                        </div>
+                        <div className="text-base font-medium text-foreground mb-2">
+                          No prompts yet
+                        </div>
+                        <div className="text-sm text-muted-foreground mb-4">
+                          Add your first prompt to this set
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            setMode('create')
+                            setInitialText('')
+                            setInitialRole('system')
+                            setEditIndex(null)
+                            setCurrentSetIndex(sIdx)
+                            setIsOpen(true)
+                          }}
+                        >
+                          Add prompt
+                        </Button>
+                      </div>
+                    </div>
                   </td>
                 </tr>
               )}
@@ -395,6 +506,8 @@ const Prompts = () => {
         mode={mode}
         initialText={initialText}
         initialRole={initialRole}
+        promptSets={promptSets}
+        selectedSetIndex={currentSetIndex ?? 0}
         onClose={() => setIsOpen(false)}
         onSave={handleSavePrompt}
       />
