@@ -10,7 +10,7 @@ import { useChatInference, useDeleteChatSession } from './useChat'
 import { createChatRequest, chatInferenceStreaming } from '../api/chatService'
 import { useProject } from './useProjects'
 import { useActiveProject } from './useActiveProject'
-import { filterActiveSetMessages } from '../utils/promptSets'
+import { parsePromptSets } from '../utils/promptSets'
 import { useProjectSession } from './useProjectSession'
 import { ChatboxMessage } from '../types/chatbox'
 import { ChatStreamChunk, NetworkError, ChatMessage } from '../types/chat'
@@ -93,14 +93,17 @@ export function useChatboxWithProjectSession(enableStreaming: boolean = true) {
     (chatRequest: { messages: ChatMessage[] }) => {
       const projectPrompts = projectResponse?.project?.config
         ?.prompts as Array<{
-        role?: string
-        content: string
+        name: string
+        messages: Array<{ role?: string; content: string }>
       }>
       if (Array.isArray(projectPrompts) && projectPrompts.length > 0) {
-        const systemMessages = filterActiveSetMessages(
-          projectPrompts
-        ) as ChatMessage[]
-        if (systemMessages.length > 0) {
+        // Get messages from the first prompt set
+        const sets = parsePromptSets(projectPrompts)
+        if (sets.length > 0 && sets[0].items.length > 0) {
+          const systemMessages = sets[0].items.map(item => ({
+            role: item.role,
+            content: item.content,
+          })) as ChatMessage[]
           chatRequest.messages = [...systemMessages, ...chatRequest.messages]
         }
       }
