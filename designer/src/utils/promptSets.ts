@@ -13,21 +13,8 @@ export interface RawPromptMessage {
 }
 
 export interface PromptSet {
-  id: string
   name: string
   items: PromptItem[]
-}
-
-function generateId(prefix: string = 'set'): string {
-  return `${prefix}-${Math.random().toString(36).slice(2, 10)}`
-}
-
-function hashString(input: string): string {
-  let hash = 0
-  for (let i = 0; i < input.length; i++) {
-    hash = (hash * 31 + input.charCodeAt(i)) | 0
-  }
-  return Math.abs(hash).toString(36)
 }
 
 export function parsePromptSets(
@@ -36,34 +23,25 @@ export function parsePromptSets(
   if (!Array.isArray(prompts) || prompts.length === 0) {
     return [
       {
-        id: generateId(),
         name: 'Default',
         items: [],
       },
     ]
   }
 
-  const sets: PromptSet[] = prompts.map((promptSet, i) => {
+  const sets: PromptSet[] = prompts.map(promptSet => {
     const items: PromptItem[] = (promptSet.messages || []).map(msg => ({
       role: (msg.role || 'system') as PromptRole,
       content: msg.content || '',
     }))
 
-    // Generate stable ID based on content
-    const base = `${i}|${promptSet.name}|${items
-      .map(it => `${it.role}:${it.content}`)
-      .join('|')}`
-
     return {
-      id: `set-${hashString(base)}`,
       name: promptSet.name,
       items,
     }
   })
 
-  return sets.length > 0
-    ? sets
-    : [{ id: generateId(), name: 'Default', items: [] }]
+  return sets.length > 0 ? sets : [{ name: 'Default', items: [] }]
 }
 
 export function serializePromptSets(

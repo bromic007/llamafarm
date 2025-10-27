@@ -200,7 +200,7 @@ const Prompts = () => {
           }>
         | undefined
     )
-    const next = [...sets, { id: `set-${Date.now()}`, name, items: [] }]
+    const next = [...sets, { name, items: [] }]
     const prompts = serializePromptSets(next)
     const request = { config: { ...config, prompts } }
     try {
@@ -389,7 +389,7 @@ const Prompts = () => {
 
       {promptSets.map((set, sIdx) => (
         <div
-          key={set.id}
+          key={sIdx}
           className="w-full border border-white dark:border-blue-600 rounded-md mb-4"
         >
           <div className="flex items-center justify-between px-3 py-2 bg-white dark:bg-blue-600">
