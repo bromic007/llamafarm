@@ -49,6 +49,26 @@ const Data = () => {
   // Get current active project for API calls
   const activeProject = useActiveProject()
 
+  // File type mapping for parser creation (centralized to avoid duplication)
+  const fileTypeMapping = useMemo(
+    () => [
+      { type: 'PDF', parser: 'PDFParser_LlamaIndex', extensions: ['*.pdf'] },
+      {
+        type: 'Docx',
+        parser: 'DOCXParser_LlamaIndex',
+        extensions: ['*.docx'],
+      },
+      { type: 'Text', parser: 'TEXTParser_LlamaIndex', extensions: ['*.txt'] },
+      { type: 'CSV', parser: 'CSVParser_Pandas', extensions: ['*.csv'] },
+      {
+        type: 'Markdown',
+        parser: 'MARKDOWNParser_LlamaIndex',
+        extensions: ['*.md', '*.markdown'],
+      },
+    ],
+    []
+  )
+
   // Load project config to get strategies (source of truth)
   const { data: projectResp } = useProject(
     activeProject?.namespace || '',
@@ -1059,33 +1079,7 @@ const Data = () => {
                 What type of files do you plan on uploading?
               </label>
               <div className="flex flex-wrap gap-2">
-                {[
-                  {
-                    type: 'PDF',
-                    parser: 'PDFParser_LlamaIndex',
-                    extensions: ['*.pdf'],
-                  },
-                  {
-                    type: 'Docx',
-                    parser: 'DOCXParser_LlamaIndex',
-                    extensions: ['*.docx'],
-                  },
-                  {
-                    type: 'Text',
-                    parser: 'TEXTParser_LlamaIndex',
-                    extensions: ['*.txt'],
-                  },
-                  {
-                    type: 'CSV',
-                    parser: 'CSVParser_Pandas',
-                    extensions: ['*.csv'],
-                  },
-                  {
-                    type: 'Markdown',
-                    parser: 'MARKDOWNParser_LlamaIndex',
-                    extensions: ['*.md', '*.markdown'],
-                  },
-                ].map(({ type }) => {
+                {fileTypeMapping.map(({ type }) => {
                   const isSelected = strategyCreateFileTypes.has(type)
                   return (
                     <button
@@ -1211,34 +1205,6 @@ const Data = () => {
 
                 // If no copy source but file types selected, create parsers from file types
                 if (parsers.length === 0 && strategyCreateFileTypes.size > 0) {
-                  const fileTypeMapping = [
-                    {
-                      type: 'PDF',
-                      parser: 'PDFParser_LlamaIndex',
-                      extensions: ['*.pdf'],
-                    },
-                    {
-                      type: 'Docx',
-                      parser: 'DOCXParser_LlamaIndex',
-                      extensions: ['*.docx'],
-                    },
-                    {
-                      type: 'Text',
-                      parser: 'TEXTParser_LlamaIndex',
-                      extensions: ['*.txt'],
-                    },
-                    {
-                      type: 'CSV',
-                      parser: 'CSVParser_Pandas',
-                      extensions: ['*.csv'],
-                    },
-                    {
-                      type: 'Markdown',
-                      parser: 'MARKDOWNParser_LlamaIndex',
-                      extensions: ['*.md', '*.markdown'],
-                    },
-                  ]
-
                   parsers = Array.from(strategyCreateFileTypes).map(
                     fileType => {
                       const mapping = fileTypeMapping.find(

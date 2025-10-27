@@ -28,7 +28,6 @@ import {
 } from '../../hooks/useDatasets'
 import { DatasetFile } from '../../types/datasets'
 import PageActions from '../common/PageActions'
-import { Mode } from '../ModeToggle'
 import ConfigEditor from '../ConfigEditor/ConfigEditor'
 
 type Dataset = {
@@ -254,8 +253,6 @@ function DatasetView() {
   }
 
   const handleFilesUpload = async (list: File[]) => {
-    console.log('🔄 handleFilesUpload called with', list.length, 'files')
-
     if (!datasetId || !activeProject?.namespace || !activeProject?.project) {
       toast({
         message: 'Missing required information for upload',
@@ -269,12 +266,6 @@ function DatasetView() {
     const totalFiles = list.length
     const filteredFiles = filterFilesByType(list)
     const filteredCount = filteredFiles.length
-
-    console.log(
-      '🔍 File type filter:',
-      fileTypeFilter || '(none - all files allowed)'
-    )
-    console.log('🔍 Total files:', totalFiles, '→ Filtered:', filteredCount)
 
     // Show stats if filtering occurred
     if (totalFiles !== filteredCount) {
@@ -1006,11 +997,6 @@ function DatasetView() {
                   size="sm"
                   variant="outline"
                   onClick={() => {
-                    console.log('🔘 Upload folder button clicked')
-                    console.log(
-                      '📂 Directory input ref:',
-                      directoryInputRef.current
-                    )
                     directoryInputRef.current?.click()
                   }}
                 >
@@ -1126,8 +1112,6 @@ function DatasetView() {
               className="hidden"
               multiple
               onChange={async e => {
-                console.log('📁 Directory input triggered')
-
                 if (
                   !datasetId ||
                   !activeProject?.namespace ||
@@ -1141,11 +1125,6 @@ function DatasetView() {
                 }
 
                 const list = e.target.files ? Array.from(e.target.files) : []
-                console.log('📁 Files selected:', list.length)
-                console.log(
-                  '📁 File names:',
-                  list.map(f => f.name)
-                )
 
                 if (list.length === 0) {
                   toast({
