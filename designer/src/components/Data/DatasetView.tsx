@@ -6,6 +6,7 @@ import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Badge } from '../ui/badge'
 import SearchInput from '../ui/search-input'
+import { useModeWithReset } from '../../hooks/useModeWithReset'
 import {
   Dialog,
   DialogContent,
@@ -46,7 +47,7 @@ function DatasetView() {
   const navigate = useNavigate()
   const { datasetId } = useParams()
   const { toast } = useToast()
-  const [mode, setMode] = useState<Mode>('designer')
+  const [mode, setMode] = useModeWithReset('designer')
 
   // Get current active project for API calls
   const activeProject = useActiveProject()
@@ -186,8 +187,16 @@ function DatasetView() {
 
   // Common file type suggestions (non-exhaustive)
   const commonFileTypes = [
-    '.pdf', '.txt', '.md', '.csv', '.json', '.xml',
-    '.html', '.docx', '.xlsx', '.pptx'
+    '.pdf',
+    '.txt',
+    '.md',
+    '.csv',
+    '.json',
+    '.xml',
+    '.html',
+    '.docx',
+    '.xlsx',
+    '.pptx',
   ]
 
   const addFileTypeToFilter = (ext: string) => {
@@ -217,7 +226,7 @@ function DatasetView() {
       .split(',')
       .map(ext => ext.trim().toLowerCase())
       .filter(Boolean)
-      .map(ext => ext.startsWith('.') ? ext : `.${ext}`) // Ensure leading dot
+      .map(ext => (ext.startsWith('.') ? ext : `.${ext}`)) // Ensure leading dot
 
     if (extensions.length === 0) {
       return files
@@ -261,7 +270,10 @@ function DatasetView() {
     const filteredFiles = filterFilesByType(list)
     const filteredCount = filteredFiles.length
 
-    console.log('🔍 File type filter:', fileTypeFilter || '(none - all files allowed)')
+    console.log(
+      '🔍 File type filter:',
+      fileTypeFilter || '(none - all files allowed)'
+    )
     console.log('🔍 Total files:', totalFiles, '→ Filtered:', filteredCount)
 
     // Show stats if filtering occurred
@@ -522,7 +534,9 @@ function DatasetView() {
   }
 
   // Processing strategy comes from API dataset response
-  const currentStrategy = (currentApiDataset as any)?.data_processing_strategy || 'universal_processor'
+  const currentStrategy =
+    (currentApiDataset as any)?.data_processing_strategy ||
+    'universal_processor'
 
   // Note: Parsers/extractors info now comes from project config API, not localStorage
   // This is a placeholder - should be fetched from the strategy config if needed
@@ -591,7 +605,10 @@ function DatasetView() {
                       className="rounded-xl w-max"
                     >
                       {taskStatus.state === 'PENDING' && 'Queued...'}
-                      {(taskStatus.state !== 'PENDING' && taskStatus.state !== 'SUCCESS' && taskStatus.state !== 'FAILURE') && 'Processing...'}
+                      {taskStatus.state !== 'PENDING' &&
+                        taskStatus.state !== 'SUCCESS' &&
+                        taskStatus.state !== 'FAILURE' &&
+                        'Processing...'}
                     </Badge>
                   </div>
                 )}
@@ -610,7 +627,10 @@ function DatasetView() {
                     className="rounded-xl w-max"
                   >
                     {taskStatus.state === 'PENDING' && 'Queued...'}
-                    {(taskStatus.state !== 'PENDING' && taskStatus.state !== 'SUCCESS' && taskStatus.state !== 'FAILURE') && 'Processing...'}
+                    {taskStatus.state !== 'PENDING' &&
+                      taskStatus.state !== 'SUCCESS' &&
+                      taskStatus.state !== 'FAILURE' &&
+                      'Processing...'}
                   </Badge>
                 )}
                 <Button
@@ -741,52 +761,69 @@ function DatasetView() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
                 <div className="rounded-md border border-border p-3">
-                  <div className="text-xs text-muted-foreground mb-1">Processed Files</div>
+                  <div className="text-xs text-muted-foreground mb-1">
+                    Processed Files
+                  </div>
                   <div className="text-2xl font-semibold text-green-600">
                     {processingResult.processed_files || 0}
                   </div>
                 </div>
                 <div className="rounded-md border border-border p-3">
-                  <div className="text-xs text-muted-foreground mb-1">Skipped Files</div>
+                  <div className="text-xs text-muted-foreground mb-1">
+                    Skipped Files
+                  </div>
                   <div className="text-2xl font-semibold text-yellow-600">
                     {processingResult.skipped_files || 0}
                   </div>
                 </div>
                 <div className="rounded-md border border-border p-3">
-                  <div className="text-xs text-muted-foreground mb-1">Failed Files</div>
+                  <div className="text-xs text-muted-foreground mb-1">
+                    Failed Files
+                  </div>
                   <div className="text-2xl font-semibold text-red-600">
                     {processingResult.failed_files || 0}
                   </div>
                 </div>
               </div>
-              {processingResult.details && processingResult.details.length > 0 && (
-                <div className="mt-3">
-                  <div className="text-xs font-medium text-muted-foreground mb-2">Processing Details</div>
-                  <div className="rounded-md border border-border max-h-60 overflow-auto">
-                    {processingResult.details.map((detail: any, idx: number) => (
-                      <div
-                        key={idx}
-                        className="p-2 border-b last:border-b-0 text-xs font-mono"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="text-foreground">{detail.file}</span>
-                          <Badge
-                            variant={detail.status === 'processed' ? 'default' : 'secondary'}
-                            size="sm"
+              {processingResult.details &&
+                processingResult.details.length > 0 && (
+                  <div className="mt-3">
+                    <div className="text-xs font-medium text-muted-foreground mb-2">
+                      Processing Details
+                    </div>
+                    <div className="rounded-md border border-border max-h-60 overflow-auto">
+                      {processingResult.details.map(
+                        (detail: any, idx: number) => (
+                          <div
+                            key={idx}
+                            className="p-2 border-b last:border-b-0 text-xs font-mono"
                           >
-                            {detail.status}
-                          </Badge>
-                        </div>
-                        {detail.chunks_created && (
-                          <div className="text-muted-foreground mt-1">
-                            {detail.chunks_created} chunks created
+                            <div className="flex items-center justify-between">
+                              <span className="text-foreground">
+                                {detail.file}
+                              </span>
+                              <Badge
+                                variant={
+                                  detail.status === 'processed'
+                                    ? 'default'
+                                    : 'secondary'
+                                }
+                                size="sm"
+                              >
+                                {detail.status}
+                              </Badge>
+                            </div>
+                            {detail.chunks_created && (
+                              <div className="text-muted-foreground mt-1">
+                                {detail.chunks_created} chunks created
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
-                    ))}
+                        )
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
             </section>
           )}
 
@@ -970,7 +1007,10 @@ function DatasetView() {
                   variant="outline"
                   onClick={() => {
                     console.log('🔘 Upload folder button clicked')
-                    console.log('📂 Directory input ref:', directoryInputRef.current)
+                    console.log(
+                      '📂 Directory input ref:',
+                      directoryInputRef.current
+                    )
                     directoryInputRef.current?.click()
                   }}
                 >
@@ -1102,7 +1142,10 @@ function DatasetView() {
 
                 const list = e.target.files ? Array.from(e.target.files) : []
                 console.log('📁 Files selected:', list.length)
-                console.log('📁 File names:', list.map(f => f.name))
+                console.log(
+                  '📁 File names:',
+                  list.map(f => f.name)
+                )
 
                 if (list.length === 0) {
                   toast({
@@ -1119,7 +1162,8 @@ function DatasetView() {
                 } catch (error) {
                   console.error('Folder upload error:', error)
                   toast({
-                    message: 'Failed to upload folder. See console for details.',
+                    message:
+                      'Failed to upload folder. See console for details.',
                     variant: 'destructive',
                   })
                 } finally {

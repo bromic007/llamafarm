@@ -10,6 +10,7 @@ import ConfigEditor from '../ConfigEditor/ConfigEditor'
 import { Mode } from '../ModeToggle'
 import { useToast } from '../ui/toast'
 import { Label } from '../ui/label'
+import { useModeWithReset } from '../../hooks/useModeWithReset'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -69,7 +70,7 @@ async function encryptAPIKey(apiKey: string, secret: string) {
 
 function ChangeEmbeddingModel() {
   const navigate = useNavigate()
-  const [mode, setMode] = useState<Mode>('designer')
+  const [mode, setMode] = useModeWithReset('designer')
   const { strategyId } = useParams()
   const { toast } = useToast()
 

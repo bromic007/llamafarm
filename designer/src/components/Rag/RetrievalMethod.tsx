@@ -7,6 +7,7 @@ import FontIcon from '../../common/FontIcon'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Badge } from '../ui/badge'
+import { useModeWithReset } from '../../hooks/useModeWithReset'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -37,7 +38,7 @@ import {
 function RetrievalMethod() {
   const navigate = useNavigate()
   const { strategyId } = useParams()
-  const [mode, setMode] = useState<Mode>('designer')
+  const [mode, setMode] = useModeWithReset('designer')
   const [, setDefaultTick] = useState(0)
   const activeProject = useActiveProject()
 

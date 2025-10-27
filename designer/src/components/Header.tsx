@@ -300,69 +300,99 @@ function Header({ currentVersion }: HeaderProps) {
         </div>
 
         {isBuilding && (
-          <div className="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center gap-4 z-10">
+          <div className="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center gap-3 z-10">
             <button
-              className={`w-full flex items-center justify-center gap-2 transition-colors rounded-lg p-2 ${
+              className={`w-full flex items-center justify-center gap-2 transition-colors rounded-lg py-2 pl-2 pr-3 ${
                 isSelected === 'dashboard'
                   ? 'bg-primary text-primary-foreground'
                   : 'text-foreground hover:bg-secondary/80'
               }`}
-              onClick={() => navigate('/chat/dashboard')}
+              onClick={() => {
+                if (isSelected === 'dashboard') {
+                  window.dispatchEvent(new Event('reset-mode'))
+                }
+                navigate('/chat/dashboard')
+              }}
             >
               <FontIcon type="dashboard" className="w-6 h-6 shrink-0" />
               <span className="hidden lg:inline">Dashboard</span>
             </button>
             <button
-              className={`w-full flex items-center justify-center gap-2 transition-colors rounded-lg p-2 ${
+              className={`w-full flex items-center justify-center gap-2 transition-colors rounded-lg py-2 pl-2 pr-3 ${
                 isSelected === 'prompt'
                   ? 'bg-primary text-primary-foreground'
                   : 'text-foreground hover:bg-secondary/80'
               }`}
-              onClick={() => navigate('/chat/prompt')}
+              onClick={() => {
+                if (isSelected === 'prompt') {
+                  window.dispatchEvent(new Event('reset-mode'))
+                }
+                navigate('/chat/prompt')
+              }}
             >
               <FontIcon type="prompt" className="w-6 h-6 shrink-0" />
               <span className="hidden lg:inline">Prompts</span>
             </button>
             <button
-              className={`w-full flex items-center justify-center gap-2 transition-colors rounded-lg p-2 ${
+              className={`w-full flex items-center justify-center gap-2 transition-colors rounded-lg py-2 pl-2 pr-3 ${
                 isSelected === 'data'
                   ? 'bg-primary text-primary-foreground'
                   : 'text-foreground hover:bg-secondary/80'
               }`}
-              onClick={() => navigate('/chat/data')}
+              onClick={() => {
+                if (isSelected === 'data') {
+                  window.dispatchEvent(new Event('reset-mode'))
+                }
+                navigate('/chat/data')
+              }}
             >
               <FontIcon type="data" className="w-6 h-6 shrink-0" />
               <span className="hidden lg:inline">Data</span>
             </button>
             <button
-              className={`w-full flex items-center justify-center gap-2 transition-colors rounded-lg p-2 ${
+              className={`w-full flex items-center justify-center gap-2 transition-colors rounded-lg py-2 pl-2 pr-3 ${
                 isSelected === 'databases'
                   ? 'bg-primary text-primary-foreground'
                   : 'text-foreground hover:bg-secondary/80'
               }`}
-              onClick={() => navigate('/chat/databases')}
+              onClick={() => {
+                if (isSelected === 'databases') {
+                  window.dispatchEvent(new Event('reset-mode'))
+                }
+                navigate('/chat/databases')
+              }}
             >
               <FontIcon type="rag" className="w-6 h-6 shrink-0" />
               <span className="hidden lg:inline">Databases</span>
             </button>
             <button
-              className={`w-full flex items-center justify-center gap-2 transition-colors rounded-lg p-2 ${
+              className={`w-full flex items-center justify-center gap-2 transition-colors rounded-lg py-2 pl-2 pr-3 ${
                 isSelected === 'models'
                   ? 'bg-primary text-primary-foreground'
                   : 'text-foreground hover:bg-secondary/80'
               }`}
-              onClick={() => navigate('/chat/models')}
+              onClick={() => {
+                if (isSelected === 'models') {
+                  window.dispatchEvent(new Event('reset-mode'))
+                }
+                navigate('/chat/models')
+              }}
             >
               <FontIcon type="model" className="w-6 h-6 shrink-0" />
               <span className="hidden lg:inline">Models</span>
             </button>
             <button
-              className={`w-full flex items-center justify-center gap-2 transition-colors rounded-lg p-2 ${
+              className={`w-full flex items-center justify-center gap-2 transition-colors rounded-lg py-2 pl-2 pr-3 ${
                 isSelected === 'test'
                   ? 'bg-primary text-primary-foreground'
                   : 'text-foreground hover:bg-secondary/80'
               }`}
-              onClick={() => navigate('/chat/test')}
+              onClick={() => {
+                if (isSelected === 'test') {
+                  window.dispatchEvent(new Event('reset-mode'))
+                }
+                navigate('/chat/test')
+              }}
             >
               <FontIcon type="test" className="w-6 h-6 shrink-0" />
               <span className="hidden lg:inline">Test</span>

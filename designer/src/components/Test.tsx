@@ -8,6 +8,7 @@ import ConfigEditor from './ConfigEditor/ConfigEditor'
 import TestChat from './TestChat/TestChat'
 import { usePackageModal } from '../contexts/PackageModalContext'
 import { Input } from './ui/input'
+import { useModeWithReset } from '../hooks/useModeWithReset'
 
 interface TestCase {
   id: number
@@ -234,7 +235,7 @@ const Test = () => {
     setIsEditOpen(false)
   }
 
-  const [mode, setMode] = useState<Mode>('designer')
+  const [mode, setMode] = useModeWithReset('designer')
   const [isPanelOpen, setIsPanelOpen] = useState<boolean>(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false)
   const [showReferences, setShowReferences] = useState<boolean>(() => {

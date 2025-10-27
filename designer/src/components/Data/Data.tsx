@@ -1,8 +1,8 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import FontIcon from '../../common/FontIcon'
 import Loader from '../../common/Loader'
-import type { Mode } from '../ModeToggle'
 import ConfigEditor from '../ConfigEditor/ConfigEditor'
+import { useModeWithReset } from '../../hooks/useModeWithReset'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -40,7 +40,7 @@ const Data = () => {
   const [isDragging, setIsDragging] = useState(false)
   const [isDropped, setIsDropped] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [mode, setMode] = useState<Mode>('designer')
+  const [mode, setMode] = useModeWithReset('designer')
 
   const navigate = useNavigate()
   const location = useLocation()
@@ -122,8 +122,9 @@ const Data = () => {
   const [strategyCreateName, setStrategyCreateName] = useState('')
   const [strategyCreateDescription, setStrategyCreateDescription] = useState('')
   const [strategyCopyFromId, setStrategyCopyFromId] = useState('')
-  const [strategyCreateFileTypes, setStrategyCreateFileTypes] = useState<Set<string>>(new Set())
-
+  const [strategyCreateFileTypes, setStrategyCreateFileTypes] = useState<
+    Set<string>
+  >(new Set())
 
   // Load strategies from config (source of truth - NO hardcoding)
   const displayStrategies = useMemo((): RagStrategy[] => {
@@ -136,16 +137,19 @@ const Data = () => {
     const configStrategies = projectConfig.rag.data_processing_strategies || []
 
     // Convert config strategies to UI format
-    return configStrategies.map((strategy: any) => ({
-      id: `processing-${strategy.name.replace(/_/g, '-')}`, // Convert snake_case to kebab-case
-      name: strategy.name
-        .replace(/_/g, ' ')
-        .replace(/\b\w/g, (c: string) => c.toUpperCase()),
-      description: strategy.description || '',
-      isDefault: false, // All strategies are equal - no hardcoded defaults
-      datasetsUsing: 0, // Will be calculated from datasetsByStrategyName
-      configName: strategy.name, // Store original config name for API calls
-    } as RagStrategy))
+    return configStrategies.map(
+      (strategy: any) =>
+        ({
+          id: `processing-${strategy.name.replace(/_/g, '-')}`, // Convert snake_case to kebab-case
+          name: strategy.name
+            .replace(/_/g, ' ')
+            .replace(/\b\w/g, (c: string) => c.toUpperCase()),
+          description: strategy.description || '',
+          isDefault: false, // All strategies are equal - no hardcoded defaults
+          datasetsUsing: 0, // Will be calculated from datasetsByStrategyName
+          configName: strategy.name, // Store original config name for API calls
+        }) as RagStrategy
+    )
   }, [projectResp])
 
   // Build mapping of strategy name -> dataset names
@@ -186,7 +190,6 @@ const Data = () => {
     return strategy?.extractors?.length || 0
   }
 
-
   // rawFiles and fileAssignments are transient UI state - no persistence needed
 
   // Create dataset dialog state
@@ -214,14 +217,18 @@ const Data = () => {
         setNewDatasetDatabase(availableOptions.databases[0])
       }
     }
-  }, [isCreateOpen, availableOptions, newDatasetDataProcessingStrategy, newDatasetDatabase])
+  }, [
+    isCreateOpen,
+    availableOptions,
+    newDatasetDataProcessingStrategy,
+    newDatasetDatabase,
+  ])
 
   // Simple edit modal state
   // Edit dataset removed - API doesn't support updating datasets
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string>('')
   const [confirmDeleteName, setConfirmDeleteName] = useState<string>('')
-
 
   const handleCreateDataset = async () => {
     const name = newDatasetName.trim()
@@ -336,7 +343,8 @@ const Data = () => {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-8">
               {displayStrategies.map(s => {
-                const assigned = datasetsByStrategyName.get(s.configName || '') || []
+                const assigned =
+                  datasetsByStrategyName.get(s.configName || '') || []
                 return (
                   <div
                     key={s.id}
@@ -406,7 +414,8 @@ const Data = () => {
                               )
                               if (!ok) return
 
-                              const projectConfig = (projectResp as any)?.project?.config
+                              const projectConfig = (projectResp as any)
+                                ?.project?.config
                               if (!projectConfig || !s.configName) {
                                 toast({
                                   message: 'Unable to delete strategy',
@@ -429,7 +438,9 @@ const Data = () => {
                                   },
                                   onError: (error: any) => {
                                     toast({
-                                      message: error.message || 'Failed to delete strategy',
+                                      message:
+                                        error.message ||
+                                        'Failed to delete strategy',
                                       variant: 'destructive',
                                     })
                                   },
@@ -735,7 +746,8 @@ const Data = () => {
                             </Badge>
                           </div>
                           <div className="text-xs text-muted-foreground mt-2">
-                            {ds.files.length} {ds.files.length === 1 ? 'file' : 'files'}
+                            {ds.files.length}{' '}
+                            {ds.files.length === 1 ? 'file' : 'files'}
                           </div>
                         </div>
                       ))}
@@ -886,7 +898,9 @@ const Data = () => {
               onClick={() => {
                 if (!strategyEditId) return
 
-                const strategy = displayStrategies.find(s => s.id === strategyEditId)
+                const strategy = displayStrategies.find(
+                  s => s.id === strategyEditId
+                )
                 if (!strategy || strategy.isDefault) {
                   toast({
                     message: strategy?.isDefault
@@ -948,7 +962,9 @@ const Data = () => {
                   if (!strategyEditId || strategyEditName.trim().length === 0)
                     return
 
-                  const strategy = displayStrategies.find(s => s.id === strategyEditId)
+                  const strategy = displayStrategies.find(
+                    s => s.id === strategyEditId
+                  )
                   if (!strategy || !strategy.configName) {
                     toast({
                       message: 'Strategy not found',
@@ -967,7 +983,10 @@ const Data = () => {
                   }
 
                   // Convert UI name back to snake_case for config
-                  const newConfigName = strategyEditName.trim().toLowerCase().replace(/\s+/g, '_')
+                  const newConfigName = strategyEditName
+                    .trim()
+                    .toLowerCase()
+                    .replace(/\s+/g, '_')
 
                   strategies.updateStrategy.mutate(
                     {
@@ -981,7 +1000,10 @@ const Data = () => {
                     {
                       onSuccess: () => {
                         setStrategyEditOpen(false)
-                        toast({ message: 'Strategy updated', variant: 'default' })
+                        toast({
+                          message: 'Strategy updated',
+                          variant: 'default',
+                        })
                       },
                       onError: (error: any) => {
                         toast({
@@ -1038,11 +1060,31 @@ const Data = () => {
               </label>
               <div className="flex flex-wrap gap-2">
                 {[
-                  { type: 'PDF', parser: 'PDFParser_LlamaIndex', extensions: ['*.pdf'] },
-                  { type: 'Docx', parser: 'DOCXParser_LlamaIndex', extensions: ['*.docx'] },
-                  { type: 'Text', parser: 'TEXTParser_LlamaIndex', extensions: ['*.txt'] },
-                  { type: 'CSV', parser: 'CSVParser_Pandas', extensions: ['*.csv'] },
-                  { type: 'Markdown', parser: 'MARKDOWNParser_LlamaIndex', extensions: ['*.md', '*.markdown'] },
+                  {
+                    type: 'PDF',
+                    parser: 'PDFParser_LlamaIndex',
+                    extensions: ['*.pdf'],
+                  },
+                  {
+                    type: 'Docx',
+                    parser: 'DOCXParser_LlamaIndex',
+                    extensions: ['*.docx'],
+                  },
+                  {
+                    type: 'Text',
+                    parser: 'TEXTParser_LlamaIndex',
+                    extensions: ['*.txt'],
+                  },
+                  {
+                    type: 'CSV',
+                    parser: 'CSVParser_Pandas',
+                    extensions: ['*.csv'],
+                  },
+                  {
+                    type: 'Markdown',
+                    parser: 'MARKDOWNParser_LlamaIndex',
+                    extensions: ['*.md', '*.markdown'],
+                  },
                 ].map(({ type }) => {
                   const isSelected = strategyCreateFileTypes.has(type)
                   return (
@@ -1159,9 +1201,7 @@ const Data = () => {
                     projectConfig.rag?.data_processing_strategies?.find(
                       (s: any) =>
                         s.name ===
-                        copyFrom.name
-                          .toLowerCase()
-                          .replace(/[^a-z0-9]+/g, '_')
+                        copyFrom.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')
                     )
                   if (sourceStrategy) {
                     parsers = sourceStrategy.parsers || []
@@ -1172,22 +1212,46 @@ const Data = () => {
                 // If no copy source but file types selected, create parsers from file types
                 if (parsers.length === 0 && strategyCreateFileTypes.size > 0) {
                   const fileTypeMapping = [
-                    { type: 'PDF', parser: 'PDFParser_LlamaIndex', extensions: ['*.pdf'] },
-                    { type: 'Docx', parser: 'DOCXParser_LlamaIndex', extensions: ['*.docx'] },
-                    { type: 'Text', parser: 'TEXTParser_LlamaIndex', extensions: ['*.txt'] },
-                    { type: 'CSV', parser: 'CSVParser_Pandas', extensions: ['*.csv'] },
-                    { type: 'Markdown', parser: 'MARKDOWNParser_LlamaIndex', extensions: ['*.md', '*.markdown'] },
+                    {
+                      type: 'PDF',
+                      parser: 'PDFParser_LlamaIndex',
+                      extensions: ['*.pdf'],
+                    },
+                    {
+                      type: 'Docx',
+                      parser: 'DOCXParser_LlamaIndex',
+                      extensions: ['*.docx'],
+                    },
+                    {
+                      type: 'Text',
+                      parser: 'TEXTParser_LlamaIndex',
+                      extensions: ['*.txt'],
+                    },
+                    {
+                      type: 'CSV',
+                      parser: 'CSVParser_Pandas',
+                      extensions: ['*.csv'],
+                    },
+                    {
+                      type: 'Markdown',
+                      parser: 'MARKDOWNParser_LlamaIndex',
+                      extensions: ['*.md', '*.markdown'],
+                    },
                   ]
 
-                  parsers = Array.from(strategyCreateFileTypes).map(fileType => {
-                    const mapping = fileTypeMapping.find(m => m.type === fileType)
-                    return {
-                      type: mapping?.parser || 'PDFParser_LlamaIndex',
-                      config: {},
-                      file_include_patterns: mapping?.extensions || ['*.pdf'],
-                      priority: 50,
+                  parsers = Array.from(strategyCreateFileTypes).map(
+                    fileType => {
+                      const mapping = fileTypeMapping.find(
+                        m => m.type === fileType
+                      )
+                      return {
+                        type: mapping?.parser || 'PDFParser_LlamaIndex',
+                        config: {},
+                        file_include_patterns: mapping?.extensions || ['*.pdf'],
+                        priority: 50,
+                      }
                     }
-                  })
+                  )
                 }
 
                 // If no copy source and no file types selected, create with a default parser
@@ -1204,7 +1268,8 @@ const Data = () => {
 
                 try {
                   // Build strategy object, only including valid fields
-                  const description = strategyCreateDescription.trim() || displayName
+                  const description =
+                    strategyCreateDescription.trim() || displayName
                   const strategy: any = {
                     name: strategyName,
                     parsers,
@@ -1245,7 +1310,9 @@ const Data = () => {
                   })
                 }
               }}
-              disabled={strategyCreateName.trim().length === 0 || strategies.isUpdating}
+              disabled={
+                strategyCreateName.trim().length === 0 || strategies.isUpdating
+              }
               type="button"
             >
               {strategies.isUpdating ? 'Creating...' : 'Create'}

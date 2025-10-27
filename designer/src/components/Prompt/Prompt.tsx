@@ -4,9 +4,10 @@ import { Button } from '../ui/button'
 import ConfigEditor from '../ConfigEditor/ConfigEditor'
 import { usePackageModal } from '../../contexts/PackageModalContext'
 import Prompts from './GeneratedOutput/Prompts'
+import { useModeWithReset } from '../../hooks/useModeWithReset'
 
 const Prompt = () => {
-  const [mode, setMode] = useState<Mode>('designer')
+  const [mode, setMode] = useModeWithReset('designer')
   const { openPackageModal } = usePackageModal()
 
   return (
