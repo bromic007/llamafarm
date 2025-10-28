@@ -900,7 +900,12 @@ function AddOrChangeModels({
                 </p>
 
                 <div>
-                  <label className="text-xs text-muted-foreground" htmlFor="model-name">Name</label>
+                  <label
+                    className="text-xs text-muted-foreground"
+                    htmlFor="model-name"
+                  >
+                    Name
+                  </label>
                   <input
                     id="model-name"
                     type="text"
@@ -912,7 +917,12 @@ function AddOrChangeModels({
                 </div>
 
                 <div>
-                  <label className="text-xs text-muted-foreground" htmlFor="model-description">Description</label>
+                  <label
+                    className="text-xs text-muted-foreground"
+                    htmlFor="model-description"
+                  >
+                    Description
+                  </label>
                   <textarea
                     id="model-description"
                     rows={2}
@@ -924,10 +934,18 @@ function AddOrChangeModels({
                 </div>
 
                 <div>
-                  <label className="text-xs text-muted-foreground mb-1 block" htmlFor="prompt-sets-trigger">Prompt sets</label>
+                  <label
+                    className="text-xs text-muted-foreground mb-1 block"
+                    htmlFor="prompt-sets-trigger"
+                  >
+                    Prompt sets
+                  </label>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <button id="prompt-sets-trigger" className="w-full h-9 rounded-lg border border-input bg-background px-3 text-left flex items-center justify-between">
+                      <button
+                        id="prompt-sets-trigger"
+                        className="w-full h-9 rounded-lg border border-input bg-background px-3 text-left flex items-center justify-between"
+                      >
                         <span className="truncate text-sm flex items-center gap-2">
                           {selectedPromptSets.length > 0 ? (
                             <>
@@ -1205,7 +1223,9 @@ const Models = () => {
         projectId: activeProject.project,
         request: { config: nextConfig },
       })
-      setProjectModels(prev => prev.map(m => ({ ...m, isDefault: m.id === id })))
+      setProjectModels(prev =>
+        prev.map(m => ({ ...m, isDefault: m.id === id }))
+      )
     } catch (error) {
       console.error('Failed to set default model:', error)
     }
@@ -1236,7 +1256,9 @@ const Models = () => {
 
     // If deleting the default model, clear the default
     const newDefaultModel =
-      runtime.default_model === modelToDelete ? undefined : runtime.default_model
+      runtime.default_model === modelToDelete
+        ? undefined
+        : runtime.default_model
 
     const nextConfig = {
       ...currentConfig,
