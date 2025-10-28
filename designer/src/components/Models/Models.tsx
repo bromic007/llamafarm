@@ -4,7 +4,7 @@ import PageActions from '../common/PageActions'
 import ConfigEditor from '../ConfigEditor/ConfigEditor'
 import FontIcon from '../../common/FontIcon'
 import Loader from '../../common/Loader'
-import { useModeWithReset } from '../../hooks/useModeWithReset'
+import { Mode } from '../ModeToggle'
 import {
   DropdownMenu,
   DropdownMenuContent,
