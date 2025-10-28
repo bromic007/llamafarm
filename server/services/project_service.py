@@ -37,6 +37,23 @@ class Project(BaseModel):
     last_modified: datetime | None = None
 
 
+class ProjectWithConfigDict(BaseModel):
+    """
+    Project representation that always includes the raw config dict.
+    Used by API route handlers to safely handle projects with validation errors.
+
+    - config_dict: Raw configuration dictionary (always present)
+    - config: Validated LlamaFarmConfig instance (None if validation failed)
+    - validation_error: Error message if config validation failed
+    """
+    namespace: str
+    name: str
+    config_dict: dict
+    config: LlamaFarmConfig | None = None
+    validation_error: str | None = None
+    last_modified: datetime | None = None
+
+
 class ProjectService:
     """
     Service for managing projects.
@@ -143,9 +160,23 @@ class ProjectService:
         return absolute_path
 
     @classmethod
-    def list_projects(cls, namespace: str) -> list[Project]:
+    def list_projects_safe(cls, namespace: str) -> list[ProjectWithConfigDict]:
+        """
+        List all projects in a namespace, always returning raw config dict.
+
+        This method is designed for API route handlers that need to display
+        projects even if they have validation errors. It returns ProjectWithConfigDict
+        objects that always include the raw config dict and optionally include
+        a validated LlamaFarmConfig instance.
+
+        Returns:
+            List of ProjectWithConfigDict instances with:
+            - config_dict: Always present, raw configuration
+            - config: LlamaFarmConfig instance if validation succeeded, None otherwise
+            - validation_error: Error message if validation failed
+        """
         namespace_dir = cls.get_namespace_dir(namespace)
-        logger.info(f"Listing projects in {namespace_dir}")
+        logger.info(f"Listing projects (safe) in {namespace_dir}")
 
         dirs: list[str]
         try:
@@ -166,22 +197,22 @@ class ProjectService:
                 )
                 continue
 
-            # Attempt to load project config
-            # If validation fails, still include the project but mark it with an error
             validation_error_msg = None
-            cfg = None
+            config_dict = None
+            validated_config = None
 
             try:
-                # First try to load with full validation
-                cfg = load_config(
+                # Try to load and validate config
+                validated_config = load_config(
                     directory=project_path,
                     validate=False,
                 )
+                # Also get the dict version
+                config_dict = validated_config.model_dump(mode="json", exclude_none=True)
             except ValidationError as e:
                 # Config file exists but has validation errors
-                # Load as raw dict so it can still be edited in UI
                 logger.warning(
-                    "Project has validation errors, including with error flag",
+                    "Project has validation errors",
                     entry=project_name,
                     error=str(e),
                 )
@@ -197,8 +228,10 @@ class ProjectService:
                         validation_error_msg += f" (and {len(e.errors()) - 5} more errors)"
                 else:
                     validation_error_msg = f"Config validation failed: {str(e)}"
+
+                # Load as raw dict even if validation failed
                 try:
-                    cfg = load_config_dict(
+                    config_dict = load_config_dict(
                         directory=project_path,
                         validate=False,
                     )
@@ -227,15 +260,16 @@ class ProjectService:
                 )
                 continue
 
-            if cfg is not None:
+            if config_dict is not None:
                 # Get last modified timestamp
                 last_modified = cls.get_project_last_modified(project_path)
 
                 projects.append(
-                    Project(
+                    ProjectWithConfigDict(
                         namespace=namespace,
                         name=project_name,
-                        config=cfg,
+                        config_dict=config_dict,
+                        config=validated_config,
                         validation_error=validation_error_msg,
                         last_modified=last_modified,
                     )
@@ -243,7 +277,50 @@ class ProjectService:
         return projects
 
     @classmethod
-    def get_project(cls, namespace: str, project_id: str) -> Project:
+    def list_projects(cls, namespace: str) -> list[Project]:
+        """
+        List all projects in a namespace that have valid configurations.
+
+        This method calls list_projects_safe() and filters to only include
+        projects with successfully validated configs. This reduces code duplication
+        while preserving the existing behavior for internal server logic.
+
+        For API routes that need to handle invalid configs, use list_projects_safe().
+        """
+        safe_projects = cls.list_projects_safe(namespace)
+        projects = []
+
+        for safe_project in safe_projects:
+            # Only include projects where validation succeeded
+            if safe_project.config is not None:
+                projects.append(
+                    Project(
+                        namespace=safe_project.namespace,
+                        name=safe_project.name,
+                        config=safe_project.config,
+                        validation_error=None,
+                        last_modified=safe_project.last_modified,
+                    )
+                )
+
+        return projects
+
+    @classmethod
+    def get_project_safe(cls, namespace: str, project_id: str) -> ProjectWithConfigDict:
+        """
+        Get a project, always returning raw config dict.
+
+        This method is designed for API route handlers that need to display
+        projects even if they have validation errors. It returns a ProjectWithConfigDict
+        that always includes the raw config dict and optionally includes a validated
+        LlamaFarmConfig instance.
+
+        Returns:
+            ProjectWithConfigDict with:
+            - config_dict: Always present, raw configuration
+            - config: LlamaFarmConfig instance if validation succeeded, None otherwise
+            - validation_error: Error message if validation failed
+        """
         project_dir = cls.get_project_dir(namespace, project_id)
         # Validate project directory exists (and is a directory)
         if not os.path.isdir(project_dir):
@@ -255,9 +332,9 @@ class ProjectService:
             )
             raise ProjectNotFoundError(namespace, project_id)
 
-        # Ensure a config file exists inside the directory
         validation_error_msg = None
-        cfg = None
+        config_dict = None
+        validated_config = None
 
         try:
             from config.helpers.loader import find_config_file
@@ -276,11 +353,12 @@ class ProjectService:
                     message="No configuration file found in project directory",
                 )
 
-            # Attempt to load config (do not validate here; align with list_projects)
-            cfg = load_config(directory=project_dir, validate=False)
+            # Attempt to load and validate config
+            validated_config = load_config(directory=project_dir, validate=False)
+            # Also get the dict version
+            config_dict = validated_config.model_dump(mode="json", exclude_none=True)
         except ValidationError as e:
             # Config file exists but has validation errors
-            # Load as raw dict so it can still be edited in UI
             logger.warning(
                 "Project has validation errors, loading as dict",
                 namespace=namespace,
@@ -299,8 +377,10 @@ class ProjectService:
                     validation_error_msg += f" (and {len(e.errors()) - 5} more errors)"
             else:
                 validation_error_msg = f"Config validation failed: {str(e)}"
+
+            # Load as raw dict even if validation failed
             try:
-                cfg = load_config_dict(
+                config_dict = load_config_dict(
                     directory=project_dir,
                     validate=False,
                 )
@@ -346,12 +426,43 @@ class ProjectService:
         # Get last modified timestamp
         last_modified = cls.get_project_last_modified(project_dir)
 
-        return Project(
+        return ProjectWithConfigDict(
             namespace=namespace,
             name=project_id,
-            config=cfg,
+            config_dict=config_dict,
+            config=validated_config,
             validation_error=validation_error_msg,
             last_modified=last_modified,
+        )
+
+    @classmethod
+    def get_project(cls, namespace: str, project_id: str) -> Project:
+        """
+        Get a project with validated configuration.
+
+        This method calls get_project_safe() and only returns if validation succeeded.
+        Raises ProjectConfigError if the config has validation errors.
+        This reduces code duplication while preserving the existing behavior for
+        internal server logic.
+
+        For API routes that need to handle invalid configs, use get_project_safe().
+        """
+        safe_project = cls.get_project_safe(namespace, project_id)
+
+        # Only return if validation succeeded, otherwise raise error
+        if safe_project.config is None:
+            raise ProjectConfigError(
+                namespace,
+                project_id,
+                message=safe_project.validation_error or "Configuration validation failed",
+            )
+
+        return Project(
+            namespace=safe_project.namespace,
+            name=safe_project.name,
+            config=safe_project.config,
+            validation_error=None,
+            last_modified=safe_project.last_modified,
         )
 
     @classmethod

@@ -113,18 +113,20 @@ async def list_projects(
         description='The namespace to list projects for. Use "default" for the default namespace.',
     ),
 ):
-    projects = ProjectService.list_projects(namespace)
+    # Use safe method to handle projects with validation errors
+    safe_projects = ProjectService.list_projects_safe(namespace)
     return ListProjectsResponse(
-        total=len(projects),
+        total=len(safe_projects),
         projects=[
             Project(
                 namespace=namespace,
                 name=project.name,
-                config=project.config,
+                # Use validated config if available, otherwise use raw dict
+                config=project.config if project.config is not None else project.config_dict,
                 validation_error=project.validation_error,
                 last_modified=project.last_modified,
             )
-            for project in projects
+            for project in safe_projects
         ],
     )
 
@@ -161,14 +163,16 @@ async def create_project(namespace: str, request: CreateProjectRequest):
     },
 )
 async def get_project(namespace: str, project_id: str):
-    project = ProjectService.get_project(namespace, project_id)
+    # Use safe method to handle projects with validation errors
+    safe_project = ProjectService.get_project_safe(namespace, project_id)
     return GetProjectResponse(
         project=Project(
-            namespace=project.namespace,
-            name=project.name,
-            config=project.config,
-            validation_error=getattr(project, 'validation_error', None),
-            last_modified=getattr(project, 'last_modified', None),
+            namespace=safe_project.namespace,
+            name=safe_project.name,
+            # Use validated config if available, otherwise use raw dict
+            config=safe_project.config if safe_project.config is not None else safe_project.config_dict,
+            validation_error=safe_project.validation_error,
+            last_modified=safe_project.last_modified,
         ),
     )
 
