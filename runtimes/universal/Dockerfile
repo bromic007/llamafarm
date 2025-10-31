@@ -42,19 +42,21 @@ RUN rm -rf rag server
 # Copy universal runtime dependency files and README
 COPY runtimes/universal/pyproject.toml runtimes/universal/uv.lock runtimes/universal/README.md ./runtimes/universal/
 
-# Install server dependencies and clean up cache to reduce layer size
+# Copy universal runtime source code (needed before installing package)
+COPY runtimes/universal/ ./runtimes/universal/
+
+# Install server dependencies and install package in editable mode
 RUN cd runtimes/universal && uv sync --locked --verbose \
     && uv cache clean \
     && rm -rf /tmp/uv-cache/*
-
-# Copy universal runtime source code
-COPY runtimes/universal/ ./runtimes/universal/
 
 # Expose port (default is 11540, can be overridden with LF_RUNTIME_PORT env var)
 EXPOSE 11540
 
 # Change to /tmp so any runtime files are created in writable location
 WORKDIR /tmp
+
+ENV HOST=0.0.0.0
 
 # Run the application from the universal runtime directory
 CMD ["uv", "run", "--project", "/app/runtimes/universal", "python", "/app/runtimes/universal/server.py"]
