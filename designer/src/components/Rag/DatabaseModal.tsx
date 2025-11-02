@@ -93,7 +93,13 @@ const DatabaseModal: React.FC<DatabaseModalProps> = ({
   const title =
     mode === 'create' ? 'Create new database' : `Edit ${initialDatabase?.name}`
   const cta = mode === 'create' ? 'Create' : 'Save'
-  const isValid = name.trim().length > 0 && !isLoading
+  
+  // Validate database name: only alphanumeric, hyphens, and underscores allowed
+  const nameValidationError = name.trim().length > 0 && !/^[a-zA-Z0-9_-]+$/.test(name.trim())
+    ? 'Database name can only contain letters, numbers, hyphens (-), and underscores (_)'
+    : null
+  
+  const isValid = name.trim().length > 0 && !nameValidationError && !isLoading
 
   const handleDelete = () => {
     if (!initialDatabase) return
@@ -222,14 +228,17 @@ const DatabaseModal: React.FC<DatabaseModalProps> = ({
               </label>
               <input
                 className={`w-full mt-1 bg-transparent rounded-lg py-2 px-3 border text-foreground ${
-                  error ? 'border-destructive' : 'border-input'
+                  error || nameValidationError ? 'border-destructive' : 'border-input'
                 }`}
                 placeholder="Enter database name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 disabled={isLoading}
               />
-              {error && (
+              {nameValidationError && (
+                <p className="text-xs text-destructive mt-1">{nameValidationError}</p>
+              )}
+              {error && !nameValidationError && (
                 <p className="text-xs text-destructive mt-1">{error}</p>
               )}
             </div>

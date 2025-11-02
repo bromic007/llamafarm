@@ -737,8 +737,8 @@ function Databases() {
                 onClick={openCreateDatabaseModal}
                 className="mb-0.5"
               >
-                <FontIcon type="add" className="w-4 h-4 mr-2" />
                 Add database
+                <FontIcon type="add" className="w-4 h-4 ml-2" />
               </Button>
             </div>
           </div>
