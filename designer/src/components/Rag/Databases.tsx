@@ -562,7 +562,11 @@ function Databases() {
     setDatabaseModalOpen(true)
   }
 
-  const handleCreateDatabase = async (database: DatabaseType) => {
+  // Helper to wrap database operations with common error handling
+  const withDatabaseOperation = async <T,>(
+    operation: (projectConfig: any) => Promise<T>,
+    onSuccess?: (result: T) => void
+  ) => {
     try {
       setDatabaseError(null)
       const projectConfig = (projectResp as any)?.project?.config
@@ -570,114 +574,103 @@ function Databases() {
         throw new Error('Project config not loaded')
       }
 
-      await databaseManager.createDatabase.mutateAsync({
-        database,
-        projectConfig,
-      })
-
-      toast({
-        message: `Database "${database.name}" created successfully`,
-        variant: 'default',
-      })
-
-      // Switch to the new database
-      setActiveDatabase(database.name)
+      const result = await operation(projectConfig)
+      if (onSuccess) onSuccess(result)
       setDatabaseModalOpen(false)
     } catch (error: any) {
-      console.error('Failed to create database:', error)
-      setDatabaseError(error.message || 'Failed to create database')
+      console.error('Database operation failed:', error)
+      setDatabaseError(error.message || 'Operation failed')
       throw error
     }
+  }
+
+  const handleCreateDatabase = async (database: DatabaseType) => {
+    await withDatabaseOperation(
+      async projectConfig => {
+        await databaseManager.createDatabase.mutateAsync({
+          database,
+          projectConfig,
+        })
+        return database.name
+      },
+      newDbName => {
+        toast({
+          message: `Database "${newDbName}" created successfully`,
+          variant: 'default',
+        })
+        setActiveDatabase(newDbName)
+      }
+    )
   }
 
   const handleUpdateDatabase = async (
     oldName: string,
     updates: Partial<DatabaseType>
   ) => {
-    try {
-      setDatabaseError(null)
-      const projectConfig = (projectResp as any)?.project?.config
-      if (!projectConfig) {
-        throw new Error('Project config not loaded')
+    await withDatabaseOperation(
+      async projectConfig => {
+        // If renaming, update datasets that reference this database
+        const datasetUpdates =
+          updates.name && updates.name !== oldName
+            ? datasetsResp?.datasets
+                ?.filter((d: any) => d.database === oldName)
+                ?.map((d: any) => ({ name: d.name, database: updates.name! }))
+            : undefined
+
+        await databaseManager.updateDatabase.mutateAsync({
+          oldName,
+          updates,
+          projectConfig,
+          datasetUpdates:
+            datasetUpdates && datasetUpdates.length > 0
+              ? datasetUpdates
+              : undefined,
+        })
+        return { oldName, newName: updates.name }
+      },
+      result => {
+        toast({ message: `Database updated successfully`, variant: 'default' })
+
+        // Update active database if it was renamed
+        if (
+          result.newName &&
+          result.newName !== result.oldName &&
+          activeDatabase === result.oldName
+        ) {
+          setActiveDatabase(result.newName)
+        }
       }
-
-      // If renaming, update datasets that reference this database
-      let datasetUpdates: Array<{ name: string; database: string }> = []
-      if (updates.name && updates.name !== oldName) {
-        const affectedDatasets =
-          datasetsResp?.datasets?.filter((d: any) => d.database === oldName) ||
-          []
-        datasetUpdates = affectedDatasets.map((d: any) => ({
-          name: d.name,
-          database: updates.name!,
-        }))
-      }
-
-      await databaseManager.updateDatabase.mutateAsync({
-        oldName,
-        updates,
-        projectConfig,
-        datasetUpdates: datasetUpdates.length > 0 ? datasetUpdates : undefined,
-      })
-
-      toast({
-        message: `Database updated successfully`,
-        variant: 'default',
-      })
-
-      // Update active database if it was renamed
-      if (
-        updates.name &&
-        updates.name !== oldName &&
-        activeDatabase === oldName
-      ) {
-        setActiveDatabase(updates.name)
-      }
-
-      setDatabaseModalOpen(false)
-    } catch (error: any) {
-      console.error('Failed to update database:', error)
-      setDatabaseError(error.message || 'Failed to update database')
-      throw error
-    }
+    )
   }
 
   const handleDeleteDatabase = async (
     databaseName: string,
     reassignTo?: string
   ) => {
-    try {
-      setDatabaseError(null)
-      const projectConfig = (projectResp as any)?.project?.config
-      if (!projectConfig) {
-        throw new Error('Project config not loaded')
-      }
+    await withDatabaseOperation(
+      async projectConfig => {
+        await databaseManager.deleteDatabase.mutateAsync({
+          databaseName,
+          projectConfig,
+          reassignTo,
+        })
+        return databaseName
+      },
+      deletedDbName => {
+        toast({
+          message: `Database "${deletedDbName}" deleted successfully`,
+          variant: 'default',
+        })
 
-      await databaseManager.deleteDatabase.mutateAsync({
-        databaseName,
-        projectConfig,
-        reassignTo,
-      })
-
-      toast({
-        message: `Database "${databaseName}" deleted successfully`,
-        variant: 'default',
-      })
-
-      // Switch to first remaining database if the deleted one was active
-      if (activeDatabase === databaseName && databases.length > 1) {
-        const remaining = databases.filter(db => db.name !== databaseName)
-        if (remaining.length > 0) {
-          setActiveDatabase(remaining[0].name)
+        // Switch to first remaining database if the deleted one was active
+        if (activeDatabase === deletedDbName && databases.length > 1) {
+          const remaining = databases.filter(db => db.name !== deletedDbName)
+          if (remaining.length > 0) {
+            setActiveDatabase(remaining[0].name)
+          }
         }
       }
-
-      setDatabaseModalOpen(false)
-    } catch (error: any) {
-      console.error('Failed to delete database:', error)
-      setDatabaseError(error.message || 'Failed to delete database')
-      throw error
-    }
+    )
   }
 
   // Get affected datasets for database deletion
@@ -689,6 +682,25 @@ function Databases() {
       ) || []
     )
   }, [editingDatabase, databaseModalMode, datasetsResp])
+
+  // Transform databases with full config for modal
+  const transformedDatabases = useMemo(() => {
+    const ragDatabases =
+      (projectResp as any)?.project?.config?.rag?.databases || []
+
+    return databases.map(db => {
+      const ragDb = ragDatabases.find((d: any) => d.name === db.name)
+      return {
+        name: db.name,
+        type: (db.type || 'ChromaStore') as 'ChromaStore' | 'QdrantStore',
+        config: db.config,
+        default_embedding_strategy: ragDb?.default_embedding_strategy,
+        default_retrieval_strategy: ragDb?.default_retrieval_strategy,
+        embedding_strategies: ragDb?.embedding_strategies || [],
+        retrieval_strategies: ragDb?.retrieval_strategies || [],
+      }
+    })
+  }, [databases, projectResp])
 
   return (
     <>
@@ -1247,29 +1259,7 @@ function Databases() {
         isOpen={databaseModalOpen}
         mode={databaseModalMode}
         initialDatabase={editingDatabase as DatabaseType | undefined}
-        existingDatabases={databases.map(db => ({
-          name: db.name,
-          type: (db.type || 'ChromaStore') as 'ChromaStore' | 'QdrantStore',
-          config: db.config,
-          default_embedding_strategy: (
-            projectResp as any
-          )?.project?.config?.rag?.databases?.find(
-            (d: any) => d.name === db.name
-          )?.default_embedding_strategy,
-          default_retrieval_strategy: (
-            projectResp as any
-          )?.project?.config?.rag?.databases?.find(
-            (d: any) => d.name === db.name
-          )?.default_retrieval_strategy,
-          embedding_strategies:
-            (projectResp as any)?.project?.config?.rag?.databases?.find(
-              (d: any) => d.name === db.name
-            )?.embedding_strategies || [],
-          retrieval_strategies:
-            (projectResp as any)?.project?.config?.rag?.databases?.find(
-              (d: any) => d.name === db.name
-            )?.retrieval_strategies || [],
-        }))}
+        existingDatabases={transformedDatabases}
         onClose={() => {
           setDatabaseModalOpen(false)
           setDatabaseError(null)

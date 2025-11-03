@@ -1,5 +1,10 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useUpdateProject, projectKeys } from './useProjects'
+import {
+  buildUpdatedConfig,
+  updateDatasetReferences,
+  validateDatabaseOperation,
+} from '../utils/database-utils'
 
 /**
  * Type for a database
@@ -28,6 +33,11 @@ export type Database = {
  * Hook to manage databases in the config
  * Provides mutations for creating, updating, and deleting databases
  *
+ * NOTE: This implementation uses a client-side read-modify-write pattern which
+ * has a potential race condition if multiple users modify databases concurrently.
+ * For production use, consider implementing atomic backend API endpoints.
+ * See: https://github.com/llama-farm/llamafarm/issues/XXX
+ *
  * @param namespace - The project namespace
  * @param projectId - The project identifier
  * @returns Mutation hooks for database operations
@@ -35,6 +45,18 @@ export type Database = {
 export const useDatabaseManager = (namespace: string, projectId: string) => {
   const queryClient = useQueryClient()
   const updateProjectMutation = useUpdateProject()
+
+  // Shared mutation options
+  const baseMutationOptions = {
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: projectKeys.detail(namespace, projectId),
+      })
+    },
+    onError: (error: Error) => {
+      console.error('Database operation failed:', error)
+    },
+  }
 
   /**
    * Create a new database
@@ -47,17 +69,12 @@ export const useDatabaseManager = (namespace: string, projectId: string) => {
       database: Database
       projectConfig: any
     }) => {
-      if (!namespace || !projectId || !projectConfig) {
-        throw new Error('Missing required parameters for database creation')
-      }
+      validateDatabaseOperation(namespace, projectId, projectConfig)
 
-      // Get or initialize rag.databases
-      const rag = projectConfig.rag || {}
-      const databases = rag.databases || []
+      const databases = projectConfig.rag?.databases || []
 
       // Check if database name already exists
-      const exists = databases.some((db: any) => db.name === database.name)
-      if (exists) {
+      if (databases.some((db: any) => db.name === database.name)) {
         throw new Error(
           `Database "${database.name}" already exists. Please use a different name.`
         )
@@ -65,15 +82,7 @@ export const useDatabaseManager = (namespace: string, projectId: string) => {
 
       // Add new database
       const updatedDatabases = [...databases, database]
-
-      // Build updated config
-      const nextConfig = {
-        ...projectConfig,
-        rag: {
-          ...rag,
-          databases: updatedDatabases,
-        },
-      }
+      const nextConfig = buildUpdatedConfig(projectConfig, updatedDatabases)
 
       // Update project via API
       return await updateProjectMutation.mutateAsync({
@@ -82,15 +91,7 @@ export const useDatabaseManager = (namespace: string, projectId: string) => {
         request: { config: nextConfig },
       })
     },
-    onSuccess: () => {
-      // Invalidate project config to trigger refetch
-      queryClient.invalidateQueries({
-        queryKey: projectKeys.detail(namespace, projectId),
-      })
-    },
-    onError: (error) => {
-      console.error('Failed to create database:', error)
-    },
+    ...baseMutationOptions,
   })
 
   /**
@@ -108,15 +109,9 @@ export const useDatabaseManager = (namespace: string, projectId: string) => {
       projectConfig: any
       datasetUpdates?: Array<{ name: string; database: string }>
     }) => {
-      if (!namespace || !projectId || !projectConfig) {
-        throw new Error('Missing required parameters for database update')
-      }
+      validateDatabaseOperation(namespace, projectId, projectConfig)
 
-      // Get or initialize rag.databases
-      const rag = projectConfig.rag || {}
-      const databases = rag.databases || []
-
-      // Find database by name
+      const databases = projectConfig.rag?.databases || []
       const databaseIndex = databases.findIndex(
         (db: any) => db.name === oldName
       )
@@ -127,10 +122,7 @@ export const useDatabaseManager = (namespace: string, projectId: string) => {
 
       // If renaming, check new name doesn't exist
       if (updates.name && updates.name !== oldName) {
-        const nameExists = databases.some(
-          (db: any) => db.name === updates.name
-        )
-        if (nameExists) {
+        if (databases.some((db: any) => db.name === updates.name)) {
           throw new Error(
             `Database "${updates.name}" already exists. Please use a different name.`
           )
@@ -144,27 +136,20 @@ export const useDatabaseManager = (namespace: string, projectId: string) => {
         ...updates,
       }
 
-      // Update datasets if database was renamed
+      // Update datasets if provided
       let updatedDatasets = projectConfig.datasets || []
       if (datasetUpdates && datasetUpdates.length > 0) {
         updatedDatasets = updatedDatasets.map((ds: any) => {
           const update = datasetUpdates.find((u) => u.name === ds.name)
-          if (update) {
-            return { ...ds, database: update.database }
-          }
-          return ds
+          return update ? { ...ds, database: update.database } : ds
         })
       }
 
-      // Build updated config
-      const nextConfig = {
-        ...projectConfig,
-        rag: {
-          ...rag,
-          databases: updatedDatabases,
-        },
-        datasets: updatedDatasets,
-      }
+      const nextConfig = buildUpdatedConfig(
+        projectConfig,
+        updatedDatabases,
+        updatedDatasets
+      )
 
       // Update project via API
       return await updateProjectMutation.mutateAsync({
@@ -173,15 +158,7 @@ export const useDatabaseManager = (namespace: string, projectId: string) => {
         request: { config: nextConfig },
       })
     },
-    onSuccess: () => {
-      // Invalidate project config to trigger refetch
-      queryClient.invalidateQueries({
-        queryKey: projectKeys.detail(namespace, projectId),
-      })
-    },
-    onError: (error) => {
-      console.error('Failed to update database:', error)
-    },
+    ...baseMutationOptions,
   })
 
   /**
@@ -197,13 +174,9 @@ export const useDatabaseManager = (namespace: string, projectId: string) => {
       projectConfig: any
       reassignTo?: string
     }) => {
-      if (!namespace || !projectId || !projectConfig) {
-        throw new Error('Missing required parameters for database deletion')
-      }
+      validateDatabaseOperation(namespace, projectId, projectConfig)
 
-      // Get or initialize rag.databases
-      const rag = projectConfig.rag || {}
-      const databases = rag.databases || []
+      const databases = projectConfig.rag?.databases || []
 
       // Filter out the database
       const updatedDatabases = databases.filter(
@@ -214,26 +187,21 @@ export const useDatabaseManager = (namespace: string, projectId: string) => {
         throw new Error(`Database "${databaseName}" not found in config`)
       }
 
-      // Update datasets that were using this database
+      // Update datasets if reassignment specified
       let updatedDatasets = projectConfig.datasets || []
       if (reassignTo) {
-        updatedDatasets = updatedDatasets.map((ds: any) => {
-          if (ds.database === databaseName) {
-            return { ...ds, database: reassignTo }
-          }
-          return ds
-        })
+        updatedDatasets = updateDatasetReferences(
+          updatedDatasets,
+          databaseName,
+          reassignTo
+        )
       }
 
-      // Build updated config
-      const nextConfig = {
-        ...projectConfig,
-        rag: {
-          ...rag,
-          databases: updatedDatabases,
-        },
-        datasets: updatedDatasets,
-      }
+      const nextConfig = buildUpdatedConfig(
+        projectConfig,
+        updatedDatabases,
+        updatedDatasets
+      )
 
       // Update project via API
       return await updateProjectMutation.mutateAsync({
@@ -242,15 +210,7 @@ export const useDatabaseManager = (namespace: string, projectId: string) => {
         request: { config: nextConfig },
       })
     },
-    onSuccess: () => {
-      // Invalidate project config to trigger refetch
-      queryClient.invalidateQueries({
-        queryKey: projectKeys.detail(namespace, projectId),
-      })
-    },
-    onError: (error) => {
-      console.error('Failed to delete database:', error)
-    },
+    ...baseMutationOptions,
   })
 
   return {
@@ -263,4 +223,3 @@ export const useDatabaseManager = (namespace: string, projectId: string) => {
       deleteDatabase.isPending,
   }
 }
-
