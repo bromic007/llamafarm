@@ -6,9 +6,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../ui/dialog'
-import { SelectNative } from '../ui/select-native'
 import type { Database } from '../../hooks/useDatabaseManager'
-import { buildDatabaseWithStrategies } from '../../utils/database-utils'
 
 export type DatabaseModalMode = 'create' | 'edit'
 
@@ -26,16 +24,6 @@ interface DatabaseModalProps {
   affectedDatasets?: Array<{ name: string; database: string }>
 }
 
-interface FormState {
-  name: string
-  type: 'ChromaStore' | 'QdrantStore'
-  copyFromDb: string
-  defaultEmbedding: string
-  defaultRetrieval: string
-  confirmingDelete: boolean
-  reassignToDb: string
-}
-
 const DatabaseModal: React.FC<DatabaseModalProps> = ({
   isOpen,
   mode,
@@ -49,36 +37,26 @@ const DatabaseModal: React.FC<DatabaseModalProps> = ({
   error = null,
   affectedDatasets = [],
 }) => {
-  // Consolidated form state
-  const [formState, setFormState] = useState<FormState>({
-    name: '',
-    type: 'ChromaStore',
-    copyFromDb: 'none',
-    defaultEmbedding: '',
-    defaultRetrieval: '',
-    confirmingDelete: false,
-    reassignToDb: '',
-  })
+  const [name, setName] = useState('')
+  const [type, setType] = useState<'ChromaStore' | 'QdrantStore'>('ChromaStore')
+  const [copyFromDb, setCopyFromDb] = useState('none')
+  const [defaultEmbedding, setDefaultEmbedding] = useState('')
+  const [defaultRetrieval, setDefaultRetrieval] = useState('')
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [reassignToDb, setReassignToDb] = useState('')
 
-  const updateForm = (updates: Partial<FormState>) =>
-    setFormState(prev => ({ ...prev, ...updates }))
-
-  // Reset form when modal opens/closes
   useEffect(() => {
     if (isOpen) {
-      const otherDatabases = existingDatabases.filter(
+      setName(initialDatabase?.name || '')
+      setType(initialDatabase?.type || 'ChromaStore')
+      setCopyFromDb('none')
+      setDefaultEmbedding(initialDatabase?.default_embedding_strategy || '')
+      setDefaultRetrieval(initialDatabase?.default_retrieval_strategy || '')
+      setConfirmingDelete(false)
+      const otherDbs = existingDatabases.filter(
         db => db.name !== initialDatabase?.name
       )
-
-      setFormState({
-        name: initialDatabase?.name || '',
-        type: initialDatabase?.type || 'ChromaStore',
-        copyFromDb: 'none',
-        defaultEmbedding: initialDatabase?.default_embedding_strategy || '',
-        defaultRetrieval: initialDatabase?.default_retrieval_strategy || '',
-        confirmingDelete: false,
-        reassignToDb: otherDatabases[0]?.name || '',
-      })
+      setReassignToDb(otherDbs[0]?.name || '')
     }
   }, [
     isOpen,
@@ -88,14 +66,10 @@ const DatabaseModal: React.FC<DatabaseModalProps> = ({
     existingDatabases,
   ])
 
-  // Handle Escape key to close modal
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen && !isLoading) {
-        onClose()
-      }
+      if (e.key === 'Escape' && isOpen && !isLoading) onClose()
     }
-
     if (isOpen) {
       document.addEventListener('keydown', handleEscape)
       return () => document.removeEventListener('keydown', handleEscape)
@@ -106,81 +80,55 @@ const DatabaseModal: React.FC<DatabaseModalProps> = ({
     mode === 'create' ? 'Create new database' : `Edit ${initialDatabase?.name}`
   const cta = mode === 'create' ? 'Create' : 'Save'
 
-  // Validate database name: only alphanumeric, hyphens, and underscores allowed
   const nameValidationError =
-    formState.name.trim().length > 0 &&
-    !/^[a-zA-Z0-9_-]+$/.test(formState.name.trim())
+    name.trim().length > 0 && !/^[a-zA-Z0-9_-]+$/.test(name.trim())
       ? 'Database name can only contain letters, numbers, hyphens (-), and underscores (_)'
       : null
 
-  const isValid =
-    formState.name.trim().length > 0 && !nameValidationError && !isLoading
-
-  const handleDelete = () => updateForm({ confirmingDelete: true })
-
-  const handleConfirmDelete = async () => {
-    if (!initialDatabase) return
-    try {
-      await onDelete(
-        initialDatabase.name,
-        affectedDatasets.length > 0 ? formState.reassignToDb : undefined
-      )
-      onClose()
-    } catch (e) {
-      console.error('Failed to delete database:', e)
-    }
-  }
-
-  const handleCancel = (e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    onClose()
-  }
-
-  const handleOpenChange = (open: boolean) => {
-    if (!open) {
-      updateForm({ confirmingDelete: false })
-      onClose()
-    }
-  }
+  const isValid = name.trim().length > 0 && !nameValidationError && !isLoading
 
   const handleSave = async () => {
     if (!isValid) return
 
     try {
       if (mode === 'create') {
-        // Convert name to snake_case
-        const snakeCaseName = formState.name
+        const snakeCaseName = name
           .trim()
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, '_')
           .replace(/^_+|_+$/g, '')
 
-        // Get source database for copying strategies
         const sourceDb =
-          formState.copyFromDb !== 'none'
-            ? existingDatabases.find(db => db.name === formState.copyFromDb)
+          copyFromDb !== 'none'
+            ? existingDatabases.find(db => db.name === copyFromDb)
             : undefined
 
-        // Build new database using utility
-        const newDatabase = buildDatabaseWithStrategies(
-          snakeCaseName,
-          formState.type,
-          {
-            sourceDb,
-            defaultEmbedding: formState.defaultEmbedding,
-            defaultRetrieval: formState.defaultRetrieval,
-          }
-        )
+        const newDatabase: Database = {
+          name: snakeCaseName,
+          type,
+          config: {
+            persist_directory: `./data/${type === 'ChromaStore' ? 'chroma_db' : 'qdrant_db'}`,
+            distance_function: 'cosine',
+            collection_name: snakeCaseName,
+          },
+          default_embedding_strategy:
+            defaultEmbedding || sourceDb?.default_embedding_strategy || '',
+          default_retrieval_strategy:
+            defaultRetrieval || sourceDb?.default_retrieval_strategy || '',
+          embedding_strategies: sourceDb
+            ? JSON.parse(JSON.stringify(sourceDb.embedding_strategies || []))
+            : [],
+          retrieval_strategies: sourceDb
+            ? JSON.parse(JSON.stringify(sourceDb.retrieval_strategies || []))
+            : [],
+        }
 
         await onCreate(newDatabase)
       } else {
-        // Edit mode - update database
-        const updates: Partial<Database> = {
-          name: formState.name.trim(),
-          type: formState.type,
-        }
-        await onUpdate(initialDatabase?.name || '', updates)
+        await onUpdate(initialDatabase?.name || '', {
+          name: name.trim(),
+          type,
+        })
       }
       onClose()
     } catch (e) {
@@ -188,41 +136,40 @@ const DatabaseModal: React.FC<DatabaseModalProps> = ({
     }
   }
 
-  // Get list of other databases for reassignment
   const otherDatabases = existingDatabases.filter(
     db => db.name !== initialDatabase?.name
   )
 
-  // Get embedding/retrieval strategies from selected copy source
   const copySourceDb =
-    formState.copyFromDb !== 'none'
-      ? existingDatabases.find(db => db.name === formState.copyFromDb)
+    copyFromDb !== 'none'
+      ? existingDatabases.find(db => db.name === copyFromDb)
       : undefined
   const availableEmbeddings = copySourceDb?.embedding_strategies || []
   const availableRetrievals = copySourceDb?.retrieval_strategies || []
 
+  const selectStyle = {
+    backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+    backgroundPosition: 'right 0.75rem center',
+    backgroundRepeat: 'no-repeat',
+    backgroundSize: '1.5em 1.5em',
+  }
+
   return (
-    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+    <Dialog open={isOpen} onOpenChange={open => !open && onClose()}>
       <DialogContent
         className="sm:max-w-xl"
         onEscapeKeyDown={e => {
           e.preventDefault()
           if (!isLoading) onClose()
         }}
-        onPointerDownOutside={e => {
-          if (!isLoading) return
-          e.preventDefault()
-        }}
-        onInteractOutside={e => {
-          if (!isLoading) return
-          e.preventDefault()
-        }}
+        onPointerDownOutside={e => isLoading && e.preventDefault()}
+        onInteractOutside={e => isLoading && e.preventDefault()}
       >
         <DialogHeader>
           <DialogTitle className="text-lg text-foreground">{title}</DialogTitle>
         </DialogHeader>
 
-        {!formState.confirmingDelete ? (
+        {!confirmingDelete ? (
           <div className="flex flex-col gap-3 pt-1">
             <div>
               <label className="text-xs text-muted-foreground">
@@ -235,8 +182,8 @@ const DatabaseModal: React.FC<DatabaseModalProps> = ({
                     : 'border-input'
                 }`}
                 placeholder="Enter database name"
-                value={formState.name}
-                onChange={e => updateForm({ name: e.target.value })}
+                value={name}
+                onChange={e => setName(e.target.value)}
                 disabled={isLoading}
               />
               {nameValidationError && (
@@ -251,18 +198,18 @@ const DatabaseModal: React.FC<DatabaseModalProps> = ({
 
             <div>
               <label className="text-xs text-muted-foreground">Type</label>
-              <SelectNative
-                value={formState.type}
+              <select
+                className="w-full mt-1 bg-transparent rounded-lg py-2 pl-3 pr-10 border border-input text-foreground appearance-none"
+                style={selectStyle}
+                value={type}
                 onChange={e =>
-                  updateForm({
-                    type: e.target.value as 'ChromaStore' | 'QdrantStore',
-                  })
+                  setType(e.target.value as 'ChromaStore' | 'QdrantStore')
                 }
                 disabled={isLoading}
               >
                 <option value="ChromaStore">ChromaStore</option>
                 <option value="QdrantStore">QdrantStore</option>
-              </SelectNative>
+              </select>
             </div>
 
             {mode === 'create' && (
@@ -271,20 +218,16 @@ const DatabaseModal: React.FC<DatabaseModalProps> = ({
                   <label className="text-xs text-muted-foreground">
                     Copy strategies from
                   </label>
-                  <SelectNative
-                    value={formState.copyFromDb}
+                  <select
+                    className="w-full mt-1 bg-transparent rounded-lg py-2 pl-3 pr-10 border border-input text-foreground appearance-none"
+                    style={selectStyle}
+                    value={copyFromDb}
                     onChange={e => {
-                      updateForm({
-                        copyFromDb: e.target.value,
-                        defaultEmbedding:
-                          e.target.value === 'none'
-                            ? ''
-                            : formState.defaultEmbedding,
-                        defaultRetrieval:
-                          e.target.value === 'none'
-                            ? ''
-                            : formState.defaultRetrieval,
-                      })
+                      setCopyFromDb(e.target.value)
+                      if (e.target.value === 'none') {
+                        setDefaultEmbedding('')
+                        setDefaultRetrieval('')
+                      }
                     }}
                     disabled={isLoading}
                   >
@@ -294,60 +237,58 @@ const DatabaseModal: React.FC<DatabaseModalProps> = ({
                         {db.name}
                       </option>
                     ))}
-                  </SelectNative>
-                  {formState.copyFromDb !== 'none' && (
+                  </select>
+                  {copyFromDb !== 'none' && (
                     <p className="text-xs text-muted-foreground mt-1">
                       This will copy all embedding and retrieval strategies from{' '}
-                      {formState.copyFromDb}
+                      {copyFromDb}
                     </p>
                   )}
                 </div>
 
-                {formState.copyFromDb !== 'none' &&
-                  availableEmbeddings.length > 0 && (
-                    <div>
-                      <label className="text-xs text-muted-foreground">
-                        Default embedding strategy
-                      </label>
-                      <SelectNative
-                        value={formState.defaultEmbedding}
-                        onChange={e =>
-                          updateForm({ defaultEmbedding: e.target.value })
-                        }
-                        disabled={isLoading}
-                      >
-                        <option value="">Select a strategy</option>
-                        {availableEmbeddings.map(emb => (
-                          <option key={emb.name} value={emb.name}>
-                            {emb.name}
-                          </option>
-                        ))}
-                      </SelectNative>
-                    </div>
-                  )}
+                {copyFromDb !== 'none' && availableEmbeddings.length > 0 && (
+                  <div>
+                    <label className="text-xs text-muted-foreground">
+                      Default embedding strategy
+                    </label>
+                    <select
+                      className="w-full mt-1 bg-transparent rounded-lg py-2 pl-3 pr-10 border border-input text-foreground appearance-none"
+                      style={selectStyle}
+                      value={defaultEmbedding}
+                      onChange={e => setDefaultEmbedding(e.target.value)}
+                      disabled={isLoading}
+                    >
+                      <option value="">Select a strategy</option>
+                      {availableEmbeddings.map(emb => (
+                        <option key={emb.name} value={emb.name}>
+                          {emb.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
-                {formState.copyFromDb !== 'none' &&
-                  availableRetrievals.length > 0 && (
-                    <div>
-                      <label className="text-xs text-muted-foreground">
-                        Default retrieval strategy
-                      </label>
-                      <SelectNative
-                        value={formState.defaultRetrieval}
-                        onChange={e =>
-                          updateForm({ defaultRetrieval: e.target.value })
-                        }
-                        disabled={isLoading}
-                      >
-                        <option value="">Select a strategy</option>
-                        {availableRetrievals.map(ret => (
-                          <option key={ret.name} value={ret.name}>
-                            {ret.name}
-                          </option>
-                        ))}
-                      </SelectNative>
-                    </div>
-                  )}
+                {copyFromDb !== 'none' && availableRetrievals.length > 0 && (
+                  <div>
+                    <label className="text-xs text-muted-foreground">
+                      Default retrieval strategy
+                    </label>
+                    <select
+                      className="w-full mt-1 bg-transparent rounded-lg py-2 pl-3 pr-10 border border-input text-foreground appearance-none"
+                      style={selectStyle}
+                      value={defaultRetrieval}
+                      onChange={e => setDefaultRetrieval(e.target.value)}
+                      disabled={isLoading}
+                    >
+                      <option value="">Select a strategy</option>
+                      {availableRetrievals.map(ret => (
+                        <option key={ret.name} value={ret.name}>
+                          {ret.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -363,9 +304,11 @@ const DatabaseModal: React.FC<DatabaseModalProps> = ({
                   <label className="text-xs text-muted-foreground">
                     Assign these datasets to:
                   </label>
-                  <SelectNative
-                    value={formState.reassignToDb}
-                    onChange={e => updateForm({ reassignToDb: e.target.value })}
+                  <select
+                    className="w-full mt-1 bg-transparent rounded-lg py-2 pl-3 pr-10 border border-input text-foreground appearance-none"
+                    style={selectStyle}
+                    value={reassignToDb}
+                    onChange={e => setReassignToDb(e.target.value)}
                     disabled={isLoading || otherDatabases.length === 0}
                   >
                     {otherDatabases.map(db => (
@@ -373,7 +316,7 @@ const DatabaseModal: React.FC<DatabaseModalProps> = ({
                         {db.name}
                       </option>
                     ))}
-                  </SelectNative>
+                  </select>
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Affected datasets:{' '}
@@ -389,20 +332,20 @@ const DatabaseModal: React.FC<DatabaseModalProps> = ({
         )}
 
         <DialogFooter className="flex flex-row items-center justify-between sm:justify-between gap-2">
-          {mode === 'edit' && !formState.confirmingDelete ? (
+          {mode === 'edit' && !confirmingDelete ? (
             <button
               className="px-3 py-2 rounded-md bg-destructive text-destructive-foreground hover:opacity-90 text-sm disabled:opacity-50"
-              onClick={handleDelete}
+              onClick={() => setConfirmingDelete(true)}
               disabled={isLoading}
               type="button"
             >
               Delete
             </button>
-          ) : formState.confirmingDelete ? (
+          ) : confirmingDelete ? (
             <div className="flex items-center gap-2">
               <button
                 className="px-3 py-2 rounded-md text-sm text-primary hover:underline disabled:opacity-50"
-                onClick={() => updateForm({ confirmingDelete: false })}
+                onClick={() => setConfirmingDelete(false)}
                 disabled={isLoading}
                 type="button"
               >
@@ -410,10 +353,20 @@ const DatabaseModal: React.FC<DatabaseModalProps> = ({
               </button>
               <button
                 className="px-3 py-2 rounded-md bg-destructive text-destructive-foreground hover:opacity-90 text-sm disabled:opacity-50"
-                onClick={handleConfirmDelete}
+                onClick={async () => {
+                  if (!initialDatabase) return
+                  try {
+                    await onDelete(
+                      initialDatabase.name,
+                      affectedDatasets.length > 0 ? reassignToDb : undefined
+                    )
+                    onClose()
+                  } catch (e) {
+                    console.error('Failed to delete database:', e)
+                  }
+                }}
                 disabled={
-                  isLoading ||
-                  (affectedDatasets.length > 0 && !formState.reassignToDb)
+                  isLoading || (affectedDatasets.length > 0 && !reassignToDb)
                 }
                 type="button"
               >
@@ -423,11 +376,15 @@ const DatabaseModal: React.FC<DatabaseModalProps> = ({
           ) : (
             <div />
           )}
-          {!formState.confirmingDelete && (
+          {!confirmingDelete && (
             <div className="flex items-center gap-2 ml-auto">
               <button
                 className="px-3 py-2 rounded-md text-sm text-primary hover:underline disabled:opacity-50"
-                onClick={handleCancel}
+                onClick={e => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  onClose()
+                }}
                 disabled={isLoading}
                 type="button"
               >
