@@ -432,11 +432,11 @@ function Home() {
           </div>
         </div>
 
-        <p className="max-w-2xl mx-auto text-xs sm:text-sm leading-relaxed text-foreground/80">
-          {isCreatingProject
-            ? 'Creating your project and setting up the dashboard...'
-            : 'Give your project a unique name to get started. Optionally describe what you\'re building.'}
-        </p>
+        {isCreatingProject && (
+          <p className="max-w-2xl mx-auto text-xs sm:text-sm leading-relaxed text-foreground/80">
+            Creating your project and setting up the dashboard...
+          </p>
+        )}
         {/* Your projects removed here to place outside the narrow container */}
       </div>
 

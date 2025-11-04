@@ -285,7 +285,7 @@ function Header({ currentVersion }: HeaderProps) {
                       projectModal.openCreateModal()
                     }}
                   >
-                    <div className="w-full flex items-center justify-center gap-2 rounded-md border border-input text-primary hover:bg-primary hover:text-primary-foreground transition-colors px-3 py-2">
+                    <div className="w-full flex items-center justify-center gap-2 rounded-md border border-input text-primary hover:bg-primary hover:text-primary-foreground transition-colors px-3 py-2 cursor-pointer">
                       <FontIcon type="add" className="w-4 h-4" />
                       <span>Create new project</span>
                     </div>
@@ -301,7 +301,7 @@ function Header({ currentVersion }: HeaderProps) {
                       }, 0)
                     }}
                   >
-                    <div className="w-full flex items-center justify-center gap-2 rounded-md text-primary hover:bg-accent/20 px-3 py-2">
+                    <div className="w-full flex items-center justify-center gap-2 rounded-md text-primary hover:bg-accent/20 px-3 py-2 cursor-pointer">
                       All projects
                     </div>
                   </DropdownMenuItem>
