@@ -510,33 +510,37 @@ class ProjectService:
         """
         Delete a project and all its associated resources.
 
-        This method performs a complete cleanup of the project including:
-        - All datasets associated with the project
-        - All chat sessions
-        - All data files (raw, metadata, and indexes)
-        - The entire project directory
+        This removes the entire project directory including:
+        - Configuration files (llamafarm.yaml)
+        - All datasets and data files
+        - Vector stores (Chroma DBs, etc.)
+        - Chat sessions
+        - All other project-specific data
 
         Args:
             namespace: The namespace of the project
-            project_id: The project identifier
+            project_id: The ID of the project to delete
 
         Returns:
             Project: The deleted project information
 
         Raises:
             ProjectNotFoundError: If the project doesn't exist
-            PermissionError: If there are permission issues deleting files
+            PermissionError: If there are permission issues deleting the directory
             OSError: If there are filesystem errors during deletion
         """
-        # 1. Validate project exists and get its configuration
+        # Step 1: Validate project exists and get its configuration
         logger.info(
             "Starting project deletion",
             namespace=namespace,
             project_id=project_id,
         )
+
+        # This will raise ProjectNotFoundError if project doesn't exist
         project = cls.get_project(namespace, project_id)
 
-        # 2. Store project info for response (before deletion)
+        # Step 2: Store project info for response (before deletion)
+        # Create a copy to return after deletion
         project_copy = Project(
             namespace=project.namespace,
             name=project.name,
@@ -545,78 +549,21 @@ class ProjectService:
             last_modified=project.last_modified,
         )
 
-        # 3. Delete associated datasets
-        # Import here to avoid circular dependency
-        from services.dataset_service import DatasetService
+        # Step 3: Delete the entire project directory
+        project_path = Path(cls.get_project_dir(namespace, project_id))
 
-        try:
-            datasets = DatasetService.list_datasets(namespace, project_id)
-            logger.info(
-                f"Deleting {len(datasets)} dataset(s)",
-                namespace=namespace,
-                project_id=project_id,
-                dataset_count=len(datasets),
-            )
-            for dataset in datasets:
-                try:
-                    DatasetService.delete_dataset(namespace, project_id, dataset.name)
-                    logger.info(
-                        "Deleted dataset",
-                        namespace=namespace,
-                        project_id=project_id,
-                        dataset=dataset.name,
-                    )
-                except Exception as e:
-                    # Log but continue - we want to delete as much as possible
-                    logger.warning(
-                        "Failed to delete dataset, continuing with project deletion",
-                        namespace=namespace,
-                        project_id=project_id,
-                        dataset=dataset.name,
-                        error=str(e),
-                    )
-        except Exception as e:
-            # Log but continue even if we can't list datasets
-            logger.warning(
-                "Failed to list datasets for deletion",
-                namespace=namespace,
-                project_id=project_id,
-                error=str(e),
-            )
-
-        # 4. Delete chat sessions directory
-        project_dir = cls.get_project_dir(namespace, project_id)
-        sessions_dir = Path(project_dir) / "sessions"
-        if sessions_dir.exists():
-            try:
-                shutil.rmtree(sessions_dir, ignore_errors=False)
-                logger.info(
-                    "Deleted sessions directory",
-                    namespace=namespace,
-                    project_id=project_id,
-                    sessions_dir=str(sessions_dir),
-                )
-            except (PermissionError, OSError) as e:
-                # Log but continue - project dir deletion will handle this
-                logger.warning(
-                    "Failed to delete sessions directory",
-                    namespace=namespace,
-                    project_id=project_id,
-                    sessions_dir=str(sessions_dir),
-                    error=str(e),
-                )
-
-        # 5. Delete the entire project directory
-        project_path = Path(project_dir)
         if project_path.exists():
             try:
+                # Use shutil.rmtree to recursively delete the entire directory
                 shutil.rmtree(project_path, ignore_errors=False)
+
                 logger.info(
-                    "Deleted project directory",
+                    "Successfully deleted project directory",
                     namespace=namespace,
                     project_id=project_id,
                     project_dir=str(project_path),
                 )
+
             except PermissionError as e:
                 logger.error(
                     "Permission denied when deleting project directory",
@@ -629,6 +576,7 @@ class ProjectService:
                     f"Permission denied when deleting project "
                     f"{namespace}/{project_id}: {str(e)}"
                 ) from e
+
             except OSError as e:
                 logger.error(
                     "Filesystem error when deleting project directory",
@@ -642,6 +590,7 @@ class ProjectService:
                     f"{namespace}/{project_id}: {str(e)}"
                 ) from e
         else:
+            # Log warning but don't fail - project exists in config but dir is gone
             logger.warning(
                 "Project directory does not exist",
                 namespace=namespace,
@@ -649,10 +598,11 @@ class ProjectService:
                 project_dir=str(project_path),
             )
 
-        # 6. Return deleted project info
+        # Step 4: Return deleted project info
         logger.info(
             "Project deletion completed successfully",
             namespace=namespace,
             project_id=project_id,
         )
+
         return project_copy

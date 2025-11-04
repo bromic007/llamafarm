@@ -184,23 +184,26 @@ class TestDeleteProjectAPI:
             assert not os.path.exists(project_dir)
             assert not sessions_dir.exists()
 
-    def test_delete_project_with_datasets_via_api(
+    def test_delete_project_with_data_via_api(
         self, client, temp_data_dir, mock_config
     ):
-        """Test that deleting a project via API removes datasets."""
+        """Test that deleting a project via API removes entire directory with data."""
         with patch("core.settings.settings.lf_data_dir", temp_data_dir):
-            from services.dataset_service import DatasetService
-
-            # Create project
+            # Create project with data files
             namespace = "test_ns"
-            project_id = "test_proj_datasets"
+            project_id = "test_proj_data"
             project_dir = ProjectService.get_project_dir(namespace, project_id)
             os.makedirs(project_dir, exist_ok=True)
             ProjectService.save_config(namespace, project_id, mock_config)
 
-            # Verify dataset exists
-            datasets = DatasetService.list_datasets(namespace, project_id)
-            assert len(datasets) == 1
+            # Create some data files to simulate datasets
+            data_dir = Path(project_dir) / "data"
+            data_dir.mkdir(parents=True)
+            (data_dir / "test_file.pdf").write_bytes(b"test content")
+
+            # Verify project and data exist
+            assert os.path.exists(project_dir)
+            assert (data_dir / "test_file.pdf").exists()
 
             # Delete project via API
             response = client.delete(f"/v1/projects/{namespace}/{project_id}")
@@ -208,8 +211,9 @@ class TestDeleteProjectAPI:
             # Verify success
             assert response.status_code == 200
 
-            # Verify project is gone
+            # Verify entire project directory is gone
             assert not os.path.exists(project_dir)
+            assert not data_dir.exists()
 
     def test_delete_project_permission_error_returns_403(
         self, client, temp_data_dir, mock_config
