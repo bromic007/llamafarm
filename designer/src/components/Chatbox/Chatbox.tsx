@@ -4,6 +4,7 @@ import Message from './Message'
 import FontIcon from '../../common/FontIcon'
 import { useChatbox } from '../../hooks/useChatbox'
 import { useActiveProject } from '../../hooks/useActiveProject'
+import { useMobileView } from '../../contexts/MobileViewContext'
 import {
   Tooltip,
   TooltipContent,
@@ -23,6 +24,7 @@ function Chatbox({
   initialMessage,
 }: ChatboxProps) {
   const navigate = useNavigate()
+  const { markUserChoice } = useMobileView()
   const [isDiagnosing, setIsDiagnosing] = useState<boolean>(false)
   const [hasProcessedInitialMessage, setHasProcessedInitialMessage] =
     useState(false)
@@ -198,6 +200,7 @@ function Chatbox({
                       test your AI project outputs, open the{' '}
                       <button
                         onClick={() => {
+                          markUserChoice('project')
                           navigate('/chat/test', {
                             state: { focusInput: true },
                           })
@@ -408,9 +411,10 @@ function Chatbox({
           <div className="pt-3 text-sm text-muted-foreground flex items-center justify-center gap-2 flex-wrap">
             <span>Testing project outputs? Open the</span>
             <button
-              onClick={() =>
+              onClick={() => {
+                markUserChoice('project')
                 navigate('/chat/test', { state: { focusInput: true } })
-              }
+              }}
               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-teal-500/10 hover:bg-teal-500/20 transition-colors border border-teal-500/30"
             >
               <FontIcon
