@@ -37,27 +37,6 @@ const Dashboard = () => {
   const { brief } = useMemo(() => {
     const cfg = (projectDetail?.project?.config || {}) as Record<string, any>
     const project_brief = (cfg?.project_brief || {}) as Record<string, any>
-    // Fallback to localStorage cache if server-side brief not present yet
-    if (!project_brief || Object.keys(project_brief).length === 0) {
-      try {
-        const ns = activeProject?.namespace || ''
-        const pid = activeProject?.project || ''
-        if (ns && pid) {
-          const briefKey = `lf_project_brief_${ns}_${pid}`
-          const cached = localStorage.getItem(briefKey)
-          if (cached) {
-            const parsed = JSON.parse(cached)
-            return {
-              brief: {
-                what: parsed?.what || '',
-                goals: parsed?.goals || '',
-                audience: parsed?.audience || '',
-              },
-            }
-          }
-        }
-      } catch {}
-    }
     return {
       brief: {
         what: project_brief?.what || '',
@@ -65,7 +44,7 @@ const Dashboard = () => {
         audience: project_brief?.audience || '',
       },
     }
-  }, [projectDetail, activeProject?.namespace, activeProject?.project])
+  }, [projectDetail])
 
   const datasets = useMemo(() => {
     // Only return datasets from the API, no localStorage fallback

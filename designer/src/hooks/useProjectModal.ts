@@ -208,8 +208,9 @@ export const useProjectModal = ({
           // Update details on same project (no rename)
           try {
             const updates: Record<string, any> = {}
-            if (details?.brief?.what) {
+            if (details?.brief?.what !== undefined) {
               updates.project_brief = {
+                ...(currentProject.config?.project_brief || {}),
                 what: details.brief.what,
               }
             }
@@ -223,14 +224,6 @@ export const useProjectModal = ({
                 projectId: newName,
                 request: { config: mergedConfig },
               })
-              // Cache locally as well for resilience
-              try {
-                const briefKey = `lf_project_brief_${namespace}_${newName}`
-                localStorage.setItem(
-                  briefKey,
-                  JSON.stringify(updates.project_brief)
-                )
-              } catch {}
             }
             closeModal()
             onSuccess?.(newName, 'edit')

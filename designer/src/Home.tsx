@@ -35,6 +35,7 @@ function Home() {
     'local'
   )
   const [projectNameError, setProjectNameError] = useState<string | null>(null)
+  const [generalError, setGeneralError] = useState<string | null>(null)
 
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'a-z' | 'z-a' | 'model'>('newest')
@@ -174,6 +175,7 @@ function Home() {
     }
 
     setProjectNameError(null)
+    setGeneralError(null)
     setIsCreatingProject(true)
     const startedAt = performance.now()
     
@@ -197,9 +199,6 @@ function Home() {
           await projectService.updateProject(namespace, created.project.name, {
             config: mergedConfig,
           })
-          // Also persist brief locally for resilience
-          const briefKey = `lf_project_brief_${namespace}_${created.project.name}`
-          localStorage.setItem(briefKey, JSON.stringify(brief))
         } catch (e) {
           console.error('Failed to update project config:', e)
           // Non-critical, continue anyway
@@ -238,7 +237,7 @@ function Home() {
     } catch (error) {
       console.error('❌ Failed to create project:', error)
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      setProjectNameError(`Failed to create project: ${errorMessage}`)
+      setGeneralError(`Failed to create project: ${errorMessage}`)
     } finally {
       setIsCreatingProject(false)
     }
@@ -309,6 +308,11 @@ function Home() {
           </h1>
         </div>
         <div id="home-create-form" className="max-w-3xl mx-auto">
+          {generalError && (
+            <div className="mb-4 text-red-600 bg-red-100 border border-red-300 rounded p-3 text-sm">
+              {generalError}
+            </div>
+          )}
           <div className="rounded-lg border p-4 sm:p-5 bg-card border-input shadow-sm relative">
             <div className="grid gap-4 text-left">
               <div className="grid gap-2.5">
@@ -319,6 +323,7 @@ function Home() {
                   onChange={e => {
                     setProjectName(e.target.value)
                     if (projectNameError) setProjectNameError(null)
+                    if (generalError) setGeneralError(null)
                   }}
                   placeholder="my-project"
                   disabled={isCreatingProject}

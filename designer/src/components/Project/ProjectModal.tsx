@@ -206,7 +206,7 @@ const ProjectModal: React.FC<ProjectModalProps> = ({
               onClick={e => {
                 e.preventDefault()
                 if (isValid) {
-                  const details = what.trim() ? { brief: { what: what.trim() } } : undefined
+                  const details = { brief: { what: what.trim() } }
                   onSave(name.trim(), details)
                 }
               }}
