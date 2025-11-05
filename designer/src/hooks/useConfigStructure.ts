@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useRef } from 'react'
 import yaml from 'yaml'
 import type { TOCNode, ConfigStructureResult } from '../types/config-toc'
 
@@ -10,9 +10,24 @@ export function useConfigStructure(
   yamlContent: string,
   shouldUpdate: boolean = true
 ): ConfigStructureResult {
+  const lastResultRef = useRef<ConfigStructureResult>({
+    nodes: [],
+    success: true,
+  })
+
   return useMemo(() => {
-    if (!shouldUpdate || !yamlContent.trim()) {
-      return { nodes: [], success: false, error: 'Empty content' }
+    if (!shouldUpdate) {
+      return lastResultRef.current
+    }
+
+    if (!yamlContent.trim()) {
+      const result: ConfigStructureResult = {
+        nodes: [],
+        success: false,
+        error: 'Empty content',
+      }
+      lastResultRef.current = result
+      return result
     }
 
     try {
@@ -474,14 +489,18 @@ export function useConfigStructure(
         })
       }
 
-      return { nodes, success: true }
+      const result: ConfigStructureResult = { nodes, success: true }
+      lastResultRef.current = result
+      return result
     } catch (error) {
       console.error('Failed to parse config structure:', error)
-      return {
+      const result: ConfigStructureResult = {
         nodes: [],
         success: false,
         error: error instanceof Error ? error.message : 'Parse error',
       }
+      lastResultRef.current = result
+      return result
     }
   }, [yamlContent, shouldUpdate])
 }
