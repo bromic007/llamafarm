@@ -48,7 +48,7 @@ const CodeMirrorEditor: React.FC<CodeMirrorEditorProps> = ({
   if (isLoading) {
     return (
       <div
-        className={`w-full h-full max-h-full rounded-lg bg-card border border-border overflow-hidden flex flex-col ${className}`}
+        className={`w-full h-full max-h-full rounded-tr-lg rounded-br-lg bg-card border border-border overflow-hidden flex flex-col ${className}`}
       >
         <EditorToolbar
           activeProject={activeProject}
@@ -77,7 +77,7 @@ const CodeMirrorEditor: React.FC<CodeMirrorEditorProps> = ({
   if (error) {
     return (
       <div
-        className={`w-full h-full max-h-full rounded-lg bg-card border border-border overflow-hidden flex flex-col ${className}`}
+        className={`w-full h-full max-h-full rounded-tr-lg rounded-br-lg bg-card border border-border overflow-hidden flex flex-col ${className}`}
       >
         <EditorToolbar
           activeProject={activeProject}
@@ -122,7 +122,7 @@ const CodeMirrorEditor: React.FC<CodeMirrorEditorProps> = ({
 
   return (
     <div
-      className={`w-full h-full max-h-full rounded-lg bg-card border border-border overflow-hidden flex flex-col ${className}`}
+      className={`w-full h-full max-h-full rounded-tr-lg rounded-br-lg rounded-bl-lg bg-card border border-border overflow-hidden flex flex-col ${className}`}
     >
       <EditorToolbar
         activeProject={activeProject}

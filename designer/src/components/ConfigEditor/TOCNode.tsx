@@ -43,10 +43,10 @@ const TOCNode: React.FC<TOCNodeProps> = ({
     <div className="toc-node">
       <button
         onClick={handleClick}
-        className={`w-full flex items-center gap-2 py-2 px-3 text-sm text-left transition-colors ${
+        className={`w-full flex items-center gap-2 py-2 px-3 text-sm text-left transition-colors border-l-2 ${
           isActive 
-            ? 'bg-primary/10 text-primary border-l-2 border-primary' 
-            : 'hover:bg-accent hover:text-accent-foreground'
+            ? 'bg-slate-200 text-slate-600 border-slate-400 dark:bg-slate-950 dark:text-slate-400 dark:border-slate-700' 
+            : 'hover:bg-accent hover:text-accent-foreground border-transparent'
         } ${node.level === 0 ? 'font-medium' : ''}`}
         style={{ paddingLeft: `${indent + 12}px` }}
         title={`Jump to ${node.label}`}

@@ -1,16 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useConfigStructure } from '../../hooks/useConfigStructure'
 import TOCNode from './TOCNode'
-import type { TOCNode as TOCNodeType, EditorNavigationAPI } from '../../types/config-toc'
+import type {
+  TOCNode as TOCNodeType,
+  EditorNavigationAPI,
+} from '../../types/config-toc'
 import Loader from '../../common/Loader'
 
 interface ConfigTableOfContentsProps {
   /** YAML config content */
   configContent: string
-  
+
   /** Navigation API from CodeMirror editor */
   navigationAPI: EditorNavigationAPI | null
-  
+
   /** Whether to update the TOC structure (usually when not dirty) */
   shouldUpdate?: boolean
 }
@@ -25,11 +28,14 @@ const ConfigTableOfContents: React.FC<ConfigTableOfContentsProps> = ({
   shouldUpdate = true,
 }) => {
   // Parse config structure
-  const { nodes, success, error } = useConfigStructure(configContent, shouldUpdate)
-  
+  const { nodes, success, error } = useConfigStructure(
+    configContent,
+    shouldUpdate
+  )
+
   // Track the active/selected node
   const [activeNodeId, setActiveNodeId] = useState<string | null>(null)
-  
+
   // Track if we're in a manual navigation (to prevent auto-scroll from overriding)
   const isManualNavigating = useRef(false)
 
@@ -45,10 +51,10 @@ const ConfigTableOfContents: React.FC<ConfigTableOfContentsProps> = ({
 
     // Scroll to the line
     navigationAPI.scrollToLine(node.lineStart)
-    
+
     // Highlight only the first line
     navigationAPI.highlightLines(node.lineStart, node.lineStart, 2500)
-    
+
     // Clear the manual navigation flag after scroll + animation completes
     setTimeout(() => {
       isManualNavigating.current = false
@@ -62,9 +68,9 @@ const ConfigTableOfContents: React.FC<ConfigTableOfContentsProps> = ({
     const handleScroll = () => {
       // Don't update if user manually clicked (let the click handler manage it)
       if (isManualNavigating.current) return
-      
+
       const currentLine = navigationAPI.getCurrentLine?.() || 1
-      
+
       // Find which node contains the current line
       const findActiveNode = (nodeList: TOCNodeType[]): string | null => {
         for (const node of nodeList) {
@@ -111,13 +117,17 @@ const ConfigTableOfContents: React.FC<ConfigTableOfContentsProps> = ({
   // Loading or error states
   if (!success && error) {
     return (
-      <div className="h-full w-full bg-card border-r border-border flex flex-col">
-        <div className="px-4 py-3 border-b border-border bg-card">
-          <h3 className="text-sm font-semibold text-foreground">Contents</h3>
+      <div className="h-full w-full bg-card border-l border-t border-b border-border rounded-tl-lg rounded-bl-lg flex flex-col overflow-hidden">
+        <div className="px-4 py-4 border-b border-border bg-card flex-shrink-0">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-foreground">Contents</h3>
+          </div>
         </div>
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="text-center">
-            <p className="text-xs text-muted-foreground">Unable to parse config</p>
+            <p className="text-xs text-muted-foreground">
+              Unable to parse config
+            </p>
           </div>
         </div>
       </div>
@@ -126,9 +136,11 @@ const ConfigTableOfContents: React.FC<ConfigTableOfContentsProps> = ({
 
   if (nodes.length === 0) {
     return (
-      <div className="h-full w-full bg-card border-r border-border flex flex-col">
-        <div className="px-4 py-3 border-b border-border bg-card">
-          <h3 className="text-sm font-semibold text-foreground">Contents</h3>
+      <div className="h-full w-full bg-card border-l border-t border-b border-border rounded-tl-lg rounded-bl-lg flex flex-col overflow-hidden">
+        <div className="px-4 py-4 border-b border-border bg-card flex-shrink-0">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-foreground">Contents</h3>
+          </div>
         </div>
         <div className="flex-1 flex items-center justify-center p-4">
           <Loader className="w-6 h-6" />
@@ -138,16 +150,18 @@ const ConfigTableOfContents: React.FC<ConfigTableOfContentsProps> = ({
   }
 
   return (
-    <div className="h-full w-full bg-card border-r border-border flex flex-col">
+    <div className="h-full w-full bg-card border-l border-t border-b border-border rounded-tl-lg rounded-bl-lg flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-border bg-card flex-shrink-0">
-        <h3 className="text-sm font-semibold text-foreground">Contents</h3>
+      <div className="px-4 py-4 border-b border-border bg-card flex-shrink-0">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-foreground">Contents</h3>
+        </div>
       </div>
 
       {/* TOC tree */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden">
-        <nav aria-label="Config sections" className="py-2">
-          {nodes.map((node) => (
+        <nav aria-label="Config sections" className="py-2 pb-24">
+          {nodes.map(node => (
             <TOCNode
               key={node.id}
               node={node}
@@ -164,4 +178,3 @@ const ConfigTableOfContents: React.FC<ConfigTableOfContentsProps> = ({
 }
 
 export default ConfigTableOfContents
-

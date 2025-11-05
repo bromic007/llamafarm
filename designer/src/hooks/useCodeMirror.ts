@@ -298,7 +298,7 @@ export function useCodeMirror(
         },
         '.cm-content': {
           padding: '20px 20px 20px 20px',
-          paddingBottom: 'calc(100vh - 200px)', // Enough padding so last line can scroll to top
+          paddingBottom: '40vh', // Enough padding so last line can scroll to top
           minHeight: '100%',
           caretColor: defaultConfig.theme === 'dark' ? '#ffffff' : '#000000',
           backgroundColor:
