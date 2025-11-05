@@ -5,8 +5,8 @@ import uuid
 from collections.abc import AsyncGenerator
 from pathlib import Path
 
-from atomic_agents import BaseTool  # type: ignore
-from config.datamodel import LlamaFarmConfig
+from atomic_agents import BaseTool
+from config.datamodel import LlamaFarmConfig, Provider
 from openai.types.chat import ChatCompletionMessageFunctionToolCallParam
 from openai.types.chat.chat_completion import Choice
 from openai.types.chat.chat_completion_chunk import Choice as ChoiceChunk
@@ -26,6 +26,7 @@ from agents.base.history import (
 )
 from agents.base.system_prompt_generator import LFAgentSystemPromptGenerator
 from agents.base.types import ToolDefinition
+from context_providers.project_context_provider import ProjectContextProvider
 from core.logging import FastAPIStructLogger
 from core.mcp_registry import register_mcp_service
 from services.mcp_service import MCPService
@@ -577,6 +578,14 @@ class ChatOrchestratorAgentFactory:
         if session_id:
             agent.enable_persistence(session_id=session_id)
 
+        project_context_provider = ProjectContextProvider(
+            title="Project Context",
+            namespace=project_config.namespace,
+            name=project_config.name,
+        )
+        agent.register_context_provider("project_context", project_context_provider)
+
         await agent.setup_tools()
+
 
         return agent
