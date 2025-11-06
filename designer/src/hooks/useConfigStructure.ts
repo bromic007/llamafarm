@@ -212,7 +212,10 @@ export function useConfigStructure(
           lineStart: sectionRange.start,
           lineEnd:
             promptChildren.length > 0
-              ? promptChildren[promptChildren.length - 1].lineEnd
+              ? Math.max(
+                  promptChildren[promptChildren.length - 1].lineEnd,
+                  promptsRange.end
+                )
               : sectionRange.end,
           level: 0,
           isCollapsible: true,
@@ -254,7 +257,10 @@ export function useConfigStructure(
             lineStart: databasesRange.start,
             lineEnd:
               databaseChildren.length > 0
-                ? databaseChildren[databaseChildren.length - 1].lineEnd
+                ? Math.max(
+                    databaseChildren[databaseChildren.length - 1].lineEnd,
+                    databasesRange.end
+                  )
                 : databasesRange.end,
             level: 1,
             isCollapsible: true,
@@ -285,7 +291,10 @@ export function useConfigStructure(
             lineStart: strategiesRange.start,
             lineEnd:
               strategyChildren.length > 0
-                ? strategyChildren[strategyChildren.length - 1].lineEnd
+                ? Math.max(
+                    strategyChildren[strategyChildren.length - 1].lineEnd,
+                    strategiesRange.end
+                  )
                 : strategiesRange.end,
             level: 1,
             isCollapsible: true,
@@ -299,7 +308,10 @@ export function useConfigStructure(
             label: 'RAG',
             jsonPointer: '/rag',
             lineStart: ragRange.start,
-            lineEnd: ragChildren[ragChildren.length - 1].lineEnd,
+            lineEnd: Math.max(
+              ragChildren[ragChildren.length - 1].lineEnd,
+              ragRange.end
+            ),
             level: 0,
             isCollapsible: true,
             children: ragChildren,
@@ -347,7 +359,10 @@ export function useConfigStructure(
           lineStart: sectionRange.start,
           lineEnd:
             datasetChildren.length > 0
-              ? datasetChildren[datasetChildren.length - 1].lineEnd
+              ? Math.max(
+                  datasetChildren[datasetChildren.length - 1].lineEnd,
+                  datasetsRange.end
+                )
               : sectionRange.end,
           level: 0,
           isCollapsible: true,
@@ -383,7 +398,7 @@ export function useConfigStructure(
           modelChildren = children
           runtimeLineEnd =
             children.length > 0
-              ? children[children.length - 1].lineEnd
+              ? Math.max(children[children.length - 1].lineEnd, modelsRange.end)
               : modelsRange.end
         }
 

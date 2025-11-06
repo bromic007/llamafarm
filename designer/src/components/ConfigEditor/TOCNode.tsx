@@ -39,7 +39,13 @@ const TOCNode: React.FC<TOCNodeProps> = ({
     e.stopPropagation()
 
     if (hasChildren && node.isCollapsible) {
-      setIsCollapsed(prev => !prev)
+      if (isActive) {
+        // Already active: toggle collapse/expand
+        setIsCollapsed(prev => !prev)
+      } else {
+        // Not active yet: navigate and ensure expanded
+        setIsCollapsed(false)
+      }
     }
 
     onNavigate(node)
