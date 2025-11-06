@@ -44,7 +44,10 @@ export function useConfigStructure(
       const nodes: TOCNode[] = []
       const yamlLines = yamlContent.split('\n')
 
-      const matchesLineValue = (lineNumber: number, value: string | undefined): boolean => {
+      const matchesLineValue = (
+        lineNumber: number,
+        value: string | undefined
+      ): boolean => {
         if (!value) return false
         if (lineNumber <= 0 || lineNumber > yamlLines.length) return false
         return yamlLines[lineNumber - 1].includes(value)
@@ -111,7 +114,6 @@ export function useConfigStructure(
         lineEnd: Math.max(3, overviewRange.start + 2),
         level: 0,
         isCollapsible: false,
-        iconType: 'overview',
       })
 
       // 2. Prompts section
@@ -142,7 +144,6 @@ export function useConfigStructure(
             lineEnd: promptRange.end > 1 ? promptRange.end : promptLine + 10,
             level: 1,
             isCollapsible: false,
-            iconType: 'prompt',
           })
         })
 
@@ -160,7 +161,6 @@ export function useConfigStructure(
             level: 0,
             isCollapsible: true,
             children: promptChildren,
-            iconType: 'prompt',
           })
         }
       }
@@ -214,7 +214,6 @@ export function useConfigStructure(
                   : Math.min(dbLine + 30, yamlLines.length + 1),
               level: 2,
               isCollapsible: false,
-              iconType: 'database',
             })
           })
 
@@ -232,7 +231,6 @@ export function useConfigStructure(
               level: 1,
               isCollapsible: true,
               children: databaseChildren,
-              iconType: 'database',
             })
           }
         }
@@ -283,7 +281,6 @@ export function useConfigStructure(
                   strategyRange.end > 1 ? strategyRange.end : strategyLine + 20,
                 level: 2,
                 isCollapsible: false,
-                iconType: 'strategy',
               })
             }
           )
@@ -302,7 +299,6 @@ export function useConfigStructure(
               level: 1,
               isCollapsible: true,
               children: strategyChildren,
-              iconType: 'strategy',
             })
           }
         }
@@ -320,7 +316,6 @@ export function useConfigStructure(
             level: 0,
             isCollapsible: true,
             children: ragChildren,
-            iconType: 'database',
           })
         }
       }
@@ -386,7 +381,6 @@ export function useConfigStructure(
             lineEnd: datasetEndLine,
             level: 1,
             isCollapsible: false,
-            iconType: 'dataset',
           })
         })
 
@@ -404,7 +398,6 @@ export function useConfigStructure(
           level: 0,
           isCollapsible: true,
           children: datasetChildren,
-          iconType: 'dataset',
         })
       }
 
@@ -479,7 +472,6 @@ export function useConfigStructure(
               lineEnd: modelEndLine,
               level: 1,
               isCollapsible: false,
-              iconType: 'runtime',
             })
           })
         }
@@ -502,7 +494,6 @@ export function useConfigStructure(
           level: 0,
           isCollapsible: modelChildren.length > 0,
           children: modelChildren.length > 0 ? modelChildren : undefined,
-          iconType: 'runtime',
         })
       }
 
@@ -522,7 +513,6 @@ export function useConfigStructure(
           lineEnd: mcpRange.end > 1 ? mcpRange.end : mcpLine + 20,
           level: 0,
           isCollapsible: false,
-          iconType: 'mcp',
         })
       }
 

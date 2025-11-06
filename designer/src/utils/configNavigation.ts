@@ -32,10 +32,26 @@ export type ConfigLocation =
  * Normalises a JSON pointer string so it always starts with a leading slash
  * and has no trailing slash (except for the root pointer "/").
  */
-const normalisePointer = (pointer: string): string => {
+export const normalisePointer = (pointer: string): string => {
   if (!pointer || pointer === '/') return '/'
   const trimmed = pointer.endsWith('/') ? pointer.slice(0, -1) : pointer
   return trimmed.startsWith('/') ? trimmed : `/${trimmed}`
+}
+
+/**
+ * Returns the parent pointer of a given JSON pointer
+ * @param pointer - The JSON pointer to get the parent of
+ * @returns The parent pointer, or null if at root
+ */
+export const parentPointer = (pointer: string): string | null => {
+  if (!pointer || pointer === '/') return null
+  const parts = pointer.split('/')
+  parts.pop()
+  if (parts.length <= 1) {
+    return '/'
+  }
+  const joined = parts.join('/')
+  return joined.startsWith('/') ? joined : `/${joined}`
 }
 
 const pointerOrFallback = (pointer: string | null | undefined, fallback: string): string => {

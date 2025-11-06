@@ -710,9 +710,7 @@ function Databases() {
 
   return (
     <>
-      <div
-        className={`w-full h-full flex flex-col ${mode === 'designer' ? 'gap-4 pb-32' : ''}`}
-      >
+      <div className="w-full h-full flex flex-col">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <h2 className="text-2xl">
@@ -781,7 +779,7 @@ function Databases() {
             />
           </div>
         ) : (
-          <>
+          <div className="flex-1 min-h-0 overflow-auto pb-20">
             {/* Database name header */}
             <div className="flex items-center gap-2 mb-4 mt-2">
               <div className="text-xl font-semibold">{activeDatabase}</div>
@@ -1214,10 +1212,9 @@ function Databases() {
                 </div>
               )}
             </div>
-          </>
+          </div>
         )}
 
-        <div className="h-24 shrink-0" aria-hidden />
       </div>
 
       {/* Re-embed confirmation modal (after setting default embedding) */}

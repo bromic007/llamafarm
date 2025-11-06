@@ -26,16 +26,6 @@ export interface TOCNode {
 
   /** Whether this node can be collapsed */
   isCollapsible: boolean
-
-  /** Icon type for this node */
-  iconType?:
-    | 'overview'
-    | 'prompt'
-    | 'database'
-    | 'strategy'
-    | 'dataset'
-    | 'runtime'
-    | 'mcp'
 }
 
 export interface EditorNavigationAPI {

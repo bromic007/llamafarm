@@ -12,6 +12,8 @@ import FontIcon from '../../common/FontIcon'
 import type { EditorNavigationAPI } from '../../types/config-toc'
 import { useConfigStructure } from '../../hooks/useConfigStructure'
 import type { TOCNode } from '../../types/config-toc'
+import { normalisePointer, parentPointer } from '../../utils/configNavigation'
+import { findSearchMatches, type SearchMatch } from '../../utils/searchUtils'
 
 // Lazy load the CodeMirror editor
 const CodeMirrorEditor = lazy(
@@ -21,29 +23,6 @@ const CodeMirrorEditor = lazy(
 interface ConfigEditorProps {
   className?: string
   initialPointer?: string | null
-}
-
-interface SearchMatch {
-  from: number
-  to: number
-  line: number
-  preview: string
-}
-
-const normalisePointer = (pointer: string): string => {
-  if (!pointer || pointer === '/') return '/'
-  return pointer.startsWith('/') ? pointer.replace(/\/$/, '') : `/${pointer.replace(/\/$/, '')}`
-}
-
-const parentPointer = (pointer: string): string | null => {
-  if (!pointer || pointer === '/') return null
-  const parts = pointer.split('/')
-  parts.pop()
-  if (parts.length <= 1) {
-    return '/'
-  }
-  const joined = parts.join('/')
-  return joined.startsWith('/') ? joined : `/${joined}`
 }
 
 const ConfigEditor: React.FC<ConfigEditorProps> = ({ className = '', initialPointer = null }) => {
@@ -85,72 +64,6 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({ className = '', initialPoin
     visit(nodes)
     return map
   }, [nodes])
-
-  const findSearchMatches = useCallback((content: string, query: string): SearchMatch[] => {
-    if (!query || query.trim().length === 0) {
-      return []
-    }
-
-    const lowerContent = content.toLowerCase()
-    const lowerQuery = query.toLowerCase()
-    if (lowerQuery.length === 0) {
-      return []
-    }
-
-    const lineOffsets: number[] = [0]
-    for (let i = 0; i < content.length; i += 1) {
-      if (content[i] === '\n') {
-        lineOffsets.push(i + 1)
-      }
-    }
-
-    const findLineIndex = (position: number): number => {
-      let low = 0
-      let high = lineOffsets.length - 1
-      while (low <= high) {
-        const mid = Math.floor((low + high) / 2)
-        const offset = lineOffsets[mid]
-        if (offset === position) {
-          return mid
-        }
-        if (offset < position) {
-          low = mid + 1
-        } else {
-          high = mid - 1
-        }
-      }
-      return Math.max(0, high)
-    }
-
-    const matches: SearchMatch[] = []
-    let searchFrom = 0
-
-    while (searchFrom <= lowerContent.length - lowerQuery.length) {
-      const index = lowerContent.indexOf(lowerQuery, searchFrom)
-      if (index === -1) break
-
-      const lineIndex = findLineIndex(index)
-      const lineStart = lineOffsets[lineIndex]
-      const nextLineStart =
-        lineIndex + 1 < lineOffsets.length ? lineOffsets[lineIndex + 1] : content.length
-      const lineText = content.slice(lineStart, nextLineStart).replace(/\r?\n$/, '')
-
-      matches.push({
-        from: index,
-        to: index + query.length,
-        line: lineIndex + 1,
-        preview: lineText.trim(),
-      })
-
-      if (lowerQuery.length === 0) {
-        break
-      }
-
-      searchFrom = index + Math.max(lowerQuery.length, 1)
-    }
-
-    return matches
-  }, [])
 
   useEffect(() => {
     if (typeof initialPointer === 'string') {
@@ -346,7 +259,7 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({ className = '', initialPoin
     }, 160)
 
     return () => window.clearTimeout(handle)
-  }, [searchQuery, editedContent, findSearchMatches, navigationAPI])
+  }, [searchQuery, editedContent, navigationAPI])
 
   useEffect(() => {
     if (!navigationAPI) return

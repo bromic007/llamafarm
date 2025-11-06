@@ -7,6 +7,7 @@ import type {
 } from '../../types/config-toc'
 import Loader from '../../common/Loader'
 import FontIcon from '../../common/FontIcon'
+import { normalisePointer } from '../../utils/configNavigation'
 
 interface ConfigTableOfContentsProps {
   /** YAML config content */
@@ -80,13 +81,10 @@ const ConfigTableOfContents: React.FC<ConfigTableOfContentsProps> = ({
   // Track if we're in a manual navigation (to prevent auto-scroll from overriding)
   const isManualNavigating = useRef(false)
 
-  const normalisePointer = (pointer: string): string => {
-    if (!pointer || pointer === '/') return '/'
-    const trimmed = pointer.endsWith('/') ? pointer.slice(0, -1) : pointer
-    return trimmed.startsWith('/') ? trimmed : `/${trimmed}`
-  }
-
-  const findNodeByPointer = (nodeList: TOCNodeType[], pointer: string): TOCNodeType | null => {
+  const findNodeByPointer = (
+    nodeList: TOCNodeType[],
+    pointer: string
+  ): TOCNodeType | null => {
     for (const node of nodeList) {
       if (node.jsonPointer && normalisePointer(node.jsonPointer) === pointer) {
         return node
@@ -176,10 +174,7 @@ const ConfigTableOfContents: React.FC<ConfigTableOfContentsProps> = ({
       if (activePointerRef.current) {
         const node = findClosestNode(activePointerRef.current)
         if (node) {
-          if (
-            currentLine >= node.lineStart &&
-            currentLine <= node.lineEnd
-          ) {
+          if (currentLine >= node.lineStart && currentLine <= node.lineEnd) {
             return
           }
         }
@@ -254,7 +249,10 @@ const ConfigTableOfContents: React.FC<ConfigTableOfContentsProps> = ({
         {onSearchChange && (
           <div className="mt-3 space-y-2">
             <div className="relative flex items-center">
-              <FontIcon type="search" className="absolute left-3 w-3.5 h-3.5 text-muted-foreground" />
+              <FontIcon
+                type="search"
+                className="absolute left-3 w-3.5 h-3.5 text-muted-foreground"
+              />
               <input
                 ref={searchInputRef}
                 value={searchQuery}
