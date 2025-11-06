@@ -573,22 +573,36 @@ export function useChatbox(options: UseChatboxOptions = {}) {
                           msg => msg.id === toolMessageId
                         )
                         if (existing) {
+                          // Update existing tool message
                           return prev.map(msg =>
                             msg.id === toolMessageId
                               ? { ...msg, content: toolContent }
                               : msg
                           )
                         } else {
-                          return [
-                            ...prev,
-                            {
-                              id: toolMessageId,
-                              type: 'tool' as const,
-                              content: toolContent,
-                              timestamp: new Date(),
-                              tool_call_id: toolCallMsg.id,
-                            },
-                          ]
+                          // Insert tool message BEFORE any assistant message with the same ID
+                          const assistantIndex = prev.findIndex(
+                            msg => msg.id === assistantMessageId
+                          )
+                          const newToolMessage = {
+                            id: toolMessageId,
+                            type: 'tool' as const,
+                            content: toolContent,
+                            timestamp: new Date(),
+                            tool_call_id: toolCallMsg.id,
+                          }
+
+                          if (assistantIndex >= 0) {
+                            // Insert before assistant message
+                            return [
+                              ...prev.slice(0, assistantIndex),
+                              newToolMessage,
+                              ...prev.slice(assistantIndex),
+                            ]
+                          } else {
+                            // No assistant message yet, append to end
+                            return [...prev, newToolMessage]
+                          }
                         }
                       })
 
@@ -775,6 +789,11 @@ export function useChatbox(options: UseChatboxOptions = {}) {
                       console.warn('Failed to save complete tool message:', err)
                     }
                   }
+
+                  // Remove tool call messages from streaming state since they're now in persistent storage
+                  setStreamingMessages(prev =>
+                    prev.filter(msg => !msg.id.startsWith(toolCallPattern))
+                  )
 
                   // Clean up refs
                   delete accumulatedContentRef.current[assistantMessageId]

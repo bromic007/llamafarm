@@ -362,7 +362,7 @@ function Chatbox({
           <div
             ref={listRef}
             onScroll={handleScroll}
-            className="flex-1 overflow-y-auto flex flex-col gap-5 pr-1"
+            className="flex-1 overflow-y-auto flex flex-col gap-5"
           >
             {!hasMessages ? (
               <div className="flex items-center justify-center h-full">
@@ -387,9 +387,11 @@ function Chatbox({
                 </div>
               </div>
             ) : (
-              messages.map(message => (
-                <Message key={message.id} message={message} />
-              ))
+              <div className="flex flex-col gap-5 pr-3">
+                {messages.map(message => (
+                  <Message key={message.id} message={message} />
+                ))}
+              </div>
             )}
           </div>
           <div className="flex flex-col gap-3 p-3 rounded-lg bg-secondary mt-auto sticky bottom-4">
