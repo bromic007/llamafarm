@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ChatboxMessage } from '../../types/chatbox'
 import Markdown from '../../utils/renderMarkdown'
 
@@ -9,6 +9,11 @@ export interface MessageProps {
 const Message: React.FC<MessageProps> = ({ message }) => {
   const { type, content, isLoading, isStreaming, cancelled } = message
   const [isArgsExpanded, setIsArgsExpanded] = useState(false)
+
+  // Reset expansion state when message changes
+  useEffect(() => {
+    setIsArgsExpanded(false)
+  }, [message.id])
 
   // Show typing indicator while assistant is preparing/streaming with no content yet
   const showTypingIndicator =
