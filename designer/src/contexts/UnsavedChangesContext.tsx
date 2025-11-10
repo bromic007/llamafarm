@@ -97,11 +97,15 @@ export function UnsavedChangesProvider({ children }: { children: React.ReactNode
   }, [isDirty, navigate])
 
   const attemptAction = useCallback((action: () => void) => {
+    console.log('[UnsavedChanges] attemptAction called', { isDirty })
+    
     if (isDirty) {
+      console.log('[UnsavedChanges] Has unsaved changes - showing modal')
       setPendingAction(() => action)
       setPendingNavigation(null)
       setShowModal(true)
     } else {
+      console.log('[UnsavedChanges] No unsaved changes - executing action directly')
       action()
     }
   }, [isDirty])
