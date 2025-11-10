@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react'
-import { useNavigate, useLocation, UNSAFE_NavigationContext } from 'react-router-dom'
+import React, { createContext, useContext, useState, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 interface UnsavedChangesContextType {
   isDirty: boolean
@@ -24,70 +24,9 @@ export function UnsavedChangesProvider({ children }: { children: React.ReactNode
   const [pendingNavigation, setPendingNavigation] = useState<string | null>(null)
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null)
   const navigate = useNavigate()
-  const location = useLocation()
-  const navigationContext = useContext(UNSAFE_NavigationContext)
-  const currentPathRef = useRef(location.pathname)
-  const isNavigatingRef = useRef(false) // Flag to bypass dirty check during confirmed navigation
-
-  // Track current path
-  useEffect(() => {
-    currentPathRef.current = location.pathname
-  }, [location.pathname])
-
-  // Intercept navigator push
-  useEffect(() => {
-    if (!navigationContext?.navigator) return
-
-    const originalPush = navigationContext.navigator.push
-    const originalReplace = navigationContext.navigator.replace
-
-    // Wrap push to check for unsaved changes
-    navigationContext.navigator.push = (to: any, state?: any) => {
-      const targetPath = typeof to === 'string' ? to : to.pathname
-      
-      // Bypass dirty check if we're in the middle of confirmed navigation
-      if (isNavigatingRef.current) {
-        originalPush.call(navigationContext.navigator, to, state)
-        return
-      }
-      
-      // If we have unsaved changes and we're changing routes
-      if (isDirty && targetPath !== currentPathRef.current) {
-        setPendingNavigation(targetPath)
-        setShowModal(true)
-        return
-      }
-      
-      originalPush.call(navigationContext.navigator, to, state)
-    }
-
-    // Wrap replace too
-    navigationContext.navigator.replace = (to: any, state?: any) => {
-      const targetPath = typeof to === 'string' ? to : to.pathname
-      
-      // Bypass dirty check if we're in the middle of confirmed navigation
-      if (isNavigatingRef.current) {
-        originalReplace.call(navigationContext.navigator, to, state)
-        return
-      }
-      
-      if (isDirty && targetPath !== currentPathRef.current) {
-        setPendingNavigation(targetPath)
-        setShowModal(true)
-        return
-      }
-      
-      originalReplace.call(navigationContext.navigator, to, state)
-    }
-
-    return () => {
-      navigationContext.navigator.push = originalPush
-      navigationContext.navigator.replace = originalReplace
-    }
-  }, [isDirty, navigationContext])
 
   const attemptNavigation = useCallback((path: string) => {
-    if (isDirty && path !== currentPathRef.current) {
+    if (isDirty) {
       setPendingNavigation(path)
       setPendingAction(null)
       setShowModal(true)
@@ -110,11 +49,8 @@ export function UnsavedChangesProvider({ children }: { children: React.ReactNode
     // Note: Don't set isDirty here - let the save handler manage it
     // This prevents redundant state updates that cause flicker
     
-    // Close modal and execute action immediately
+    // Close modal
     setShowModal(false)
-    
-    // Set flag to bypass dirty check during navigation
-    isNavigatingRef.current = true
     
     if (pendingNavigation) {
       const path = pendingNavigation
@@ -122,10 +58,6 @@ export function UnsavedChangesProvider({ children }: { children: React.ReactNode
       // Small delay to let modal close animation start
       requestAnimationFrame(() => {
         navigate(path)
-        // Reset flag after navigation
-        setTimeout(() => {
-          isNavigatingRef.current = false
-        }, 100)
       })
     } else if (pendingAction) {
       const action = pendingAction
@@ -133,14 +65,7 @@ export function UnsavedChangesProvider({ children }: { children: React.ReactNode
       // Execute action after modal starts closing
       requestAnimationFrame(() => {
         action()
-        // Reset flag after action
-        setTimeout(() => {
-          isNavigatingRef.current = false
-        }, 100)
       })
-    } else {
-      // No pending action or navigation, just reset flag
-      isNavigatingRef.current = false
     }
   }, [pendingNavigation, pendingAction, navigate])
 
@@ -148,8 +73,6 @@ export function UnsavedChangesProvider({ children }: { children: React.ReactNode
     setShowModal(false)
     setPendingNavigation(null)
     setPendingAction(null)
-    // Reset navigation flag in case it was set
-    isNavigatingRef.current = false
   }, [])
 
   return (

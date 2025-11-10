@@ -361,7 +361,8 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
       setSaveError(null) // Clear any previous errors on success
       return { success: true }
     } catch (err: any) {
-      console.error('Failed to save config:', err)
+      // Only log safe error information without exposing sensitive config data
+      console.error('Failed to save config:', err?.message || 'Unknown error')
 
       // Parse and sanitize backend validation errors
       let errorMessage = 'Failed to save configuration'
@@ -461,6 +462,7 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
   const handleModalCancel = () => {
     // Clear error state when canceling
     setModalErrorMessage(null)
+    setSaveError(null) // Also clear the main save error on the toolbar
     unsavedChangesContext.cancelNavigation()
   }
 
