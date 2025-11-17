@@ -12,9 +12,14 @@ import celery.result
 from config.datamodel import LlamaFarmConfig, Model  # noqa: E402
 from fastapi import APIRouter, Header, HTTPException, Response
 from fastapi import Path as FastAPIPath
-from openai.types.chat import ChatCompletion
+from openai.types.chat import (
+    ChatCompletion,
+    ChatCompletionMessageParam,
+    ChatCompletionToolParam,
+)
 from pydantic import BaseModel, Field
 
+from agents.base.types import ToolDefinition
 from agents.chat_orchestrator import ChatOrchestratorAgent, ChatOrchestratorAgentFactory
 from api.errors import ErrorResponse, ProjectNotFoundError
 
@@ -353,7 +358,7 @@ def _delete_all_sessions(namespace: str, project_id: str) -> int:
 
 
 class ChatRequest(BaseModel):
-    messages: list[dict]
+    messages: list[ChatCompletionMessageParam]
     model: str | None = None
     frequency_penalty: float | None = None
     logit_bias: dict[str, int] | None = None
@@ -371,7 +376,7 @@ class ChatRequest(BaseModel):
     stream_options: dict | None = None
     temperature: float | None = None
     tool_choice: str | dict | None = None
-    tools: list[dict] | None = None
+    tools: list[ChatCompletionToolParam] | None = None
     top_logprobs: int | None = None
     top_p: float | None = None
     user: str | None = None
@@ -449,15 +454,14 @@ async def chat(
         set_session_header(response, session_id)
 
     # Extract the latest user message
-    latest_user_message = None
-    for msg in reversed(request.messages):
-        if msg.get("role", None) == "user" and msg.get("content", None):
-            latest_user_message = str(msg.get("content", ""))
-            break
-
-    # If no user message, check if this is a greeting request (new session)
-    if latest_user_message is None:
-        raise HTTPException(status_code=400, detail="No user message provided")  # noqa: F821
+    latest_user_message = next(
+        (
+            str(msg.get("content", ""))
+            for msg in reversed(request.messages)
+            if msg.get("role", None) == "user" and msg.get("content", None)
+        ),
+        None,
+    )
 
     # Inject relevant documentation based on user query (dev mode only)
     if (
@@ -469,6 +473,8 @@ async def chat(
         matched_docs = docs_service.match_docs_for_query(latest_user_message)
         agent.docs_context_provider.set_docs(matched_docs)
 
+    tools = [ToolDefinition.from_openai_tool_dict(t) for t in request.tools or []]
+
     if request.stream:
         return create_streaming_response_from_iterator(
             request,
@@ -476,7 +482,8 @@ async def chat(
                 project_dir=project_dir,
                 project_config=project_config,
                 chat_agent=agent,
-                message=latest_user_message,
+                messages=request.messages,
+                tools=tools,
                 rag_enabled=request.rag_enabled,
                 database=request.database,
                 retrieval_strategy=request.rag_retrieval_strategy,
@@ -492,7 +499,8 @@ async def chat(
             project_dir=project_dir,
             project_config=project_config,
             chat_agent=agent,
-            message=latest_user_message,
+            messages=request.messages,
+            tools=tools,
             rag_enabled=request.rag_enabled,
             database=request.database,
             retrieval_strategy=request.rag_retrieval_strategy,
