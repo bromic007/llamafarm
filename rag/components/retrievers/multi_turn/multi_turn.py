@@ -60,7 +60,9 @@ class MultiTurnRAGStrategy(RetrievalStrategy):
 
         # Reranking settings (optional)
         self.enable_reranking = config.get("enable_reranking", False)
-        self.reranker_strategy_name = config.get("reranker_strategy", "CrossEncoderRerankedStrategy")
+        self.reranker_strategy_name = config.get(
+            "reranker_strategy", "CrossEncoderRerankedStrategy"
+        )
         self.reranker_config = config.get("reranker_config", {})
 
         # Deduplication settings
@@ -118,7 +120,9 @@ class MultiTurnRAGStrategy(RetrievalStrategy):
 
         strategy_class = strategy_map.get(self.reranker_strategy_name)
         if not strategy_class:
-            raise ValueError(f"Unknown reranker strategy: {self.reranker_strategy_name}")
+            raise ValueError(
+                f"Unknown reranker strategy: {self.reranker_strategy_name}"
+            )
 
         self._reranker_strategy = strategy_class(
             name=f"{self.name}_reranker",
@@ -216,6 +220,7 @@ class MultiTurnRAGStrategy(RetrievalStrategy):
         # Use configured API key, environment variable, or placeholder
         # Ollama and many local endpoints don't require authentication
         import os
+
         api_key = self.api_key or os.environ.get("OPENAI_API_KEY", "not-needed")
 
         self._llm_client = OpenAI(
@@ -244,12 +249,12 @@ class MultiTurnRAGStrategy(RetrievalStrategy):
 
         # Multiple question markers
         multi_question_patterns = [
-            r'\band\b',
-            r'\balso\b',
-            r'\badditionally\b',
-            r'\bfurthermore\b',
-            r'\bmoreover\b',
-            r'\?.*\?',  # Multiple question marks
+            r"\band\b",
+            r"\balso\b",
+            r"\badditionally\b",
+            r"\bfurthermore\b",
+            r"\bmoreover\b",
+            r"\?.*\?",  # Multiple question marks
         ]
 
         for pattern in multi_question_patterns:
@@ -292,7 +297,7 @@ Always use <question> tags. Be direct."""
                 model=self.model_id,
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
+                    {"role": "user", "content": user_prompt},
                 ],
                 temperature=0.3,
                 max_tokens=200,
@@ -317,7 +322,7 @@ Always use <question> tags. Be direct."""
             content = content.strip()
 
             # Extract questions using regex
-            question_pattern = r'<question>(.*?)</question>'
+            question_pattern = r"<question>(.*?)</question>"
             matches = re.findall(question_pattern, content, re.DOTALL | re.IGNORECASE)
 
             logger.info(
@@ -329,17 +334,17 @@ Always use <question> tags. Be direct."""
             if matches:
                 # Clean up and filter questions
                 sub_queries = []
-                for match in matches[:self.max_sub_queries]:
+                for match in matches[: self.max_sub_queries]:
                     question = match.strip()
                     # Remove extra whitespace and newlines
-                    question = re.sub(r'\s+', ' ', question)
+                    question = re.sub(r"\s+", " ", question)
                     if len(question) >= self.min_query_length:
                         sub_queries.append(question)
 
                 if sub_queries:
                     logger.info(
                         f"Decomposed query into {len(sub_queries)} sub-queries",
-                        sub_queries=sub_queries
+                        sub_queries=sub_queries,
                     )
                     return sub_queries
             else:
@@ -386,7 +391,7 @@ Always use <question> tags. Be direct."""
                 query_embedding=sub_query_embedding,
                 vector_store=vector_store,
                 top_k=self.sub_query_top_k,
-                **kwargs
+                **kwargs,
             )
 
             # Optionally rerank results
@@ -397,7 +402,7 @@ Always use <question> tags. Be direct."""
                     top_k=self.sub_query_top_k,
                     query_text=sub_query,
                     embedder=embedder,  # Pass embedder along
-                    **kwargs
+                    **kwargs,
                 )
 
             return (sub_query, result)
@@ -479,7 +484,9 @@ Always use <question> tags. Be direct."""
 
                 # Check against already selected documents
                 for existing_doc in deduplicated_docs:
-                    similarity = self._content_similarity(doc.content, existing_doc.content)
+                    similarity = self._content_similarity(
+                        doc.content, existing_doc.content
+                    )
 
                     if similarity >= self.dedup_similarity_threshold:
                         is_duplicate = True
@@ -503,7 +510,7 @@ Always use <question> tags. Be direct."""
             sorted_pairs = sorted(
                 zip(all_docs, all_scores, strict=False),
                 key=lambda x: x[1],
-                reverse=True
+                reverse=True,
             )[:effective_top_k]
 
             final_docs = [doc for doc, _ in sorted_pairs]
@@ -522,7 +529,7 @@ Always use <question> tags. Be direct."""
                 "total_retrieved": len(all_docs),
                 "final_count": len(final_docs),
                 "dedup_threshold": self.dedup_similarity_threshold,
-            }
+            },
         )
 
     def retrieve(
@@ -603,15 +610,19 @@ Always use <question> tags. Be direct."""
         logger.info(f"Retrieving for {len(sub_queries)} sub-queries in parallel")
 
         # Extract embedder from kwargs (required for sub-query embedding)
-        embedder = kwargs.pop("embedder", None)  # Remove from kwargs to avoid duplicate argument
+        embedder = kwargs.pop(
+            "embedder", None
+        )  # Remove from kwargs to avoid duplicate argument
         if not embedder:
-            logger.warning("No embedder provided, falling back to base strategy with original embedding")
+            logger.warning(
+                "No embedder provided, falling back to base strategy with original embedding"
+            )
             # Fallback: use base strategy with original embedding
             result = self._base_strategy.retrieve(
                 query_embedding=query_embedding,
                 vector_store=vector_store,
                 top_k=top_k,
-                **kwargs
+                **kwargs,
             )
             result.strategy_metadata["strategy"] = self.name
             result.strategy_metadata["decomposed"] = False
@@ -625,7 +636,7 @@ Always use <question> tags. Be direct."""
                     sub_query,
                     embedder,
                     vector_store,
-                    **kwargs
+                    **kwargs,
                 )
                 for sub_query in sub_queries
             ]
@@ -661,8 +672,17 @@ Always use <question> tags. Be direct."""
                     "type": "string",
                     "description": "Name of model from runtime.models to use for query decomposition",
                 },
-                "max_sub_queries": {"type": "integer", "minimum": 1, "maximum": 5, "default": 3},
-                "complexity_threshold": {"type": "integer", "minimum": 20, "default": 50},
+                "max_sub_queries": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 5,
+                    "default": 3,
+                },
+                "complexity_threshold": {
+                    "type": "integer",
+                    "minimum": 20,
+                    "default": 50,
+                },
                 "min_query_length": {"type": "integer", "minimum": 10, "default": 20},
                 "base_strategy": {
                     "type": "string",
@@ -672,8 +692,16 @@ Always use <question> tags. Be direct."""
                 "sub_query_top_k": {"type": "integer", "minimum": 5, "default": 10},
                 "final_top_k": {"type": "integer", "minimum": 1, "default": 10},
                 "enable_reranking": {"type": "boolean", "default": False},
-                "reranker_strategy": {"type": "string", "default": "CrossEncoderRerankedStrategy"},
-                "max_workers": {"type": "integer", "minimum": 1, "maximum": 10, "default": 3},
+                "reranker_strategy": {
+                    "type": "string",
+                    "default": "CrossEncoderRerankedStrategy",
+                },
+                "max_workers": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10,
+                    "default": 3,
+                },
             },
         }
 
