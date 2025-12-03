@@ -247,6 +247,8 @@ class ProjectChatService:
         rag_score_threshold: float | None = None,
         n_ctx: int | None = None,
         rag_queries: list[str] | None = None,
+        think: bool | None = None,
+        thinking_budget: int | None = None,
     ) -> LFChatCompletion:
         # Create event logger (gracefully handles test mocks)
         event_logger = self._create_event_logger(project_config)
@@ -296,6 +298,11 @@ class ProjectChatService:
             extra_body = {}
             if n_ctx is not None:
                 extra_body["n_ctx"] = n_ctx
+            # Thinking/reasoning model parameters (universal runtime)
+            if think is not None:
+                extra_body["think"] = think
+            if thinking_budget is not None:
+                extra_body["thinking_budget"] = thinking_budget
 
             response = await chat_agent.run_async(
                 messages=messages,
@@ -357,6 +364,8 @@ class ProjectChatService:
         rag_score_threshold: float | None = None,
         n_ctx: int | None = None,
         rag_queries: list[str] | None = None,
+        think: bool | None = None,
+        thinking_budget: int | None = None,
     ) -> AsyncGenerator[LFChatCompletionChunk]:
         """Yield assistant content chunks, using agent-native streaming if available."""
         # Create event logger (gracefully handles test mocks)
@@ -416,6 +425,11 @@ class ProjectChatService:
             extra_body = {}
             if n_ctx is not None:
                 extra_body["n_ctx"] = n_ctx
+            # Thinking/reasoning model parameters (universal runtime)
+            if think is not None:
+                extra_body["think"] = think
+            if thinking_budget is not None:
+                extra_body["thinking_budget"] = thinking_budget
 
             async for chunk in chat_agent.run_async_stream(
                 messages=messages,
