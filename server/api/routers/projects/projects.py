@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 
 from agents.base.types import ToolDefinition
 from agents.chat_orchestrator import ChatOrchestratorAgent, ChatOrchestratorAgentFactory
-from api.errors import ErrorResponse, ProjectNotFoundError
+from api.errors import ErrorResponse, NamespaceNotFoundError, ProjectNotFoundError
 
 # RAG imports moved to function level to avoid circular imports
 from api.routers.shared.response_utils import (
@@ -124,7 +124,13 @@ async def list_projects(
     ),
 ):
     # Use safe method to handle projects with validation errors
-    safe_projects = ProjectService.list_projects_safe(namespace)
+    # If namespace doesn't exist, return empty list instead of 404
+    try:
+        safe_projects = ProjectService.list_projects_safe(namespace)
+    except NamespaceNotFoundError:
+        # Namespace doesn't exist yet - return empty list (not an error)
+        return ListProjectsResponse(total=0, projects=[])
+
     return ListProjectsResponse(
         total=len(safe_projects),
         projects=[
