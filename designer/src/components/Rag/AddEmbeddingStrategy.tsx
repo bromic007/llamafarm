@@ -1062,10 +1062,15 @@ function AddEmbeddingStrategy() {
       setIsSaving(true)
       setError(null)
 
-      // Validate
+      // Validate BEFORE attempting save
       const validationErrors = validateStrategy()
       if (validationErrors.length > 0) {
-        setError(validationErrors.join(', '))
+        const errorMessage = validationErrors.join(', ')
+        setError(errorMessage)
+        toast({
+          message: errorMessage,
+          variant: 'destructive',
+        })
         return false
       }
 
@@ -1143,8 +1148,16 @@ function AddEmbeddingStrategy() {
   }
 
   const finalizeAndRedirect = () => {
+    // Clear unsaved changes flags BEFORE navigation to prevent modal from showing
+    setHasUnsavedChanges(false)
+    unsavedChangesContext.setIsDirty(false)
     toast({ message: 'Embedding strategy created', variant: 'default' })
-    navigate('/chat/databases')
+    // Use requestAnimationFrame to ensure state updates propagate before navigation
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        navigate('/chat/databases')
+      })
+    })
   }
 
   return (
@@ -1698,9 +1711,23 @@ function AddEmbeddingStrategy() {
         )}
 
         {/* Confirm selection modal with Make default */}
-        <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <Dialog 
+          open={confirmOpen} 
+          onOpenChange={(open) => {
+            setConfirmOpen(open)
+            if (!open) {
+              // Clear error when modal closes
+              setError(null)
+            }
+          }}
+        >
           <DialogContent>
             <DialogTitle>Save this embedding strategy?</DialogTitle>
+            {error && (
+              <div className="bg-destructive/10 border border-destructive text-destructive px-4 py-2 rounded-md text-sm mt-2">
+                {error}
+              </div>
+            )}
             <DialogDescription>
               {selected && (
                 <div className="mt-2 text-sm">
@@ -1771,9 +1798,14 @@ function AddEmbeddingStrategy() {
                   )
 
                   if (!success) {
+                    // Validation failed - keep modal open, error is already set
                     return
                   }
 
+                  // Clear unsaved changes flags BEFORE closing modal/navigating
+                  setHasUnsavedChanges(false)
+                  unsavedChangesContext.setIsDirty(false)
+                  
                   setConfirmOpen(false)
                   if (makeDefault) {
                     setReembedOpen(true)
