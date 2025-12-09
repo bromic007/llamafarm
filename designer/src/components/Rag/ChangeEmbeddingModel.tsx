@@ -1188,8 +1188,9 @@ function ChangeEmbeddingModel() {
         queryKey: ['project', activeProject?.namespace, activeProject?.project],
       })
 
-      // Clear unsaved changes flag on successful save
+      // Clear unsaved changes flags BEFORE navigation to prevent modal from showing
       setHasUnsavedChanges(false)
+      unsavedChangesContext.setIsDirty(false)
 
       if (
         makeDefault ||
@@ -1198,7 +1199,12 @@ function ChangeEmbeddingModel() {
         setReembedOpen(true)
       } else {
         toast({ message: 'Strategy saved', variant: 'default' })
-        navigate('/chat/databases')
+        // Use requestAnimationFrame to ensure state updates propagate before navigation
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            navigate('/chat/databases')
+          })
+        })
       }
       return true
     } catch (error: any) {
@@ -2120,8 +2126,15 @@ function ChangeEmbeddingModel() {
                   variant="destructive"
                   onClick={() => {
                     setReembedOpen(false)
+                    // Clear unsaved changes flags BEFORE navigation
+                    setHasUnsavedChanges(false)
+                    unsavedChangesContext.setIsDirty(false)
                     toast({ message: 'Strategy saved', variant: 'default' })
-                    navigate('/chat/rag')
+                    requestAnimationFrame(() => {
+                      requestAnimationFrame(() => {
+                        navigate('/chat/rag')
+                      })
+                    })
                   }}
                 >
                   I'll do it later
@@ -2129,8 +2142,15 @@ function ChangeEmbeddingModel() {
                 <Button
                   onClick={() => {
                     setReembedOpen(false)
+                    // Clear unsaved changes flags BEFORE navigation
+                    setHasUnsavedChanges(false)
+                    unsavedChangesContext.setIsDirty(false)
                     toast({ message: 'Strategy saved', variant: 'default' })
-                    navigate('/chat/rag')
+                    requestAnimationFrame(() => {
+                      requestAnimationFrame(() => {
+                        navigate('/chat/rag')
+                      })
+                    })
                   }}
                 >
                   Yes, proceed with re-embed

@@ -71,6 +71,7 @@ function AddEmbeddingStrategy() {
 
   // Name
   const [name, setName] = useState('New embedding strategy')
+  const [nameTouched, setNameTouched] = useState(false)
 
   // Copy from existing strategy
   const [copyFrom, setCopyFrom] = useState<string>('')
@@ -981,6 +982,25 @@ function AddEmbeddingStrategy() {
     return config
   }
 
+  // Real-time duplicate name validation
+  const duplicateNameError = useMemo(() => {
+    if (!nameTouched || !projectResp || !name.trim()) return null
+    
+    const projectConfig = (projectResp as any)?.project?.config
+    const currentDb = projectConfig?.rag?.databases?.find(
+      (db: any) => db.name === database
+    )
+    if (currentDb) {
+      const nameExists = currentDb.embedding_strategies?.some(
+        (s: any) => s.name === name.trim()
+      )
+      if (nameExists) {
+        return `An embedding strategy with name "${name.trim()}" already exists`
+      }
+    }
+    return null
+  }, [name, nameTouched, projectResp, database])
+
   // Validation
   const validateStrategy = (): string[] => {
     const errors: string[] = []
@@ -1032,21 +1052,8 @@ function AddEmbeddingStrategy() {
     }
 
     // Check for duplicate strategy name
-    if (projectResp && name.trim()) {
-      const projectConfig = (projectResp as any)?.project?.config
-      const currentDb = projectConfig?.rag?.databases?.find(
-        (db: any) => db.name === database
-      )
-      if (currentDb) {
-        const nameExists = currentDb.embedding_strategies?.some(
-          (s: any) => s.name === name.trim()
-        )
-        if (nameExists) {
-          errors.push(
-            `An embedding strategy with name "${name.trim()}" already exists`
-          )
-        }
-      }
+    if (duplicateNameError) {
+      errors.push(duplicateNameError)
     }
 
     return errors
@@ -1063,14 +1070,21 @@ function AddEmbeddingStrategy() {
       setError(null)
 
       // Validate BEFORE attempting save
+      setNameTouched(true) // Mark as touched when attempting save
       const validationErrors = validateStrategy()
       if (validationErrors.length > 0) {
         const errorMessage = validationErrors.join(', ')
         setError(errorMessage)
-        toast({
-          message: errorMessage,
-          variant: 'destructive',
-        })
+        // Only show toast for non-duplicate-name errors
+        const duplicateNameError = validationErrors.some(e => 
+          e.includes('already exists')
+        )
+        if (!duplicateNameError) {
+          toast({
+            message: errorMessage,
+            variant: 'destructive',
+          })
+        }
         return false
       }
 
@@ -1224,10 +1238,22 @@ function AddEmbeddingStrategy() {
             </Label>
             <Input
               value={name}
-              onChange={e => setName(e.target.value)}
+              onChange={e => {
+                setName(e.target.value)
+                if (duplicateNameError) {
+                  // Clear error state when user starts typing
+                  setError(null)
+                }
+              }}
+              onBlur={() => setNameTouched(true)}
               placeholder="Enter a name"
-              className="h-9"
+              className={`h-9 ${duplicateNameError ? 'border-destructive' : ''}`}
             />
+            {duplicateNameError && (
+              <p className="text-xs text-destructive mt-1">
+                {duplicateNameError}
+              </p>
+            )}
           </div>
           <div className="flex flex-col gap-1">
             <Label className="text-xs text-muted-foreground">Copy from</Label>
