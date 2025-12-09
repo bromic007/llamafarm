@@ -1222,7 +1222,11 @@ function AddEmbeddingStrategy() {
               }
               setConfirmOpen(true)
             }}
-            disabled={!selected || name.trim().length === 0}
+            disabled={
+              !selected || 
+              name.trim().length === 0 || 
+              (nameTouched && (!!validateStrategyName(name) || !!duplicateNameError))
+            }
           >
             Save strategy
           </Button>
@@ -1240,18 +1244,36 @@ function AddEmbeddingStrategy() {
               value={name}
               onChange={e => {
                 setName(e.target.value)
-                if (duplicateNameError) {
-                  // Clear error state when user starts typing
-                  setError(null)
+                // Clear error state when user starts typing if validation passes
+                if (nameTouched) {
+                  const nameError = validateStrategyName(e.target.value)
+                  const dupError = duplicateNameError
+                  if (!nameError && !dupError) {
+                    setError(null)
+                  }
                 }
               }}
               onBlur={() => setNameTouched(true)}
               placeholder="Enter a name"
-              className={`h-9 ${duplicateNameError ? 'border-destructive' : ''}`}
+              className={`h-9 ${
+                nameTouched && (validateStrategyName(name) || duplicateNameError)
+                  ? 'border-destructive'
+                  : ''
+              }`}
             />
-            {duplicateNameError && (
+            {nameTouched && validateStrategyName(name) && (
+              <p className="text-xs text-destructive mt-1">
+                {validateStrategyName(name)}
+              </p>
+            )}
+            {nameTouched && !validateStrategyName(name) && duplicateNameError && (
               <p className="text-xs text-destructive mt-1">
                 {duplicateNameError}
+              </p>
+            )}
+            {(!nameTouched || (!validateStrategyName(name) && !duplicateNameError)) && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Can only contain letters, numbers, hyphens, and underscores
               </p>
             )}
           </div>
@@ -1839,7 +1861,10 @@ function AddEmbeddingStrategy() {
                     finalizeAndRedirect()
                   }
                 }}
-                disabled={isSaving}
+                disabled={
+                  isSaving || 
+                  (nameTouched && (!!validateStrategyName(name) || !!duplicateNameError))
+                }
               >
                 {isSaving
                   ? 'Saving...'

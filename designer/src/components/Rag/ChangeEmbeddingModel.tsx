@@ -33,7 +33,7 @@ import { useActiveProject } from '../../hooks/useActiveProject'
 import { useProject } from '../../hooks/useProjects'
 import { useDatabaseManager } from '../../hooks/useDatabaseManager'
 import { useConfigPointer } from '../../hooks/useConfigPointer'
-import { validateEmbeddingNavigationState } from '../../utils/security'
+import { validateEmbeddingNavigationState, validateStrategyName } from '../../utils/security'
 import type { ProjectConfig } from '../../types/config'
 import { useCachedModels } from '../../hooks/useModels'
 import modelService from '../../api/modelService'
@@ -146,6 +146,7 @@ function ChangeEmbeddingModel() {
 
   // Editable strategy name - initialize from state
   const [strategyName, setStrategyName] = useState<string>(originalStrategyName)
+  const [nameTouched, setNameTouched] = useState(false)
 
   // Initialize strategy name from state
   useEffect(() => {
@@ -1309,7 +1310,10 @@ function ChangeEmbeddingModel() {
                   Make default
                 </label>
               )}
-              <Button onClick={saveEdited} disabled={isSaving}>
+              <Button 
+                onClick={saveEdited} 
+                disabled={isSaving || (nameTouched && !!validateStrategyName(strategyName))}
+              >
                 {isSaving ? 'Saving...' : 'Save strategy'}
               </Button>
             </div>
@@ -1339,10 +1343,30 @@ function ChangeEmbeddingModel() {
                 </Label>
                 <Input
                   value={strategyName}
-                  onChange={e => setStrategyName(e.target.value)}
+                  onChange={e => {
+                    setStrategyName(e.target.value)
+                    if (nameTouched) {
+                      // Clear error state when user starts typing
+                      const nameError = validateStrategyName(e.target.value)
+                      if (!nameError) {
+                        setError(null)
+                      }
+                    }
+                  }}
+                  onBlur={() => setNameTouched(true)}
                   placeholder="Enter a name"
-                  className="h-9"
+                  className={`h-9 ${nameTouched && validateStrategyName(strategyName) ? 'border-destructive' : ''}`}
                 />
+                {nameTouched && validateStrategyName(strategyName) && (
+                  <p className="text-xs text-destructive mt-1">
+                    {validateStrategyName(strategyName)}
+                  </p>
+                )}
+                {(!nameTouched || !validateStrategyName(strategyName)) && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Can only contain letters, numbers, hyphens, and underscores
+                  </p>
+                )}
               </div>
             </div>
 
