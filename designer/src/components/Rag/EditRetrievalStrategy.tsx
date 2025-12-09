@@ -49,7 +49,7 @@ function EditRetrievalStrategy() {
   const [nameTouched, setNameTouched] = useState(false)
   const [makeDefault, setMakeDefault] = useState(isDefaultStrategy)
   const [isSaving, setIsSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [_error, setError] = useState<string | null>(null)
 
   // Shared UI helpers
   const inputClass =

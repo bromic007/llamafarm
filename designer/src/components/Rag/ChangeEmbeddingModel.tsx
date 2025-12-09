@@ -37,7 +37,6 @@ import { validateEmbeddingNavigationState, validateStrategyName } from '../../ut
 import type { ProjectConfig } from '../../types/config'
 import { useCachedModels } from '../../hooks/useModels'
 import modelService from '../../api/modelService'
-import Loader from '../../common/Loader'
 import { useUnsavedChanges } from '../../contexts/UnsavedChangesContext'
 import UnsavedChangesModal from '../ConfigEditor/UnsavedChangesModal'
 import { encryptAPIKey } from '../../utils/encryption'
@@ -957,11 +956,7 @@ function ChangeEmbeddingModel() {
       return baseUrl || null
     }
   })()
-  const runtimeLabel = selected
-    ? selected.runtime
-    : provider === 'Ollama (remote)'
-      ? 'Local'
-      : 'Cloud'
+  // runtimeLabel removed - unused variable
 
   // Helper functions similar to AddEmbeddingStrategy
   const mapProviderToType = (providerLabel: string): string => {
