@@ -50,7 +50,9 @@ Examples:
 			os.Exit(1)
 		}
 
-		orchestrator.EnsureServicesOrExit(serverURL, "server", "rag", "universal-runtime")
+		factory := GetServiceConfigFactory()
+		config := factory.RAGCommand(serverCfg.URL)
+		orchestrator.EnsureServicesOrExitWithConfig(config, "server", "rag", "universal-runtime")
 
 		stats, err := fetchRAGStats(serverCfg, statsDatabase)
 		if err != nil {
@@ -86,7 +88,9 @@ Examples:
 			os.Exit(1)
 		}
 
-		orchestrator.EnsureServicesOrExit(serverURL, "server", "rag", "universal-runtime")
+		factory := GetServiceConfigFactory()
+		config := factory.RAGCommand(serverCfg.URL)
+		orchestrator.EnsureServicesOrExitWithConfig(config, "server", "rag", "universal-runtime")
 
 		health, err := fetchRAGHealth(serverCfg, statsDatabase)
 		if err != nil {
@@ -118,13 +122,20 @@ Examples:
   # Limit results
   lf rag list --limit 10`,
 	Run: func(cmd *cobra.Command, args []string) {
+		if statsDatabase == "" {
+			fmt.Fprintf(os.Stderr, "Error: --database flag is required\n")
+			os.Exit(1)
+		}
+
 		serverCfg, err := config.GetServerConfig(utils.GetEffectiveCWD(), serverURL, namespace, projectID)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
 
-		orchestrator.EnsureServicesOrExit(serverURL, "server", "rag", "universal-runtime")
+		factory := GetServiceConfigFactory()
+		config := factory.RAGCommand(serverCfg.URL)
+		orchestrator.EnsureServicesOrExitWithConfig(config, "server", "rag", "universal-runtime")
 
 		docs, err := fetchRAGDocuments(serverCfg, statsDatabase, listLimit, metadataFilters)
 		if err != nil {
@@ -157,7 +168,9 @@ Examples:
 			os.Exit(1)
 		}
 
-		orchestrator.EnsureServicesOrExit(serverURL, "server", "rag", "universal-runtime")
+		factory := GetServiceConfigFactory()
+		config := factory.RAGCommand(serverCfg.URL)
+		orchestrator.EnsureServicesOrExitWithConfig(config, "server", "rag", "universal-runtime")
 
 		fmt.Println("🔧 Starting database compaction...")
 		result, err := compactRAGDatabase(serverCfg, statsDatabase)
@@ -191,7 +204,9 @@ Examples:
 			os.Exit(1)
 		}
 
-		orchestrator.EnsureServicesOrExit(serverURL, "server", "rag", "universal-runtime")
+		factory := GetServiceConfigFactory()
+		config := factory.RAGCommand(serverCfg.URL)
+		orchestrator.EnsureServicesOrExitWithConfig(config, "server", "rag", "universal-runtime")
 
 		fmt.Println("🔄 Starting reindexing...")
 		result, err := reindexRAGDatabase(serverCfg, statsDatabase, ragDataStrategy)
@@ -336,13 +351,10 @@ func fetchRAGHealth(cfg *config.ServerConfig, database string) (*RAGHealth, erro
 }
 
 func fetchRAGDocuments(cfg *config.ServerConfig, database string, limit int, filters []string) ([]RAGDocument, error) {
-	url := buildServerURL(cfg.URL, fmt.Sprintf("/v1/projects/%s/%s/rag/documents", cfg.Namespace, cfg.Project))
+	url := buildServerURL(cfg.URL, fmt.Sprintf("/v1/projects/%s/%s/rag/databases/%s/documents", cfg.Namespace, cfg.Project, database))
 
 	// Add query parameters
 	params := []string{}
-	if database != "" {
-		params = append(params, "database="+database)
-	}
 	if limit > 0 {
 		params = append(params, fmt.Sprintf("limit=%d", limit))
 	}

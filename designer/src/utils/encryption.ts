@@ -1,4 +1,10 @@
-// Helper for symmetric AES encryption using Web Crypto API
+/**
+ * Encrypts an API key using AES-GCM encryption with PBKDF2 key derivation.
+ *
+ * @param apiKey - The API key to encrypt
+ * @param secret - The secret key used for encryption
+ * @returns A JSON string containing the encrypted data, salt, and IV
+ */
 export async function encryptAPIKey(
   apiKey: string,
   secret: string
@@ -30,14 +36,8 @@ export async function encryptAPIKey(
     key,
     enc.encode(apiKey)
   )
-  const base64 = (ab: ArrayBuffer) => {
-    const bytes = new Uint8Array(ab)
-    let binary = ''
-    for (let i = 0; i < bytes.byteLength; i++) {
-      binary += String.fromCharCode(bytes[i])
-    }
-    return window.btoa(binary)
-  }
+  const base64 = (ab: ArrayBuffer) =>
+    window.btoa(String.fromCharCode(...new Uint8Array(ab)))
   return JSON.stringify({
     salt: base64(salt.buffer),
     iv: base64(iv.buffer),

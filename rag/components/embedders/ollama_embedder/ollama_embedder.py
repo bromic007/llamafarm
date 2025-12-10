@@ -1,4 +1,4 @@
-"""Ollama-based embedding generator."""
+"""Ollama-based embedding generator with circuit breaker protection."""
 
 from pathlib import Path
 from typing import Any
@@ -13,7 +13,7 @@ logger = RAGStructLogger("rag.components.embedders.ollama_embedder.ollama_embedd
 
 
 class OllamaEmbedder(Embedder):
-    """Embedder using Ollama API for local embeddings."""
+    """Embedder using Ollama API for local embeddings with circuit breaker protection."""
 
     def __init__(
         self,
@@ -36,6 +36,9 @@ class OllamaEmbedder(Embedder):
             config.get("batch_size", 32), 1
         )  # Ensure positive batch size
         self.timeout = config.get("timeout", 60)
+
+        # Track consecutive failures for logging
+        self._consecutive_failures = 0
 
     def validate_config(self) -> bool:
         """Validate configuration and check Ollama availability."""
@@ -71,13 +74,18 @@ class OllamaEmbedder(Embedder):
             return False
 
     def embed(self, texts: list[str]) -> list[list[float]]:
-        """Generate embeddings for texts using Ollama."""
+        """Generate embeddings for texts using Ollama.
+
+        Raises:
+            CircuitBreakerOpenError: If too many consecutive failures have occurred
+            EmbedderUnavailableError: If Ollama is unavailable and fail_fast is enabled
+        """
         if not texts:
             return []
 
         embeddings = []
 
-        # Process in batches
+        # Process in batches (circuit breaker checked per-text in embed_text)
         for i in range(0, len(texts), self.batch_size):
             batch = texts[i : i + self.batch_size]
             batch_embeddings = self._embed_batch(batch)
@@ -86,22 +94,18 @@ class OllamaEmbedder(Embedder):
         return embeddings
 
     def _embed_batch(self, texts: list[str]) -> list[list[float]]:
-        """Embed a batch of texts."""
+        """Embed a batch of texts using base class embed_text for each.
+
+        Raises:
+            EmbedderUnavailableError: If Ollama is unavailable and fail_fast is enabled
+            CircuitBreakerOpenError: If circuit breaker trips during batch processing
+        """
         embeddings = []
-
         for text in texts:
-            try:
-                result = self._call_ollama_api(text)
-                embedding = result.get("embedding", [])
-                if embedding:
-                    embeddings.append(embedding)
-                else:
-                    logger.warning(f"No embedding returned for text: {text[:50]}...")
-                    embeddings.append([0.0] * self.get_embedding_dimension())
-            except Exception as e:
-                logger.error(f"Error generating embedding: {e}")
-                embeddings.append([0.0] * self.get_embedding_dimension())
-
+            # Use base class embed_text which handles circuit breaker,
+            # validation, fail-fast, and error handling
+            embedding = self.embed_text(text)
+            embeddings.append(embedding)
         return embeddings
 
     def get_embedding_dimension(self) -> int:
@@ -109,8 +113,27 @@ class OllamaEmbedder(Embedder):
         # Return the configured dimension from llamafarm.yaml
         return self.dimension
 
-    def _call_ollama_api(self, text: str) -> dict[str, Any]:
-        """Call Ollama API for a single text."""
+    def _get_connection_exceptions(self) -> tuple:
+        """Return tuple of exception types that indicate connection failures."""
+        return (
+            ConnectionError,
+            TimeoutError,
+            requests.exceptions.ConnectionError,
+            requests.exceptions.Timeout,
+        )
+
+    def _call_embedding_api(self, text: str) -> list[float]:
+        """Call Ollama API for a single text and return the embedding.
+
+        Args:
+            text: The text to embed
+
+        Returns:
+            The embedding vector
+
+        Raises:
+            Any exception from the underlying API
+        """
         response = requests.post(
             f"{self.base_url}/api/embeddings",
             json={"model": self.model, "prompt": text},
@@ -118,23 +141,12 @@ class OllamaEmbedder(Embedder):
         )
 
         if response.status_code == 200:
-            return response.json()
+            result = response.json()
+            return result.get("embedding", [])
         else:
             raise Exception(
                 f"Ollama API error {response.status_code}: {response.text}"
-            ) from response.raise_for_status()
-
-    def embed_text(self, text: str) -> list[float]:
-        """Embed a single text string."""
-        if not text or not text.strip():
-            return [0.0] * self.get_embedding_dimension()
-
-        try:
-            result = self._call_ollama_api(text)
-            return result.get("embedding", [0.0] * self.get_embedding_dimension())
-        except Exception as e:
-            logger.error(f"Error embedding text: {e}")
-            return [0.0] * self.get_embedding_dimension()
+            )
 
     def _check_model_availability(self) -> bool:
         """Check if the model is available."""

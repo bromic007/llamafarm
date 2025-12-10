@@ -1,4 +1,4 @@
-"""Universal Runtime-based embedding generator."""
+"""Universal Runtime-based embedding generator with circuit breaker protection."""
 
 from pathlib import Path
 from typing import Any
@@ -16,7 +16,7 @@ logger = RAGStructLogger(
 
 
 class UniversalEmbedder(Embedder):
-    """Embedder using Universal Runtime API for embeddings."""
+    """Embedder using Universal Runtime API for embeddings with circuit breaker protection."""
 
     def __init__(
         self,
@@ -70,6 +70,9 @@ class UniversalEmbedder(Embedder):
         # Normalization (Universal Runtime doesn't normalize by default)
         self.normalize = config.get("normalize", True)
 
+        # Track consecutive failures for logging
+        self._consecutive_failures = 0
+
     def validate_config(self) -> bool:
         """Validate configuration and check Universal Runtime availability."""
         try:
@@ -96,13 +99,18 @@ class UniversalEmbedder(Embedder):
             return False
 
     def embed(self, texts: list[str]) -> list[list[float]]:
-        """Generate embeddings for texts using Universal Runtime."""
+        """Generate embeddings for texts using Universal Runtime.
+
+        Raises:
+            CircuitBreakerOpenError: If too many consecutive failures have occurred
+            EmbedderUnavailableError: If Universal Runtime is unavailable and fail_fast is enabled
+        """
         if not texts:
             return []
 
         embeddings = []
 
-        # Process in batches
+        # Process in batches (circuit breaker checked per-text in embed_text)
         for i in range(0, len(texts), self.batch_size):
             batch = texts[i : i + self.batch_size]
             batch_embeddings = self._embed_batch(batch)
@@ -111,39 +119,19 @@ class UniversalEmbedder(Embedder):
         return embeddings
 
     def _embed_batch(self, texts: list[str]) -> list[list[float]]:
-        """Embed a batch of texts using Universal Runtime."""
-        try:
-            result = self._call_universal_api(texts)
+        """Embed a batch of texts using base class embed_text for each.
 
-            # Parse OpenAI-compatible response format
-            data = result.get("data", [])
-            if not data:
-                logger.warning(
-                    f"No embeddings returned for batch of {len(texts)} texts"
-                )
-                return [
-                    [0.0] * self.get_embedding_dimension() for _ in range(len(texts))
-                ]
-
-            # Extract embeddings from data array
-            embeddings = []
-            for item in data:
-                embedding = item.get("embedding", [])
-                if embedding:
-                    embeddings.append(embedding)
-                else:
-                    logger.warning("Empty embedding in response")
-                    embeddings.append([0.0] * self.get_embedding_dimension())
-
-            # Ensure we have the right number of embeddings
-            while len(embeddings) < len(texts):
-                embeddings.append([0.0] * self.get_embedding_dimension())
-
-            return embeddings[: len(texts)]
-
-        except Exception as e:
-            logger.error(f"Error generating embeddings: {e}")
-            return [[0.0] * self.get_embedding_dimension() for _ in range(len(texts))]
+        Raises:
+            EmbedderUnavailableError: If Universal Runtime is unavailable and fail_fast is enabled
+            CircuitBreakerOpenError: If circuit breaker trips during batch processing
+        """
+        embeddings = []
+        for text in texts:
+            # Use base class embed_text which handles circuit breaker,
+            # validation, fail-fast, and error handling
+            embedding = self.embed_text(text)
+            embeddings.append(embedding)
+        return embeddings
 
     def get_embedding_dimension(self) -> int:
         """Get the dimension of embeddings produced by this model."""
@@ -168,14 +156,33 @@ class UniversalEmbedder(Embedder):
         # Default to 768 (most common)
         return 768
 
-    def _call_universal_api(self, texts: list[str]) -> dict[str, Any]:
-        """Call Universal Runtime API for embedding generation."""
+    def _get_connection_exceptions(self) -> tuple:
+        """Return tuple of exception types that indicate connection failures."""
+        return (
+            ConnectionError,
+            TimeoutError,
+            requests.exceptions.ConnectionError,
+            requests.exceptions.Timeout,
+        )
+
+    def _call_embedding_api(self, text: str) -> list[float]:
+        """Call Universal Runtime API for a single text and return the embedding.
+
+        Args:
+            text: The text to embed
+
+        Returns:
+            The embedding vector
+
+        Raises:
+            Any exception from the underlying API
+        """
         url = f"{self.base_url}/embeddings"
 
         # Prepare request in OpenAI format
         payload = {
             "model": self.model,
-            "input": texts if len(texts) > 1 else texts[0],
+            "input": text,
         }
 
         headers = {
@@ -194,29 +201,17 @@ class UniversalEmbedder(Embedder):
         )
 
         if response.status_code == 200:
-            return response.json()
+            result = response.json()
+            data = result.get("data", [])
+            if data and len(data) > 0:
+                return data[0].get("embedding", [])
+            return []
         else:
             error_msg = (
                 f"Universal Runtime API error {response.status_code}: {response.text}"
             )
             logger.error(error_msg)
             raise Exception(error_msg)
-
-    def embed_text(self, text: str) -> list[float]:
-        """Embed a single text string."""
-        if not text or not text.strip():
-            return [0.0] * self.get_embedding_dimension()
-
-        try:
-            result = self._call_universal_api([text])
-            data = result.get("data", [])
-            if data and len(data) > 0:
-                return data[0].get("embedding", [0.0] * self.get_embedding_dimension())
-            else:
-                return [0.0] * self.get_embedding_dimension()
-        except Exception as e:
-            logger.error(f"Error embedding text: {e}")
-            return [0.0] * self.get_embedding_dimension()
 
     def _check_model_availability(self) -> bool:
         """Check if the Universal Runtime is available."""
