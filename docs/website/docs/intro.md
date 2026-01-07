@@ -26,15 +26,15 @@ Run sophisticated AI workloads on your own hardware:
 
 LlamaFarm isn't just a wrapper—it's a complete AI development platform:
 
-| Capability | What It Does |
-|-----------|--------------|
+| Capability                               | What It Does                                                                                |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------- |
 | **RAG (Retrieval-Augmented Generation)** | Ingest PDFs, docs, CSVs and query them with AI. Your documents become searchable knowledge. |
-| **Multi-Model Runtime** | Switch between Ollama, OpenAI, vLLM, or local GGUF models in one config file. |
-| **Custom Classifiers** | Train text classifiers with 8-16 examples using SetFit. No ML expertise required. |
-| **Anomaly Detection** | Detect outliers in logs, metrics, or transactions with one API call. |
-| **OCR & Document Extraction** | Extract text and structured data from images and PDFs. |
-| **Named Entity Recognition** | Find people, organizations, and locations in your text. |
-| **Agentic Tools (MCP)** | Give AI models access to filesystems, databases, and APIs. |
+| **Multi-Model Runtime**                  | Switch between Ollama, OpenAI, vLLM, or local GGUF models in one config file.               |
+| **Custom Classifiers**                   | Train text classifiers with 8-16 examples using SetFit. No ML expertise required.           |
+| **Anomaly Detection**                    | Detect outliers in logs, metrics, or transactions with one API call.                        |
+| **OCR & Document Extraction**            | Extract text and structured data from images and PDFs.                                      |
+| **Named Entity Recognition**             | Find people, organizations, and locations in your text.                                     |
+| **Agentic Tools (MCP)**                  | Give AI models access to filesystems, databases, and APIs.                                  |
 
 ### ⚡ Developer Experience
 
@@ -52,14 +52,17 @@ LlamaFarm isn't just a wrapper—it's a complete AI development platform:
 Download the all-in-one desktop application:
 
 <div style={{display: 'flex', gap: '16px', flexWrap: 'wrap', marginBottom: '24px', marginTop: '16px'}}>
-  <a href="https://github.com/llama-farm/llamafarm/releases/latest" style={{display: 'inline-flex', alignItems: 'center', padding: '12px 24px', backgroundColor: '#2563eb', color: 'white', borderRadius: '8px', textDecoration: 'none', fontWeight: '600', fontSize: '16px'}}>
+  <a href="https://github.com/llama-farm/llamafarm/releases/latest/download/LlamaFarm-desktop-app-mac-universal.dmg" style={{display: 'inline-flex', alignItems: 'center', padding: '12px 24px', backgroundColor: '#2563eb', color: 'white', borderRadius: '8px', textDecoration: 'none', fontWeight: '600', fontSize: '16px'}}>
     ⬇️ Mac (M1+)
   </a>
-  <a href="https://github.com/llama-farm/llamafarm/releases/latest" style={{display: 'inline-flex', alignItems: 'center', padding: '12px 24px', backgroundColor: '#2563eb', color: 'white', borderRadius: '8px', textDecoration: 'none', fontWeight: '600', fontSize: '16px'}}>
+  <a href="https://github.com/llama-farm/llamafarm/releases/latest/download/LlamaFarm-desktop-app-windows.exe" style={{display: 'inline-flex', alignItems: 'center', padding: '12px 24px', backgroundColor: '#2563eb', color: 'white', borderRadius: '8px', textDecoration: 'none', fontWeight: '600', fontSize: '16px'}}>
     ⬇️ Windows
   </a>
-  <a href="https://github.com/llama-farm/llamafarm/releases/latest" style={{display: 'inline-flex', alignItems: 'center', padding: '12px 24px', backgroundColor: '#2563eb', color: 'white', borderRadius: '8px', textDecoration: 'none', fontWeight: '600', fontSize: '16px'}}>
-    ⬇️ Linux
+  <a href="https://github.com/llama-farm/llamafarm/releases/latest/download/LlamaFarm-desktop-app-linux-x86_64.AppImage" style={{display: 'inline-flex', alignItems: 'center', padding: '12px 24px', backgroundColor: '#2563eb', color: 'white', borderRadius: '8px', textDecoration: 'none', fontWeight: '600', fontSize: '16px'}}>
+    ⬇️ Linux (x86_64)
+  </a>
+  <a href="https://github.com/llama-farm/llamafarm/releases/latest/download/LlamaFarm-desktop-app-linux-arm64.AppImage" style={{display: 'inline-flex', alignItems: 'center', padding: '12px 24px', backgroundColor: '#2563eb', color: 'white', borderRadius: '8px', textDecoration: 'none', fontWeight: '600', fontSize: '16px'}}>
+    ⬇️ Linux (arm64)
   </a>
 </div>
 
@@ -70,19 +73,23 @@ The desktop app bundles everything: server, Universal Runtime, and the Designer 
 Install the `lf` command-line tool:
 
 **macOS / Linux:**
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/llama-farm/llamafarm/main/install.sh | bash
 ```
 
 **Windows (PowerShell):**
+
 ```powershell
 irm https://raw.githubusercontent.com/llama-farm/llamafarm/main/install.ps1 | iex
 ```
 
 **Or download directly:**
+
 - [Latest Release](https://github.com/llama-farm/llamafarm/releases/latest) — Download `lf` binary for your platform
 
 Verify installation:
+
 ```bash
 lf --help
 ```
@@ -100,7 +107,9 @@ lf --help
 ## What Can You Build?
 
 ### Document Q&A
+
 Upload your company's documents and ask questions in natural language:
+
 ```bash
 lf datasets upload knowledge-base ./contracts/*.pdf
 lf datasets process knowledge-base
@@ -108,7 +117,9 @@ lf chat "What are our standard payment terms?"
 ```
 
 ### Custom Intent Classification
+
 Train a classifier to route support tickets:
+
 ```python
 # Train with just 8 examples per category
 POST /v1/ml/classifier/fit
@@ -123,7 +134,9 @@ POST /v1/ml/classifier/fit
 ```
 
 ### Real-Time Anomaly Detection
+
 Monitor API logs for suspicious activity:
+
 ```python
 # Train on normal traffic
 POST /v1/ml/anomaly/fit
@@ -135,7 +148,9 @@ POST /v1/ml/anomaly/detect
 ```
 
 ### Document Processing Pipeline
+
 Extract structured data from invoices and forms:
+
 ```bash
 curl -X POST http://localhost:8000/v1/vision/ocr \
   -F "file=@invoice.pdf" \
@@ -146,11 +161,11 @@ curl -X POST http://localhost:8000/v1/vision/ocr \
 
 ## Choose Your Path
 
-| Get Started | Go Deeper | Build Your Own |
-|-------------|-----------|----------------|
-| [Quickstart](./quickstart/index.md) — Install, init, chat, ingest your first dataset | [Core Concepts](./concepts/index.md) — Architecture, sessions, and components | [Extending LlamaFarm](./extending/index.md) — Add runtimes, stores, parsers |
-| [Designer Web UI](./designer/index.md) — Visual interface for project management | [Configuration Guide](./configuration/index.md) — Schema-driven project settings | [RAG Guide](./rag/index.md) — Strategies, processing pipelines |
-| [CLI Reference](./cli/index.md) — Command matrix and examples | [Models & Runtime](./models/index.md) — Configure AI models and providers | [API Reference](./api/index.md) — Full REST API documentation |
+| Get Started                                                                          | Go Deeper                                                                        | Build Your Own                                                              |
+| ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| [Quickstart](./quickstart/index.md) — Install, init, chat, ingest your first dataset | [Core Concepts](./concepts/index.md) — Architecture, sessions, and components    | [Extending LlamaFarm](./extending/index.md) — Add runtimes, stores, parsers |
+| [Designer Web UI](./designer/index.md) — Visual interface for project management     | [Configuration Guide](./configuration/index.md) — Schema-driven project settings | [RAG Guide](./rag/index.md) — Strategies, processing pipelines              |
+| [CLI Reference](./cli/index.md) — Command matrix and examples                        | [Models & Runtime](./models/index.md) — Configure AI models and providers        | [API Reference](./api/index.md) — Full REST API documentation               |
 
 ---
 
@@ -174,7 +189,7 @@ mcp:
     - name: filesystem
       transport: stdio
       command: npx
-      args: ['-y', '@modelcontextprotocol/server-filesystem', '/path/to/dir']
+      args: ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/dir"]
 
 runtime:
   models:

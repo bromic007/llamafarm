@@ -17,22 +17,25 @@ Get LlamaFarm installed, ingest a dataset, and run your first RAG-powered chat i
 
 Download the all-in-one desktop application:
 
-| Platform | Download |
-|----------|----------|
-| **Mac (M1+)** | [⬇️ Download](https://github.com/llama-farm/llamafarm/releases/latest) |
-| **Windows** | [⬇️ Download](https://github.com/llama-farm/llamafarm/releases/latest) |
-| **Linux** | [⬇️ Download](https://github.com/llama-farm/llamafarm/releases/latest) |
+| Platform            | Download                                                                                                                    |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| **Mac (Universal)** | [⬇️ Download](https://github.com/llama-farm/llamafarm/releases/latest/download/LlamaFarm-desktop-app-mac-universal.dmg)     |
+| **Windows**         | [⬇️ Download](https://github.com/llama-farm/llamafarm/releases/latest/download/LlamaFarm-desktop-app-windows.exe)           |
+| **Linux (x86_64)**  | [⬇️ Download](https://github.com/llama-farm/llamafarm/releases/latest/download/LlamaFarm-desktop-app-linux-x86_64.AppImage) |
+| **Linux (arm64)**   | [⬇️ Download](https://github.com/llama-farm/llamafarm/releases/latest/download/LlamaFarm-desktop-app-linux-arm64.AppImage)  |
 
 The desktop app bundles everything you need—no additional installation required.
 
 ### Option B: CLI Installation
 
 **macOS / Linux:**
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/llama-farm/llamafarm/main/install.sh | bash
 ```
 
 **Windows (PowerShell):**
+
 ```powershell
 irm https://raw.githubusercontent.com/llama-farm/llamafarm/main/install.ps1 | iex
 ```
@@ -41,21 +44,23 @@ irm https://raw.githubusercontent.com/llama-farm/llamafarm/main/install.ps1 | ie
 
 Download the `lf` binary directly from the [releases page](https://github.com/llama-farm/llamafarm/releases/latest):
 
-| Platform | Binary |
-|----------|--------|
-| macOS (Apple Silicon) | `lf-darwin-arm64` |
-| macOS (Intel) | `lf-darwin-amd64` |
-| Linux (x64) | `lf-linux-amd64` |
-| Linux (ARM64) | `lf-linux-arm64` |
-| Windows | `lf-windows-amd64.exe` |
+| Platform              | Binary                 |
+| --------------------- | ---------------------- |
+| macOS (Apple Silicon) | `lf-darwin-arm64`      |
+| macOS (Intel)         | `lf-darwin-amd64`      |
+| Linux (x64)           | `lf-linux-amd64`       |
+| Linux (arm64)         | `lf-linux-arm64`       |
+| Windows (x86_64)      | `lf-windows-amd64.exe` |
 
 After downloading, make it executable and add to your PATH:
+
 ```bash
 chmod +x lf-darwin-arm64
 sudo mv lf-darwin-arm64 /usr/local/bin/lf
 ```
 
 Verify installation:
+
 ```bash
 lf --help
 ```
@@ -69,6 +74,7 @@ For best RAG results with longer documents, increase the Ollama context window:
 3. Adjust the context window size (recommended: 32K+ for documents)
 
 Pull a model if you haven't already:
+
 ```bash
 ollama pull llama3.2
 ollama pull nomic-embed-text  # For embeddings
@@ -90,6 +96,7 @@ lf start
 ```
 
 This command:
+
 - Starts the API server and Universal Runtime natively
 - Opens the interactive chat TUI
 - Launches the Designer web UI at `http://localhost:8000`
@@ -132,6 +139,7 @@ lf chat "What can you do?"
 ```
 
 Useful options:
+
 - `--no-rag` — Bypass retrieval, hit the model directly
 - `--database`, `--retrieval-strategy` — Override RAG behavior
 - `--curl` — Print the equivalent curl command
@@ -163,6 +171,7 @@ lf rag query --database main_db "What are the key findings?"
 ```
 
 Useful flags:
+
 - `--top-k 10` — Number of results
 - `--filter "file_type:pdf"` — Metadata filtering
 - `--include-metadata` — Show document sources
