@@ -13,6 +13,7 @@ export interface ServiceDisplay {
   status: 'healthy' | 'degraded' | 'unhealthy'
   message: string
   latencyMs?: number
+  host?: string
 }
 
 export type AggregateStatus = 'healthy' | 'degraded' | 'unhealthy' | null
@@ -22,14 +23,14 @@ export type AggregateStatus = 'healthy' | 'degraded' | 'unhealthy' | null
  */
 const SERVICE_DISPLAY_MAP: Record<string, string> = {
   server: 'LlamaFarm Server',
-  universal: 'Universal Runtime',
+  'universal-runtime': 'Universal Runtime',
   'rag-service': 'RAG Service',
 }
 
 /**
  * Components to display in the panel (subset of all components)
  */
-const DISPLAY_COMPONENTS = ['server', 'universal', 'rag-service']
+const DISPLAY_COMPONENTS = ['server', 'universal-runtime', 'rag-service']
 
 /**
  * Compute aggregate status from components
@@ -105,6 +106,7 @@ export function useServiceHealth(isOpen: boolean) {
         status: c.status,
         message: c.message,
         latencyMs: c.latency_ms,
+        host: c.details?.host,
       })) ?? []
 
   return {

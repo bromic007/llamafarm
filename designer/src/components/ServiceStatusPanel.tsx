@@ -74,6 +74,11 @@ function ServiceRow({ service }: { service: ServiceDisplay }) {
           <span className="text-xs text-muted-foreground">
             {service.message}
           </span>
+          {service.host && (
+            <span className="text-[10px] text-muted-foreground/60 font-mono">
+              {service.host}
+            </span>
+          )}
         </div>
       </div>
       {service.latencyMs !== undefined && (
@@ -124,8 +129,16 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
  */
 export function ServiceStatusPanel() {
   const [isOpen, setIsOpen] = useState(false)
+  const [isSpinning, setIsSpinning] = useState(false)
   const { services, aggregateStatus, isLoading, error, refresh } =
     useServiceHealth(isOpen)
+
+  const handleRefresh = () => {
+    setIsSpinning(true)
+    refresh()
+    // Ensure at least one full spin (500ms matches animate-spin duration)
+    setTimeout(() => setIsSpinning(false), 500)
+  }
 
   const showLoading = isLoading && services.length === 0
   const showError = error && services.length === 0
@@ -177,14 +190,14 @@ export function ServiceStatusPanel() {
             <button
               onClick={(e) => {
                 e.preventDefault()
-                refresh()
+                handleRefresh()
               }}
               className="p-1.5 rounded hover:bg-accent transition-colors"
-              disabled={isLoading}
+              disabled={isSpinning}
               title="Refresh"
             >
               <RefreshCw
-                className={cn('w-4 h-4', isLoading && 'animate-spin')}
+                className={cn('w-4 h-4', isSpinning && 'animate-spin')}
               />
             </button>
             <button
@@ -226,7 +239,7 @@ export function ServiceStatusPanel() {
             {/* Footer */}
             <div className="border-t border-border px-4 py-3">
               <a
-                href="https://docs.llamafarm.ai/troubleshooting"
+                href="https://docs.llamafarm.dev/docs/troubleshooting"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"

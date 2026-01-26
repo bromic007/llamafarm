@@ -28,6 +28,7 @@ def _check_server() -> dict:
             "latency_ms": _now_ms() - start,
             "details": {
                 "pid": os.getpid(),
+                "host": f"http://localhost:{settings.PORT}",
             },
         }
     except Exception as e:  # pragma: no cover - defensive
