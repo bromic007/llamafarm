@@ -26,9 +26,7 @@ on:
         default: true
         type: boolean
   pull_request:
-    paths:
-      - "tools/pyapp/**"
-      - ".github/workflows/pyapp.yml"
+    branches: [main]
   release:
     types:
       - published
