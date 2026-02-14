@@ -233,7 +233,6 @@ def _patch_cache_artifact_factory():
 _patch_cache_artifact_factory()
 
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifecycle (startup and shutdown)."""
@@ -734,9 +733,19 @@ async def load_classifier(
 # ============================================================================
 
 # Safe audio file extensions (whitelist for security)
-SAFE_AUDIO_EXTENSIONS = frozenset({
-    ".wav", ".mp3", ".m4a", ".webm", ".flac", ".ogg", ".mp4", ".opus", ".pcm",
-})
+SAFE_AUDIO_EXTENSIONS = frozenset(
+    {
+        ".wav",
+        ".mp3",
+        ".m4a",
+        ".webm",
+        ".flac",
+        ".ogg",
+        ".mp4",
+        ".opus",
+        ".pcm",
+    }
+)
 
 # Silence detection threshold for decoded Opus audio (higher due to noise floor)
 SILENCE_THRESHOLD_OPUS = 0.03
@@ -831,7 +840,11 @@ async def load_tts(
 
     if voice_profiles:
         profiles = {
-            name: VoiceProfile(name=name, audio_path=cfg["audio_path"], description=cfg.get("description", ""))
+            name: VoiceProfile(
+                name=name,
+                audio_path=cfg["audio_path"],
+                description=cfg.get("description", ""),
+            )
             for name, cfg in voice_profiles.items()
         }
         # Get the path for the selected voice for cache key
