@@ -1,7 +1,7 @@
 """Tests for context_calculator module."""
 
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -42,16 +42,30 @@ class TestGetAvailableMemory:
     """Tests for get_available_memory function."""
 
     @patch("utils.context_calculator.torch.cuda.is_available")
-    @patch("utils.context_calculator.torch.cuda.get_device_properties")
-    def test_cuda_memory_detection(self, mock_props, mock_available):
-        """Test CUDA memory detection."""
+    @patch("utils.context_calculator.torch.cuda.mem_get_info")
+    def test_cuda_memory_detection(self, mock_mem_info, mock_available):
+        """Test CUDA memory detection returns free memory."""
         mock_available.return_value = True
-        mock_device = MagicMock()
-        mock_device.total_memory = 8 * 1024**3  # 8GB
-        mock_props.return_value = mock_device
+        free = 6 * 1024**3  # 6GB free
+        total = 8 * 1024**3  # 8GB total
+        mock_mem_info.return_value = (free, total)
 
         memory = get_available_memory("cuda")
-        assert memory == 8 * 1024**3
+        assert memory == free
+        mock_mem_info.assert_called_once_with(0)
+
+    @patch("utils.context_calculator.torch.cuda.is_available")
+    @patch("utils.context_calculator.torch.cuda.mem_get_info")
+    def test_cuda_memory_detection_with_gpu_index(self, mock_mem_info, mock_available):
+        """Test CUDA memory detection with explicit GPU index."""
+        mock_available.return_value = True
+        free = 20 * 1024**3  # 20GB free
+        total = 24 * 1024**3  # 24GB total
+        mock_mem_info.return_value = (free, total)
+
+        memory = get_available_memory("cuda", gpu_index=1)
+        assert memory == free
+        mock_mem_info.assert_called_once_with(1)
 
     @patch("utils.context_calculator.psutil.virtual_memory")
     def test_cpu_memory_detection(self, mock_vm):
@@ -131,8 +145,13 @@ class TestComputeMaxContext:
         memory_factor = 0.8
 
         max_ctx = compute_max_context(
-            model_size, available, memory_factor,
-            n_layer=36, n_head_kv=8, head_k_size=128, head_v_size=128,
+            model_size,
+            available,
+            memory_factor,
+            n_layer=36,
+            n_head_kv=8,
+            head_k_size=128,
+            head_v_size=128,
         )
 
         # With accurate KV estimation, 40960 should NOT fit.
