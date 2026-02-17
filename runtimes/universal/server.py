@@ -91,9 +91,14 @@ from routers.vision import (
     router as vision_router,
 )
 from routers.vision import (
+    set_classification_loader,
+    set_detection_loader,
     set_document_loader,
     set_file_image_getter,
+    set_model_export_loader,
     set_ocr_loader,
+    set_streaming_detection_loader,
+    set_vision_models_dir,
 )
 from utils.device import get_device_info, get_optimal_device
 from utils.feature_encoder import FeatureEncoder
@@ -101,6 +106,7 @@ from utils.file_handler import get_file_images
 from utils.model_cache import ModelCache
 from utils.model_format import detect_model_format
 from utils.safe_home import get_data_dir
+from vision_training.trainer import set_trainer_model_loader
 
 # Conditional import for timeseries addon (requires darts package)
 _HAS_TIMESERIES = importlib.util.find_spec("darts") is not None
@@ -742,6 +748,48 @@ async def load_ocr(backend: str = "surya", languages: list[str] | None = None):
 
 
 # ============================================================================
+# Vision Model Loading (Detection / Classification)
+# ============================================================================
+
+VISION_MODELS_DIR = _LF_DATA_DIR / "models" / "vision"
+
+
+async def load_detection_model(model_id: str = "yolov8n"):
+    """Load a YOLO detection model."""
+    cache_key = f"vision:detect:{model_id}"
+    if cache_key not in _models:
+        async with _model_load_lock:
+            if cache_key not in _models:
+                from models.yolo_model import YOLOModel
+                device = get_device()
+                # Check for custom model in vision models dir
+                from pathlib import Path as _Path
+                safe_id = _Path(model_id).name
+                if safe_id != model_id:
+                    raise ValueError(f"Invalid model_id: {model_id}")
+                custom_path = VISION_MODELS_DIR / safe_id / "current.pt"
+                mid = str(custom_path) if custom_path.exists() else model_id
+                model = YOLOModel(model_id=mid, device=device)
+                await model.load()
+                _models[cache_key] = model
+    return _models[cache_key]
+
+
+async def load_classification_model(model_id: str = "clip-vit-base"):
+    """Load a CLIP classification model."""
+    cache_key = f"vision:classify:{model_id}"
+    if cache_key not in _models:
+        async with _model_load_lock:
+            if cache_key not in _models:
+                from models.clip_model import CLIPModel
+                device = get_device()
+                model = CLIPModel(model_id=model_id, device=device)
+                await model.load()
+                _models[cache_key] = model
+    return _models[cache_key]
+
+
+# ============================================================================
 # Anomaly Model Loading
 # ============================================================================
 
@@ -1142,6 +1190,14 @@ set_encoder_loader(load_encoder)
 set_ocr_loader(load_ocr)
 set_document_loader(load_document)
 set_file_image_getter(get_file_images)
+set_detection_loader(load_detection_model)
+set_classification_loader(load_classification_model)
+set_streaming_detection_loader(load_detection_model)
+set_vision_models_dir(VISION_MODELS_DIR)
+set_model_export_loader(load_detection_model)
+
+# Vision training
+set_trainer_model_loader(load_detection_model)
 
 # Anomaly router
 set_anomaly_loader(load_anomaly)
