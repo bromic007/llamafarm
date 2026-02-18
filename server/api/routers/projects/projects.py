@@ -472,6 +472,8 @@ async def chat(
     """Send a message to the chat agent"""
     project_dir = ProjectService.get_project_dir(namespace, project_id)
     project_config = ProjectService.load_config(namespace, project_id)
+    schema_ref = getattr(project_config, "schema_", None)
+    schema_enabled = bool(schema_ref)
 
     # Parse active project from header (format: "namespace/project")
     active_project_namespace = None
@@ -572,6 +574,11 @@ async def chat(
         ) from e
 
     if request.stream:
+        if schema_enabled:
+            raise HTTPException(
+                status_code=400,
+                detail="Streaming is not supported when schema is configured.",
+            )
         return create_streaming_response_from_iterator(
             request,
             project_chat_service.stream_chat(
@@ -779,7 +786,7 @@ def _process_group_children(
             try:
                 result_data = child.result
                 # Handle tuple/list format: (success, details)
-                if isinstance(result_data, (list, tuple)) and len(result_data) >= 2:
+                if isinstance(result_data, list | tuple) and len(result_data) >= 2:
                     _success, details = result_data[0], result_data[1]
                     if isinstance(details, dict):
                         file_status["filename"] = details.get("filename", filename)
@@ -967,7 +974,7 @@ async def get_task(namespace: str, project_id: str, task_id: str):
                             result_data = child.result
                             # Inject file_hash into the result for frontend consumption
                             if (
-                                isinstance(result_data, (list, tuple))
+                                isinstance(result_data, list | tuple)
                                 and len(result_data) >= 2
                             ):
                                 # Format: [success, details] - inject hash into details
@@ -1008,7 +1015,7 @@ async def get_task(namespace: str, project_id: str, task_id: str):
 
                 for result in results:
                     # Handle multiple result formats
-                    if isinstance(result, (list, tuple)) and len(result) >= 2:
+                    if isinstance(result, list | tuple) and len(result) >= 2:
                         # New format: [success, info]
                         success, info = result[0], result[1]
                     elif isinstance(result, dict):
@@ -1110,7 +1117,7 @@ async def get_task(namespace: str, project_id: str, task_id: str):
                             result_data = child.result
                             # Inject file_hash into the result for frontend consumption
                             if (
-                                isinstance(result_data, (list, tuple))
+                                isinstance(result_data, list | tuple)
                                 and len(result_data) >= 2
                             ):
                                 # Format: [success, details] - inject hash into details
@@ -1243,7 +1250,7 @@ async def get_task(namespace: str, project_id: str, task_id: str):
             pass
 
     if res.info:
-        if isinstance(res.info, (dict, list, str, int, float, bool, type(None))):
+        if isinstance(res.info, dict | list | str | int | float | bool | type(None)):
             response.meta = res.info
         else:
             response.meta = {"message": str(res.info)}
